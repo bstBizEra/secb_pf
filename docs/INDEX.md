@@ -21,8 +21,8 @@ Last Updated: 2026-08-09
 | `12-decisions/` | ADRs and formal decisions | Lifecycle + DWRC decisions |
 | `13-evidence/` | Evidence and traceability | Evidence Package + Work Package Records |
 | `14-plans/` | Roadmaps, work packages and certification | Lifecycle + DWRC + Skill Router backlogs |
-| `15-runbooks/` | Operational and recovery procedures | Runbook Index |
-| `16-templates/` | Controlled document templates | Template Catalogue |
+| `15-runbooks/` | Operational and recovery procedures | New Project Bootstrap — how a new BST project starts from this framework (`SECB-WP-FWK-017`) |
+| `16-templates/` | Controlled document templates | Product Definition · Work Package · Stage-Gate Record · RAID Register (`SECB-WP-FWK-007`, `017`) |
 | `17-references/` | External standards and references | Reference Register — opens with the stage-1 gate instruments research (`SECB-WP-FWK-015`) |
 | `agents/` | Agent definitions and handoffs | Agentic Engineer Team |
 | `skills/` | Skill catalog, validation and tools | Versioned Skill Registry |
