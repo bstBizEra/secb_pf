@@ -14,7 +14,7 @@ Last Updated: 2026-08-09
 | `05-security/` | Threats, controls, privacy and testing | Engineer Loop Threat Model |
 | `06-agent-orchestration/` | Engineer/Learn loops, durable lifecycle and skill routing | Core + Specification + Git + Durable Workflow + Skill Router |
 | `07-skill-engineering/` | Skill Factory, registry, lifecycle and evaluation | Skill Factory + Registry Contract |
-| `08-workflows/` | State machines and workflows | Delivery Lifecycle — 12 delivery + 2 post-production steps, `PRD_APPROVED → STABILIZED` (`SECB-WP-FWK-013`) |
+| `08-workflows/` | State machines and workflows | Delivery Lifecycle + Stage Definitions — 12 delivery + 2 post-production stages, `PRD_BASELINED → CLOSED_TO_BAU` (`SECB-WP-FWK-013`) |
 | `09-testing/` | Test, recovery and failure injection | Core + Lifecycle + DWRC + FIT-101–120 |
 | `10-devops/` | CI/CD, trusted build and release controls | Trusted Git Pipeline |
 | `11-operations/` | SLOs, monitoring, incident and continuity | Performance Indicators |
