@@ -73,7 +73,10 @@ bidirectional traceability · review for ambiguity, conflicts and gaps.
 stories with acceptance criteria · NFR catalogue · business rules catalogue ·
 data requirements · integration requirements · Requirements Traceability
 Matrix · dependency map · prioritization record · open-question and decision
-register.
+register · **Bootstrap Story Definition of
+Ready v0.1**, for assessing priority-one items before entry to Architecture
+Design (`SECB-WP-FWK-019-A`; see `SPECIFICATION_CONFLICT_PROTOCOL.md` for why
+the DoR is split across two stages).
 
 **Requirement quality standard.** Every requirement is necessary,
 unambiguous, feasible, testable, traceable, prioritized, owned, and version
@@ -82,9 +85,9 @@ controlled.
 **Exit gate passes when.** Every approved PRD objective maps to one or more
 requirements · every requirement has an owner and acceptance method · critical
 business rules are documented · NFRs carry measurable targets · dependencies
-and external interfaces are identified · priority-one stories meet the
-Definition of Ready · material requirement conflicts are resolved or formally
-accepted.
+and external interfaces are identified · priority-one stories satisfy the
+**Bootstrap Story DoR v0.1** and remaining unresolved items are not at Blocker
+level · material requirement conflicts are resolved or formally accepted.
 
 **Accountability.** Accountable: Product Owner · Responsible: Business
 Analyst/Requirements Engineer · Consulted: Architecture, Engineering, QA,
@@ -230,14 +233,19 @@ implementation authorization.
 release roadmap · sprint or iteration plan · resource and responsibility
 plan · cost and budget estimate · test strategy · environment plan · CI/CD
 design · migration and cutover plan · release and rollback strategy ·
-Definition of Ready · Definition of Done · updated RAID register ·
+**Implementation Definition of Ready v1.0**, which extends the Bootstrap Story
+DoR with architecture, security, testing, dependency, environment, deployment
+and rollback readiness · Definition of Done · updated RAID register ·
 implementation authorization record.
 
 **Exit gate passes when.** Work packages are sized, prioritized and owned ·
 environments and access controls are ready · test and security activities are
 funded and scheduled · dependencies have owners and target dates · rollback
 and recovery approaches are feasible · budget and capacity are approved · the
-authorized body approves development commencement.
+authorized body approves development commencement · **every work package bound
+for Development satisfies the Implementation DoR v1.0 with complete
+traceability**. Work packages that passed only the Bootstrap Story DoR must be
+revalidated against v1.0 — the two certify different transitions.
 
 **Accountability.** Accountable: Delivery Manager · Responsible: Engineering
 Manager and Product Owner · Consulted: Architecture, QA, Security, DevOps,
