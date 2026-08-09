@@ -36,7 +36,7 @@ convinces itself it is further along than it is.
 | O3 | `FR-19` Defect attribution | — | — **not implemented** | — | — |
 | O4 | `FR-07` Stage records with §3 fields | `DELIVERY_LIFECYCLE.md` §3 | — | `STAGE_GATE_PRD_BASELINED.md` | — |
 | O4 | `FR-08` Unbroken chain, breaks recorded | §1 chain | — | This document; exception I-01 | — |
-| O4 | `FR-12` Instantiable by procedure | `NEW_PROJECT_BOOTSTRAP.md` | — | **none — unverifiable here** | — |
+| O4 | `FR-12` Instantiable by procedure | `NEW_PROJECT_BOOTSTRAP.md` | — | **none — unverifiable here.** Fails Bootstrap DoR criterion 3; carried as a named gap, not waived | — |
 | O5 | `FR-13` Knowledge cannot self-promote | `KNOWLEDGE_LAYER.md`, `LEARN_LOOP.md` | — | `KNOWLEDGE_REGISTER.md`, 5 objects `Proposed` | — |
 | O6 | `FR-16` Deterministic minimum-sufficient routing | `SKILL_ROUTER*.md`, 7 schemas | `src/secb_router/router.py` v1.5.1 | FIT-101–120, 20/20, replayed | — |
 | K-10 | `FR-20` Cost recordable | OTel GenAI conventions | — **not implemented** | — | — |
@@ -69,6 +69,7 @@ requirement. No orphaned code exists.
 | `TX-01` | `FR-12` has no verification and cannot acquire one in this repository | Accepted. Verifiable only by instantiating project #2 |
 | `TX-02` | `FR-17` (authority ladder) has no test asserting its promotion conditions | **New, found by building this matrix.** The ladder is config the classifier reads for tier but never evaluates for advancement. Candidate requirement for stage 3 |
 | `TX-03` | `FR-19` and `FR-20` are adopted methods with no implementation | Tracked as stage-1 condition C-3, due before stage 6 |
+| `TX-04` | Stage 2's exit gate consumes a Definition of Ready that the specification places at stage 6 — a circular stage dependency | **Bridged.** `BOOTSTRAP_STORY_DOR.md` v0.1 in force under `CONFLICT-FWK-019.md`; status `RESOLVED_BY_SPEC_OWNER`; canonical amendment tracked as `SECB-WP-FWK-019-A`. Closes when that merges |
 
 `TX-02` is the matrix earning its keep: writing the reverse trace surfaced that
 the ladder's advance conditions are documented, read for the current tier, and
