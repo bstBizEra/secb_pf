@@ -1,0 +1,34 @@
+# Python runtime artifacts — never evidence, never committed.
+# The skill-router sandbox lives under docs/, so pytest writes its cache
+# inside an evidence directory unless it is ignored here.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+*.egg-info/
+
+# Secrets — AGENTS.md §4: never expose credentials, secrets, or personal data.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
+secrets.*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*~

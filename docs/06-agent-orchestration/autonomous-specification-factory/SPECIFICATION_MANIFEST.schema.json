@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secb.example/schemas/specification-manifest-1.0.0.json",
+  "title": "SecB Specification Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "specification_id",
+    "version",
+    "work_package_id",
+    "status",
+    "risk_tier",
+    "owner",
+    "requirements",
+    "rtm",
+    "reviews",
+    "baseline",
+    "authority"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "specification_id": { "type": "string", "pattern": "^SECB-SPEC-[A-Z0-9-]+$" },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "work_package_id": { "type": "string", "pattern": "^SECB-WP-[A-Z0-9-]+$" },
+    "status": {
+      "enum": ["DRAFTING", "REVIEWING", "REVISING", "APPROVED", "FROZEN", "BUILD_READY", "WARRANTED", "SUPERSEDED"]
+    },
+    "risk_tier": { "enum": ["R0", "R1", "R2", "R3", "R4"] },
+    "owner": { "type": "string", "minLength": 1 },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "statement", "owner", "acceptance_criteria"],
+        "properties": {
+          "id": { "type": "string" },
+          "statement": { "type": "string" },
+          "owner": { "type": "string" },
+          "acceptance_criteria": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "rtm": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["requirement_id", "verification_refs"],
+        "properties": {
+          "requirement_id": { "type": "string" },
+          "verification_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "reviews": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain", "result", "reviewer"],
+        "properties": {
+          "domain": { "type": "string" },
+          "result": { "enum": ["PASS", "PASS_WITH_CONDITIONS", "HOLD", "REJECT"] },
+          "reviewer": { "type": "string" }
+        }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "required": ["manifest_sha256"],
+      "properties": {
+        "manifest_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "required": ["authority_id", "expires_at"],
+      "properties": {
+        "authority_id": { "type": "string" },
+        "expires_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

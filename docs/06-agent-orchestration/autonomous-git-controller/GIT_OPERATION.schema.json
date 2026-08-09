@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secb.example/schemas/git-operation-1.0.0.json",
+  "title": "SecB Governed Git Operation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "operation_id", "idempotency_key", "work_package_id", "repository_id", "action", "actor", "authority_id", "expected_state_version", "expected_head_sha", "requested_at"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "operation_id": {"type": "string", "minLength": 8},
+    "idempotency_key": {"type": "string", "minLength": 8},
+    "work_package_id": {"type": "string", "pattern": "^SECB-WP-[A-Z0-9-]+$"},
+    "repository_id": {"type": "string", "minLength": 1},
+    "action": {"enum": ["FETCH", "CREATE_BRANCH", "COMMIT", "PUSH", "OPEN_PR", "UPDATE_PR", "MERGE", "TAG", "BUILD", "DEPLOY", "REVERT", "ROLLBACK", "CLEANUP"]},
+    "actor": {"type": "string", "minLength": 1},
+    "authority_id": {"type": "string", "minLength": 1},
+    "expected_state_version": {"type": "integer", "minimum": 0},
+    "expected_base_sha": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40,64}$"},
+    "expected_head_sha": {"type": "string", "pattern": "^[a-f0-9]{40,64}$"},
+    "branch": {"type": ["string", "null"]},
+    "pr_id": {"type": ["string", "null"]},
+    "warrant_id": {"type": ["string", "null"]},
+    "requested_at": {"type": "string", "format": "date-time"},
+    "timeout_seconds": {"type": "integer", "minimum": 1},
+    "retry_limit": {"type": "integer", "minimum": 0, "maximum": 3},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}}
+  }
+}

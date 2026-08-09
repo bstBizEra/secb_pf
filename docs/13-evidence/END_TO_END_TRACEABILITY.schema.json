@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secb.example/schemas/end-to-end-traceability-1.0.0.json",
+  "title": "SecB End-to-End Traceability Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "episode_id", "work_package_id", "nodes", "edges", "root_sha256", "sealed_at", "sealed_by"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "episode_id": {"type": "string", "minLength": 1},
+    "work_package_id": {"type": "string", "pattern": "^SECB-WP-[A-Z0-9-]+$"},
+    "nodes": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["id", "type", "sha256", "producer", "timestamp"], "properties": {"id": {"type": "string"}, "type": {"enum": ["TICKET", "SPECIFICATION", "BASELINE", "CERTIFICATE", "WARRANT", "REPOSITORY", "BRANCH", "COMMIT", "PR", "CHECK", "REVIEW", "TAG", "ARTIFACT", "SBOM", "PROVENANCE", "DEPLOYMENT", "OBSERVATION", "ROLLBACK", "LEARNING"]}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "producer": {"type": "string"}, "timestamp": {"type": "string", "format": "date-time"}}}},
+    "edges": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["from", "to", "relationship"], "properties": {"from": {"type": "string"}, "to": {"type": "string"}, "relationship": {"enum": ["DERIVED_FROM", "IMPLEMENTS", "VERIFIES", "APPROVES", "AUTHORIZES", "BUILT_FROM", "DEPLOYED_AS", "ROLLED_BACK_TO", "SUPERSEDES"]}}}},
+    "root_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "sealed_at": {"type": "string", "format": "date-time"},
+    "sealed_by": {"type": "string", "minLength": 1}
+  }
+}

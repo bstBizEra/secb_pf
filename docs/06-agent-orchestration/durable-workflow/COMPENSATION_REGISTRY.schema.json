@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secb.example/schemas/dwrc/compensation-registry-v1.json",
+  "title": "SecB Compensation Registry Entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["compensation_type", "version", "applies_to_effect", "trigger_policy", "preconditions", "handler", "timeout_seconds", "retry", "postconditions", "evidence", "fallback"],
+  "properties": {
+    "compensation_type": {"type": "string", "minLength": 3},
+    "version": {"type": "integer", "minimum": 1},
+    "applies_to_effect": {"type": "string", "minLength": 3},
+    "trigger_policy": {"type": "object", "minProperties": 1},
+    "preconditions": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "handler": {"type": "string", "minLength": 3},
+    "timeout_seconds": {"type": "integer", "minimum": 1},
+    "retry": {
+      "type": "object",
+      "required": ["maximum_attempts", "backoff"],
+      "properties": {
+        "maximum_attempts": {"type": "integer", "minimum": 0},
+        "backoff": {"enum": ["none", "fixed", "exponential"]}
+      }
+    },
+    "postconditions": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "fallback": {"const": "MANUAL_REMEDIATION"}
+  }
+}

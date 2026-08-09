@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secb.example/schemas/dwrc/effect-request-v1.json",
+  "title": "SecB Governed Side-Effect Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["effect_id", "effect_type", "idempotency_key", "target", "mutation", "authority_warrant_id", "risk_tier", "data_classification", "timeout_seconds", "retry", "reconciliation", "receipt_schema", "compensation", "evidence_requirements"],
+  "properties": {
+    "effect_id": {"type": "string", "minLength": 8},
+    "effect_type": {"type": "string", "minLength": 3},
+    "idempotency_key": {"type": "string", "minLength": 8},
+    "target": {
+      "type": "object",
+      "required": ["provider", "resource_type", "resource_id"],
+      "properties": {
+        "provider": {"type": "string"},
+        "resource_type": {"type": "string"},
+        "resource_id": {"type": "string"},
+        "expected_version": {"type": ["string", "null"]}
+      }
+    },
+    "mutation": {"type": "object"},
+    "authority_warrant_id": {"type": "string", "minLength": 1},
+    "risk_tier": {"enum": ["R0", "R1", "R2", "R3", "R4"]},
+    "data_classification": {"enum": ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"]},
+    "timeout_seconds": {"type": "integer", "minimum": 1},
+    "retry": {
+      "type": "object",
+      "required": ["maximum_attempts", "backoff"],
+      "properties": {
+        "maximum_attempts": {"type": "integer", "minimum": 0},
+        "backoff": {"enum": ["none", "fixed", "exponential"]}
+      }
+    },
+    "reconciliation": {
+      "type": "object",
+      "required": ["query", "success_match", "absence_proof"],
+      "properties": {
+        "query": {"type": "string", "minLength": 1},
+        "success_match": {"type": "string", "minLength": 1},
+        "absence_proof": {"type": "string", "minLength": 1}
+      }
+    },
+    "receipt_schema": {"type": "string", "minLength": 1},
+    "compensation": {
+      "type": "object",
+      "required": ["type", "handler_version", "deadline", "authorization_mode"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "handler_version": {"type": "string", "minLength": 1},
+        "deadline": {"type": "string", "format": "date-time"},
+        "authorization_mode": {"enum": ["preauthorized", "new_warrant", "manual_only"]}
+      }
+    },
+    "evidence_requirements": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+  }
+}

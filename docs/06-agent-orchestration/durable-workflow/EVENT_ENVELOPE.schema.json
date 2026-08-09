@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secb.example/schemas/dwrc/event-envelope-v1.json",
+  "title": "SecB Durable Workflow Event Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "workflow_id", "run_id", "sequence", "event_type", "event_version", "occurred_at", "recorded_at", "tenant_id", "project_id", "ticket_id", "work_package_id", "causation_id", "correlation_id", "actor", "authority", "payload_hash", "previous_event_hash", "event_hash", "classification", "retention_class"],
+  "properties": {
+    "event_id": {"type": "string", "minLength": 8},
+    "workflow_id": {"type": "string", "minLength": 8},
+    "run_id": {"type": "string", "minLength": 8},
+    "sequence": {"type": "integer", "minimum": 0},
+    "event_type": {"type": "string", "minLength": 3},
+    "event_version": {"type": "integer", "minimum": 1},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "ticket_id": {"type": "string", "minLength": 1},
+    "work_package_id": {"type": "string", "minLength": 1},
+    "step_id": {"type": ["string", "null"]},
+    "causation_id": {"type": "string", "minLength": 1},
+    "correlation_id": {"type": "string", "minLength": 1},
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "runtime_instance"],
+      "properties": {
+        "type": {"enum": ["human", "agent", "service", "controller"]},
+        "id": {"type": "string", "minLength": 1},
+        "runtime_instance": {"type": "string", "minLength": 1}
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["warrant_id", "warrant_hash", "policy_bundle_hash"],
+      "properties": {
+        "warrant_id": {"type": "string", "minLength": 1},
+        "warrant_hash": {"$ref": "#/$defs/sha256"},
+        "policy_bundle_hash": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "payload_ref": {"type": ["string", "null"]},
+    "payload_hash": {"$ref": "#/$defs/sha256"},
+    "previous_event_hash": {"$ref": "#/$defs/sha256"},
+    "event_hash": {"$ref": "#/$defs/sha256"},
+    "classification": {"enum": ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"]},
+    "retention_class": {"type": "string", "minLength": 1}
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^sha256:[a-fA-F0-9]{64}$"}}
+}
