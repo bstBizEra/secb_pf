@@ -11,7 +11,8 @@ empty one, because it looks complete and a later reader trusts it.
 | Role | Party | Interest | Influence | Engagement |
 |---|---|---|---|---|
 | Product Sponsor | Operator (vily) | Delegating engineering to agents without losing control | Decisive — holds constitutional authority (`L0_ROOT_CONSTITUTION.md`) | Continuous; approves every gate to date |
-| Product Owner | `TBC-OPERATOR` — may be the same party as sponsor | Scope, priorities, acceptance | High | — |
+| Business Owner | **Operator (vily)** — confirmed 2026-08-10 | Business value, acceptance | Decisive | Continuous |
+| Product Owner | **Operator (vily)** — confirmed 2026-08-10; same party as sponsor | Scope, priorities, acceptance | High | Continuous |
 | Governance owner | **Unassigned** — open placeholder since import (`AGENTS.md` §13) | Authority, policy, SoD, gate integrity | High | Blocking: several gate authorities name a body that does not exist |
 | Executor (agent) | Claude (IDE session) | Correct, bounded execution | Operational only — creates no authority | Per work package |
 | Prior executor | Codex sandbox agent | Author of the certified MVP slice | Historical | Not active in this repository |
@@ -24,14 +25,16 @@ empty one, because it looks complete and a later reader trusts it.
 
 ## Consequence for the stage-1 gate
 
-Seven of eleven roles are unassigned or `TBC-OPERATOR`. Stage 1's exit
-condition requires only that **business owner and product owner** be
-identified, so those two must be confirmed for the gate to pass; the rest
-become blocking at their own stages, and their absence is recorded in
-`RAID_REGISTER.md` rather than discovered later.
+Business owner and product owner are **confirmed** (both the operator), which
+satisfied stage 1's exit condition. Six roles remain unassigned and each becomes
+blocking at its own stage; their absence is recorded in `RAID_REGISTER.md`
+rather than discovered later.
 
-Notably, several gate authorities named in `DELIVERY_LIFECYCLE_STAGES.md`
-(Architecture Review Board, Security and Compliance Review Board, Change
-Advisory Board) have no members. For a single-operator deployment these
-collapse onto the operator, and that collapse should be stated explicitly
-rather than left as an implied equivalence.
+Several gate authorities named in `DELIVERY_LIFECYCLE_STAGES.md` (Architecture
+Review Board, Security and Compliance Review Board, Change Advisory Board,
+Business Acceptance Committee, Product Steering Committee) have no members and
+collapse onto the operator. That collapse is now an **accepted risk with named
+compensating controls and a review date** —
+`docs/00-governance/SINGLE_IDENTITY_SOD_ACCEPTED_RISK.md` — valid for stages
+1–8. **Stage 9 remains blocked**: its independence requirement cannot be met by
+one identity.
