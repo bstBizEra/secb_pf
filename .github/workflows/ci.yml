@@ -1,12 +1,13 @@
 # SecB CI — the executable control gates.
 #
 # CONTROL_GATES.md defines ten gates as prose. This workflow makes three
-# of them mechanically fail-able:
+# of them mechanically fail-able, and reports a fourth signal:
 #
-#   test-gate      (gate 5, Test)      — FIT-101..120 + repo tests must pass
-#   authority-gate (gate 1, Authority) — every PR must cite a SECB-WP-* ID
-#   budget-gate    (AGENTS.md §6/§7)   — every PR must declare a diff budget
-#                                        and stay inside it
+#   test-gate           (gate 5, Test)      — FIT-101..120 + repo tests
+#   authority-gate      (gate 1, Authority) — every PR cites a SECB-WP-* ID
+#   budget-gate         (AGENTS.md §6/§7)   — declared diff budget honoured
+#   governance-verdict  (L0 constitution)   — advisory: authority-delta class
+#                                             plus dual-policy evaluation
 #
 # CI is a signal, not a hard gate: nothing here blocks a push to main by
 # itself. A red run is the evidence a reviewer or human merge decision
@@ -90,3 +91,68 @@ jobs:
         run: >
           git diff --numstat "$BASE_SHA...$HEAD_SHA"
           | python scripts/check_budget.py
+
+  governance-verdict:
+    name: "Governance verdict (advisory)"
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # Advisory: this job reports the authority-delta class of the PR and
+    # whether the ratified delegation envelope covers it. It must never block
+    # — CONSTITUTIONAL_REQUIRED is the expected verdict for a large share of
+    # pull requests, and a job that presents an expected verdict as a broken
+    # build trains people to ignore it. The step therefore captures the exit
+    # code, records the verdict in the job summary, and exits 0.
+    #
+    # NOTE ON TRUST: this verifier runs inside the repository it judges, so a
+    # PR could in principle edit it. That is precisely why any change under
+    # .github/ classifies as G4 (CONSTITUTIONAL_REQUIRED) — the only
+    # compensating control available without an organization-level ruleset.
+    # See docs/14-plans/GOVERNANCE_DEFERRED_CAPABILITIES.md.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Classify authority delta, and evaluate under both policies
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff --numstat "$BASE_SHA...$HEAD_SHA" > /tmp/pr.numstat
+          git diff "$BASE_SHA...$HEAD_SHA" > /tmp/pr.diff
+          set +e
+          single=$(DIFF_TEXT="$(cat /tmp/pr.diff)" \
+            python scripts/classify_authority_delta.py < /tmp/pr.numstat 2>&1)
+          single_code=$?
+          dual=$(BASE_REF="$BASE_SHA" \
+            python scripts/check_dual_policy.py < /tmp/pr.numstat 2>&1)
+          dual_code=$?
+          set -e
+          echo "$single"
+          echo "$dual"
+          {
+            echo "### Governance verdict"
+            echo ""
+            echo '```'
+            echo "$single"
+            echo '```'
+            echo ""
+            echo "### Dual-policy evaluation"
+            echo ""
+            echo '```'
+            echo "$dual"
+            echo '```'
+            echo ""
+            if [ "$single_code" -eq 0 ] && [ "$dual_code" -eq 0 ]; then
+              echo "The ratified delegation envelope covers this change; all gates must still be green."
+            elif [ "$single_code" -eq 3 ] || [ "$dual_code" -eq 3 ]; then
+              echo "**REJECTED** — prohibited under \`docs/00-governance/L0_ROOT_CONSTITUTION.md\`. Withdraw the change."
+            else
+              echo "**Escalation required.** Normal for governance, constitutional, oversized, or judgement-altering changes."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0

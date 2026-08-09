@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secb.local/schemas/ballot.schema.json",
+  "title": "Agent Ballot",
+  "description": "A signed attestation bound to an exact commit and evidence root. INSTALLED BUT INERT: config/delegation_envelope.json sets ballot_layer.state = NOT_ACTIVE because five independent agents with separately enforced service identities do not exist in this deployment. No code enforces quorum. A ballot emitted today is evidence of reasoning, never authorization — one session producing five role-labelled ballots is self-approval in five hats, and role labels are self-asserted text. The schema exists so that the day distinct identities exist, the evidence format does not have to be invented under pressure.",
+  "type": "object",
+  "required": ["ballot"],
+  "additionalProperties": false,
+  "properties": {
+    "ballot": {
+      "type": "object",
+      "required": [
+        "ballot_id", "subject_commit", "current_policy_digest",
+        "proposed_policy_digest", "evidence_root", "role", "decision",
+        "authority_delta", "expires_at", "signer_identity", "signature"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ballot_id": {
+          "type": "string",
+          "pattern": "^BAL-[A-Z0-9]+-[0-9]{4}-[0-9]{3}$"
+        },
+        "subject_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "Exact commit SHA. A new push changes this value and invalidates every ballot bound to the old one."
+        },
+        "current_policy_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "proposed_policy_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "evidence_root": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Merkle root over the evidence pack. Evidence expires with the commit."
+        },
+        "role": {
+          "enum": ["architecture", "governance", "security", "qa", "operations"]
+        },
+        "decision": { "enum": ["APPROVE", "REJECT", "ABSTAIN", "VETO"] },
+        "authority_delta": {
+          "enum": ["WITHIN_ENVELOPE", "LADDER_ADVANCE", "EXPANDS_ROOT_AUTHORITY", "PROHIBITED"]
+        },
+        "conditions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "signer_identity": {
+          "type": "string",
+          "description": "Workload identity of the signer (e.g. an OIDC subject). MUST differ from the proposer's identity; a ballot whose signer cannot be distinguished from the proposer is void."
+        },
+        "signature": { "type": "string" },
+        "independence_attestation": {
+          "type": "string",
+          "description": "Statement that this signer neither authored the change nor built its evidence."
+        }
+      }
+    }
+  }
+}
