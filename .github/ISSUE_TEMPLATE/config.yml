@@ -1,0 +1,4 @@
+# AGENTS.md section 4: No Ticket, No Work.
+# Blank issues are disabled so every ticket enters through the
+# work-package form and carries the section 7 minimum fields.
+blank_issues_enabled: false

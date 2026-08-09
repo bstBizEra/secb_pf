@@ -1,0 +1,91 @@
+# Work Package intake form — the ten minimum fields of AGENTS.md section 7,
+# rendered as a machine-readable GitHub issue form. An agent reading an
+# issue created from this template gets every field the Mandatory Agent
+# Loop step 1 (Intake) needs, in a deterministic order.
+name: Work Package
+description: "Authorized unit of work. AGENTS.md §4: No Ticket, No Work."
+title: "SECB-WP-XXX-000: <objective>"
+labels: ["work-package"]
+body:
+  - type: input
+    id: wp-id
+    attributes:
+      label: Ticket / Work Package ID
+      description: "Format: SECB-WP-<AREA>-<NNN>, uppercase."
+      placeholder: SECB-WP-FWK-003
+    validations:
+      required: true
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective and business value
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and exclusions
+      description: What is in scope, and explicitly what is not.
+    validations:
+      required: true
+
+  - type: textarea
+    id: raci
+    attributes:
+      label: Owner, executor, reviewer, and approver
+      description: Segregation of duties — implementer must not self-approve.
+      placeholder: |
+        Owner:
+        Executor:
+        Reviewer:
+        Approver (human):
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies-risks
+    attributes:
+      label: Dependencies and risks
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Verifiable statements. "Green" is defined here, before work starts.
+    validations:
+      required: true
+
+  - type: textarea
+    id: test-evidence
+    attributes:
+      label: Test and evidence plan
+      description: Which tests prove the criteria, and what evidence is recorded where.
+    validations:
+      required: true
+
+  - type: textarea
+    id: budget
+    attributes:
+      label: Budget and circuit-breaker limits
+      description: Token / time / retry / tool-call caps. Reaching a cap is a stop condition (AGENTS.md §6).
+    validations:
+      required: true
+
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback or recovery plan
+    validations:
+      required: true
+
+  - type: input
+    id: target-state
+    attributes:
+      label: Target state transition
+      placeholder: "CURRENT_STATE -> TARGET_STATE"
+    validations:
+      required: true

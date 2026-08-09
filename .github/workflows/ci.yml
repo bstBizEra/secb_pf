@@ -1,0 +1,66 @@
+# SecB CI — the first two executable control gates.
+#
+# CONTROL_GATES.md defines ten gates as prose. This workflow makes two of
+# them mechanically fail-able:
+#
+#   test-gate      (gate 5, Test)      — FIT-101..120 + repo tests must pass
+#   authority-gate (gate 1, Authority) — every PR must cite a SECB-WP-* ID
+#
+# CI is a signal, not a hard gate: nothing here blocks a push to main by
+# itself. A red run is the evidence a reviewer or human merge decision
+# must read before acting.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-gate:
+    name: "Gate 5 — Test"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pytest
+        run: python -m pip install --quiet pytest
+
+      # -p no:cacheprovider + PYTHONDONTWRITEBYTECODE keep pytest from
+      # writing cache artifacts into the sandbox-evidence directory, which
+      # must stay checksum-stable (EVIDENCE_RECORD.md).
+      - name: Run FIT-101..120 (skill-router sandbox) and repo tests
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: >
+          python -m pytest -p no:cacheprovider -q
+          "docs/06-agent-orchestration/skill-router/SECB-WP-ENGLOOP-MVP-001 — Sandbox Evidence/test_router.py"
+          tests/
+
+  authority-gate:
+    name: "Gate 1 — Authority (No Ticket, No Work)"
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # PR title/body are attacker-controlled text; they enter through the
+      # environment, never through shell interpolation.
+      - name: Require a SECB-WP-* work-package reference
+        env:
+          WP_TEXT: |
+            ${{ github.event.pull_request.title }}
+            ${{ github.event.pull_request.body }}
+        run: python scripts/check_work_package_ref.py
