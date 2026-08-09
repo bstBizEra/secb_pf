@@ -1,11 +1,23 @@
 # PRD — SecB Engineer Loop v1.5
 
-Status: Draft for operator review
-Work Package: `SECB-WP-FWK-008` (issue #12)
+Version: 0.9.0 — candidate for baseline, **not yet baselined**
+Status: Stage 1 in progress; gate `PRD_BASELINED` prepared and awaiting the
+authority's verdict (`docs/13-evidence/STAGE_GATE_PRD_BASELINED.md`)
+Work Package: `SECB-WP-FWK-008` (issue #12); baseline preparation `SECB-WP-FWK-014` (issue #24)
 Template: `docs/16-templates/PRODUCT_DEFINITION_TEMPLATE.md` (`SECB-WP-FWK-007`)
 Product selection authority: operator decision, session 2026-08-10
 Grounding sources: `docs/06-agent-orchestration/ENGINEER_LOOP.md` v1.5.0,
 `docs/11-operations/PERFORMANCE_INDICATORS.md`, loop records FWK-002…007
+
+## Change control
+
+| Item | Value |
+|---|---|
+| Baseline status | **Not baselined.** Version rises to `1.0.0` only when the gate authority issues `PRD_BASELINED` |
+| Change authority | Operator, as Product Sponsor |
+| Change process | After baseline, any change to scope, success metrics or acceptance criteria requires a new version and re-passing stage 1 (`DELIVERY_LIFECYCLE.md` §4) |
+| Approval record | `docs/13-evidence/STAGE_GATE_PRD_BASELINED.md` — currently `PREPARED_AWAITING_VERDICT` |
+| Stage-1 companions | `STAKEHOLDER_REGISTER.md` · `RAID_REGISTER.md` · `KPI_BASELINE.md` |
 
 ## 1. Product Identity
 

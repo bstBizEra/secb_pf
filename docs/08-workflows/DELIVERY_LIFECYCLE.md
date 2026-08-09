@@ -155,8 +155,8 @@ impression.
 
 | Item | Position | Evidence |
 |---|---|---|
-| SecB framework | **Stage 1 in progress** — PRD drafted, gate `PRD_BASELINED` **not** passed | `PRD-ENGINEER-LOOP.md` (`SECB-WP-FWK-008`, merged `2f26cca`) is marked *Draft for operator review*; no approval record, no versioned baseline, no stakeholder or RAID register |
-| Stage 2 | **Not started** — no RTM, no requirement catalogue | `docs/INDEX.md` records RTM as pending authorization |
+| SecB framework | **Stage 1 in progress** — artifacts prepared, gate `PRD_BASELINED` **awaiting the authority's verdict** | `PRD-ENGINEER-LOOP.md` v0.9.0 with a change-control block; `STAKEHOLDER_REGISTER.md`, `RAID_REGISTER.md`, `KPI_BASELINE.md` and the decision record `STAGE_GATE_PRD_BASELINED.md` (`SECB-WP-FWK-014`). Three of eight exit conditions remain unmet and cannot be met by an executor: product owner unnamed, PRD unversioned pending the verdict, no approval issued |
+| Stage 2 | **Not started** — no RTM, no requirement catalogue | `docs/INDEX.md` records RTM as pending authorization; blocked on stage 1 |
 | Stages 3–5 for the router | Design documentation exists; no recorded gate verdicts | `ENGINEER_LOOP.md` v1.5.0, `SECURITY_THREAT_MODEL.md` — but no `ARCHITECTURE_APPROVED`, `SOLUTION_DESIGN_APPROVED` or `SECURITY_DESIGN_APPROVED` decision record exists |
 | Stage 6 | **No `IMPLEMENTATION_AUTHORIZED` record** for the router; the FWK work packages authorize framework work only | issues #2–#22 |
 | Stage 7–8, router MVP slice | Code plus verified tests, sandbox-certified | `SANDBOX_TESTED` under `REV-SECB-ENGLOOP-MVP-001-20260810` (`SECB-WP-FWK-009`, `663984a`); router v1.5.1 (`SECB-WP-FWK-010`, `de31bb3`) |
