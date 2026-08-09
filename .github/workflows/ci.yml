@@ -90,3 +90,30 @@ jobs:
         run: >
           git diff --numstat "$BASE_SHA...$HEAD_SHA"
           | python scripts/check_budget.py
+
+  merge-autonomy:
+    name: "Merge autonomy verdict (advisory)"
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # Advisory by design: this job reports whether the standing R1
+    # authorization covers the PR. It must never block — a HUMAN_REQUIRED
+    # verdict is the normal answer for governance and enforcement changes,
+    # not a failure. `continue-on-error` keeps the verdict visible in the
+    # log while the check itself stays green.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Classify R1 merge eligibility
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: >
+          git diff --numstat "$BASE_SHA...$HEAD_SHA"
+          | python scripts/check_merge_autonomy.py
