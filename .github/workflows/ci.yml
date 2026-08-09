@@ -1,10 +1,12 @@
-# SecB CI — the first two executable control gates.
+# SecB CI — the executable control gates.
 #
-# CONTROL_GATES.md defines ten gates as prose. This workflow makes two of
-# them mechanically fail-able:
+# CONTROL_GATES.md defines ten gates as prose. This workflow makes three
+# of them mechanically fail-able:
 #
 #   test-gate      (gate 5, Test)      — FIT-101..120 + repo tests must pass
 #   authority-gate (gate 1, Authority) — every PR must cite a SECB-WP-* ID
+#   budget-gate    (AGENTS.md §6/§7)   — every PR must declare a diff budget
+#                                        and stay inside it
 #
 # CI is a signal, not a hard gate: nothing here blocks a push to main by
 # itself. A red run is the evidence a reviewer or human merge decision
@@ -64,3 +66,27 @@ jobs:
             ${{ github.event.pull_request.title }}
             ${{ github.event.pull_request.body }}
         run: python scripts/check_work_package_ref.py
+
+  budget-gate:
+    name: "Budget circuit breaker (AGENTS.md §6/§7)"
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      # Full history so both the PR base and head are present for the
+      # three-dot diff (merge-base to head = the PR's own changes).
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Enforce the declared diff budget
+        env:
+          BUDGET_TEXT: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: >
+          git diff --numstat "$BASE_SHA...$HEAD_SHA"
+          | python scripts/check_budget.py
