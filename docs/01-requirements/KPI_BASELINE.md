@@ -1,6 +1,6 @@
 # KPI Baseline — SecB Engineer Loop
 
-Status: Prepared for stage-1 gate (`SECB-WP-FWK-014`)
+Status: Baselined — stage 1 passed 2026-08-10 (`PRD_BASELINED`, `APPROVED_WITH_CONDITIONS`)
 Stage: 1, PRD Review and Baseline
 Source metrics: `PRD-ENGINEER-LOOP.md` §11 · Measurement rules:
 `PERFORMANCE_INDICATORS.md`
@@ -20,9 +20,9 @@ asked to measure it.
 | K-05 | Executable control gates | mechanized gates / 10 | `ci.yml` versus `CONTROL_GATES.md` | Per change to CI | 3/10 (Authority, Test, Budget) | 10/10 | A gate counts only once proven to fail on a real PR (`KN-001`) | Operator | **Yes** |
 | K-06 | Loop lead time, ticket to merge | `merged_at − issue.created_at`, median | GitHub timestamps | Per WP | Not computed | p50 < 1 hour | Speed must never be met by skipping evidence | Operator | **Formula ready, never computed** |
 | K-07 | Autonomous merges under the envelope | count, and rollback rate among them | Governance-verdict job + merge log | Per merge | 0 (envelope ratified 2026-08-10) | Ladder `A1` needs 30 with zero rollback | One rollback resets the count | Operator | **Yes, from now** |
-| K-08 | Defect escape rate | escapes / gates passed, where an escape is a defect whose ODC **trigger** is later than the stage that should have caught it | Three fields at defect close: ODC `defect_type` · ODC `defect_trigger` · IEEE 1044 `severity` | Per stage | 2 defects classifiable retroactively, both `checking` type | `TBC-OPERATOR` | Escapes are attributed to a stage, never averaged away | Unassigned | **Instrument identified** (`SECB-WP-FWK-015`) — needs adoption, not invention |
-| K-09 | Constitutional-class recall — **not** accuracy | Rule of three: with 0 downgrades in *n* observations, 95% upper bound on the downgrade rate = `3/n` | Classifier verdict versus the verdict a human would give, per PR | Per classifier change | **≤ 21.4%** (0 downgrades in 14) | ≤10% at n=30; ≤5% at n=60 | No constitutional case may be downgraded — a single downgrade invalidates the bound | Unassigned | **Computable today** (`SECB-WP-FWK-015`) |
-| K-10 | Cost per accepted change | tokens × model price, derived not recorded | OpenTelemetry GenAI conventions: `gen_ai.client.token.usage` by `gen_ai.token.type`, `gen_ai.request.model` | Per WP | Unmeasured; **field names fixed** so future data is comparable | `TBC-OPERATOR` | Observational only — never a gate condition | Unassigned | **Contract identified** (`SECB-WP-FWK-015`); collector deferred |
+| K-08 | Defect escape rate | escapes / gates passed, where an escape is a defect whose ODC **trigger** is later than the stage that should have caught it | Three fields at defect close: ODC `defect_type` · ODC `defect_trigger` · IEEE 1044 `severity` | Per stage | 2 defects classifiable retroactively, both `checking` type | `TBC-OPERATOR` | Escapes are attributed to a stage, never averaged away | Operator | **ADOPTED** (`SECB-WP-FWK-016`, condition C-3) — recording not yet in force |
+| K-09 | Constitutional-class recall — **not** accuracy | Rule of three: with 0 downgrades in *n* observations, 95% upper bound on the downgrade rate = `3/n` | Classifier verdict versus the verdict a human would give, per PR | Per classifier change | **≤ 21.4%** (0 downgrades in 14) | ≤10% at n=30; ≤5% at n=60 | No constitutional case may be downgraded — a single downgrade invalidates the bound | Operator | **ADOPTED and live** — 0 downgrades in 16 observations |
+| K-10 | Cost per accepted change | tokens × model price, derived not recorded | OpenTelemetry GenAI conventions: `gen_ai.client.token.usage` by `gen_ai.token.type`, `gen_ai.request.model` | Per WP | Unmeasured; **field names fixed** so future data is comparable | `TBC-OPERATOR` | Observational only — never a gate condition | Operator | **ADOPTED as a recording contract** (`SECB-WP-FWK-016`, condition C-3); collector deferred |
 
 ## Readiness summary for the stage-1 gate
 

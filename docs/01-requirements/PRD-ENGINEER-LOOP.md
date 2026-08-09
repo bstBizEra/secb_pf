@@ -1,8 +1,10 @@
 # PRD — SecB Engineer Loop v1.5
 
-Version: 0.9.0 — candidate for baseline, **not yet baselined**
-Status: Stage 1 in progress; gate `PRD_BASELINED` prepared and awaiting the
-authority's verdict (`docs/13-evidence/STAGE_GATE_PRD_BASELINED.md`)
+Version: **1.0.0 — baselined**
+Status: Stage 1 **passed**. Gate `PRD_BASELINED` issued
+`APPROVED_WITH_CONDITIONS` by the gate authority on 2026-08-10
+(`docs/13-evidence/STAGE_GATE_PRD_BASELINED.md`); conditions C-3 and C-4 remain
+open with owners and dates. Stage 2 (Requirement Decomposition) is open.
 Work Package: `SECB-WP-FWK-008` (issue #12); baseline preparation `SECB-WP-FWK-014` (issue #24)
 Template: `docs/16-templates/PRODUCT_DEFINITION_TEMPLATE.md` (`SECB-WP-FWK-007`)
 Product selection authority: operator decision, session 2026-08-10
@@ -13,10 +15,11 @@ Grounding sources: `docs/06-agent-orchestration/ENGINEER_LOOP.md` v1.5.0,
 
 | Item | Value |
 |---|---|
-| Baseline status | **Not baselined.** Version rises to `1.0.0` only when the gate authority issues `PRD_BASELINED` |
+| Baseline status | **Baselined at v1.0.0**, 2026-08-10 |
 | Change authority | Operator, as Product Sponsor |
 | Change process | After baseline, any change to scope, success metrics or acceptance criteria requires a new version and re-passing stage 1 (`DELIVERY_LIFECYCLE.md` §4) |
-| Approval record | `docs/13-evidence/STAGE_GATE_PRD_BASELINED.md` — currently `PREPARED_AWAITING_VERDICT` |
+| Approval record | `docs/13-evidence/STAGE_GATE_PRD_BASELINED.md` — `APPROVED_WITH_CONDITIONS` |
+| Re-baseline trigger | Any change to scope, success metrics or acceptance criteria, or a change to assumption A-02 |
 | Stage-1 companions | `STAKEHOLDER_REGISTER.md` · `RAID_REGISTER.md` · `KPI_BASELINE.md` |
 
 ## 1. Product Identity
@@ -25,7 +28,7 @@ Grounding sources: `docs/06-agent-orchestration/ENGINEER_LOOP.md` v1.5.0,
 - **Product Type:** Internal System / AI Agent (governed autonomous engineering execution)
 - **Product Stage:** MVP — specification `IMPLEMENTATION_READY` (v1.5.0); the skill-router MVP is sandbox-tested and `HELD_AT_INDEPENDENT_REVIEW_GATE`
 - **Product Owner:** Operator (vily); governance owner TBD per `AGENTS.md` §13
-- **Target Market:** Internal — BizEra engineering; by design reusable by any organization running AI agents under governance
+- **Target Market:** Internal — BizEra engineering. **Primary use confirmed 2026-08-10: SecB is the precursor framework from which BST builds subsequent projects**; each new project instantiates it rather than reinventing governance. Reusable by any organization running AI agents under governance.
 
 ## 2. Product Overview
 

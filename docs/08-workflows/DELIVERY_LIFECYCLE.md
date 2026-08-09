@@ -155,12 +155,12 @@ impression.
 
 | Item | Position | Evidence |
 |---|---|---|
-| SecB framework | **Stage 1 in progress** — artifacts prepared, gate `PRD_BASELINED` **awaiting the authority's verdict** | `PRD-ENGINEER-LOOP.md` v0.9.0 with a change-control block; `STAKEHOLDER_REGISTER.md`, `RAID_REGISTER.md`, `KPI_BASELINE.md` and the decision record `STAGE_GATE_PRD_BASELINED.md` (`SECB-WP-FWK-014`). Three of eight exit conditions remain unmet and cannot be met by an executor: product owner unnamed, PRD unversioned pending the verdict, no approval issued |
-| Stage 2 | **Not started** — no RTM, no requirement catalogue | `docs/INDEX.md` records RTM as pending authorization; blocked on stage 1 |
+| SecB framework | **Stage 1 PASSED** — `PRD_BASELINED` issued `APPROVED_WITH_CONDITIONS` 2026-08-10 | `STAGE_GATE_PRD_BASELINED.md`; PRD v1.0.0 baselined; conditions C-3 (KPI instruments) and C-4 (governance owner) open with owners and dates |
+| Stage 2 | **OPEN** — the RTM is its first obligation | Unblocked by the stage-1 verdict; pending since `SECB-WP-FWK-005` |
 | Stages 3–5 for the router | Design documentation exists; no recorded gate verdicts | `ENGINEER_LOOP.md` v1.5.0, `SECURITY_THREAT_MODEL.md` — but no `ARCHITECTURE_APPROVED`, `SOLUTION_DESIGN_APPROVED` or `SECURITY_DESIGN_APPROVED` decision record exists |
 | Stage 6 | **No `IMPLEMENTATION_AUTHORIZED` record** for the router; the FWK work packages authorize framework work only | issues #2–#22 |
 | Stage 7–8, router MVP slice | Code plus verified tests, sandbox-certified | `SANDBOX_TESTED` under `REV-SECB-ENGLOOP-MVP-001-20260810` (`SECB-WP-FWK-009`, `663984a`); router v1.5.1 (`SECB-WP-FWK-010`, `de31bb3`) |
-| Stages 9–11 | **Not begun for anything.** No performance test, no penetration test, no UAT, no runbook, no rollback drill, no backup/restore evidence | `docs/15-runbooks/` is empty; `PERFORMANCE_INDICATORS.md` KPIs have no owners or formulas |
+| Stages 9–11 | **Not begun; stage 9 is structurally BLOCKED** until a second identity exists — its independence requirement cannot be met by one party | `SINGLE_IDENTITY_SOD_ACCEPTED_RISK.md` (accepted for stages 1–8 only); `docs/15-runbooks/` is empty |
 | Stage 12 | Production `NOT_AUTHORIZED` | `ENGINEER_LOOP.md` §7, unchanged by any merge to date |
 
 ### Traceability exception, recorded per §1
