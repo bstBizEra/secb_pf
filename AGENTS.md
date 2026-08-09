@@ -1,10 +1,17 @@
 # SecB Agent Operating Contract
 
-Status: Skeleton / Draft — Closed-Loop Framework Added
+Status: Framework documented; first control gates executable (`SECB-WP-FWK-002`); implementation not started
 Owner: TBD
 Approvers: Authorized project representative under `SECB-WP-FWK-001`
-Version: 0.2.0
-Last reviewed: 2026-08-08
+Version: 0.3.0
+Last reviewed: 2026-08-09
+
+> This header is the single source of truth for project status
+> (`SECB-WP-FWK-003`). Other documents, including `docs/INDEX.md`, describe
+> the state of their own domain and defer to this header for the state of
+> the project. Evidence for the current status: CI runs Gate 5 (Test) and
+> Gate 1 (Authority) on every pull request; `src/` contains no product
+> code; the skill-router package remains `HELD_AT_INDEPENDENT_REVIEW_GATE`.
 
 ## 1. Purpose
 

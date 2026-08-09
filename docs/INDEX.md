@@ -1,7 +1,7 @@
 # SecB Documentation Index
 
-Status: Framework Established / Autonomous Skill-Routed Full-Lifecycle Documentation Implementation Ready  
-Version: 0.6.0  
+Documentation baseline: 0.6.0 — full-lifecycle documentation drafted; the modules below are documentation-ready for implementation  
+Project status: governed solely by the `AGENTS.md` header (`SECB-WP-FWK-003`) — "implementation ready" here describes the documents, not an authorization to build or run  
 Last Updated: 2026-08-09
 
 | Path | Purpose | Governed baseline |
