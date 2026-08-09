@@ -34,7 +34,7 @@ Review cadence: at every stage gate; entries are appended, never overwritten
 |---|---|---|
 | I-01 | Traceability exception **narrowed 2026-08-10**: stage 1 now has a recorded verdict; stages 2–6 still do not | Downstream states remain formally invalid until stages 2–6 are addressed |
 | I-02 | ~~PRD unbaselined~~ — **closed 2026-08-10** | PRD v1.0.0 baselined under `PRD_BASELINED` / `APPROVED_WITH_CONDITIONS` |
-| I-03 | RTM absent | **Stage 2 is now open** (stage 1 passed); the RTM is its first obligation |
+| I-03 | ~~RTM absent~~ — **closed 2026-08-10** | `RTM.md` exists with forward and reverse traces (`SECB-WP-FWK-018`); building it surfaced new exception `TX-02` — the authority ladder's advance conditions are never checked by anything |
 | I-04 | Vocabulary overlap: stage-gate `HUMAN_REQUIRED` versus merge-level `CONSTITUTIONAL_REQUIRED` | Reconciliation note in place; a unifying decision is the operator's |
 | I-05 | Governance owner unassigned since import (`AGENTS.md` §13, eight open placeholders) | Several gate authorities nominally vacant; now stage-1 condition C-4, due before stage 5 |
 
