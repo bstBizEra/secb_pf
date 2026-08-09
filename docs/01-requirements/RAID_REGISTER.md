@@ -36,6 +36,7 @@ Review cadence: at every stage gate; entries are appended, never overwritten
 | I-02 | ~~PRD unbaselined~~ — **closed 2026-08-10** | PRD v1.0.0 baselined under `PRD_BASELINED` / `APPROVED_WITH_CONDITIONS` |
 | I-03 | ~~RTM absent~~ — **closed 2026-08-10** | `RTM.md` exists with forward and reverse traces (`SECB-WP-FWK-018`); building it surfaced new exception `TX-02` — the authority ladder's advance conditions are never checked by anything |
 | I-04 | Vocabulary overlap: stage-gate `HUMAN_REQUIRED` versus merge-level `CONSTITUTIONAL_REQUIRED` | Reconciliation note in place; a unifying decision is the operator's |
+| I-06 | Specification conflict `FWK-019`: stage 2's exit gate consumes a DoR the spec places at stage 6 (`SC-01` use-before-definition + `SC-08` circular dependency, impact `C2`) | Stages 3–6 were blocked behind stage 2. **Bridged** by `BOOTSTRAP_STORY_DOR.md` v0.1; canonical fix tracked as `SECB-WP-FWK-019-A`. Ballot quorum was unattainable (`ballot_layer NOT_ACTIVE`), so the verdict was `SPEC_OWNER_REQUIRED` and the spec owner supplied it |
 | I-05 | Governance owner unassigned since import (`AGENTS.md` §13, eight open placeholders) | Several gate authorities nominally vacant; now stage-1 condition C-4, due before stage 5 |
 
 ## Dependencies
