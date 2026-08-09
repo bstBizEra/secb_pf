@@ -23,7 +23,7 @@ Last Updated: 2026-08-09
 | `14-plans/` | Roadmaps, work packages and certification | Lifecycle + DWRC + Skill Router backlogs |
 | `15-runbooks/` | Operational and recovery procedures | Runbook Index |
 | `16-templates/` | Controlled document templates | Template Catalogue |
-| `17-references/` | External standards and references | Reference Register |
+| `17-references/` | External standards and references | Reference Register — opens with the stage-1 gate instruments research (`SECB-WP-FWK-015`) |
 | `agents/` | Agent definitions and handoffs | Agentic Engineer Team |
 | `skills/` | Skill catalog, validation and tools | Versioned Skill Registry |
 

@@ -20,26 +20,34 @@ asked to measure it.
 | K-05 | Executable control gates | mechanized gates / 10 | `ci.yml` versus `CONTROL_GATES.md` | Per change to CI | 3/10 (Authority, Test, Budget) | 10/10 | A gate counts only once proven to fail on a real PR (`KN-001`) | Operator | **Yes** |
 | K-06 | Loop lead time, ticket to merge | `merged_at − issue.created_at`, median | GitHub timestamps | Per WP | Not computed | p50 < 1 hour | Speed must never be met by skipping evidence | Operator | **Formula ready, never computed** |
 | K-07 | Autonomous merges under the envelope | count, and rollback rate among them | Governance-verdict job + merge log | Per merge | 0 (envelope ratified 2026-08-10) | Ladder `A1` needs 30 with zero rollback | One rollback resets the count | Operator | **Yes, from now** |
-| K-08 | Defect escape rate | defects found after a gate passed / gates passed | Issue labels | Per stage | **Unmeasured** — no defect taxonomy exists | `TBC-OPERATOR` | — | Unassigned | **No** |
-| K-09 | Classifier accuracy | confusion matrix over a labelled PR corpus | Golden corpus | Per classifier change | **Not computable** — 14 WPs is not a corpus (deferred D5) | `TBC-OPERATOR` | No constitutional case may be downgraded | Unassigned | **No** |
-| K-10 | Cost per accepted change | tokens and tool calls per merged WP | **No instrumentation exists** | — | Unmeasured | `TBC-OPERATOR` | Cost must never override safety | Unassigned | **No** |
+| K-08 | Defect escape rate | escapes / gates passed, where an escape is a defect whose ODC **trigger** is later than the stage that should have caught it | Three fields at defect close: ODC `defect_type` · ODC `defect_trigger` · IEEE 1044 `severity` | Per stage | 2 defects classifiable retroactively, both `checking` type | `TBC-OPERATOR` | Escapes are attributed to a stage, never averaged away | Unassigned | **Instrument identified** (`SECB-WP-FWK-015`) — needs adoption, not invention |
+| K-09 | Constitutional-class recall — **not** accuracy | Rule of three: with 0 downgrades in *n* observations, 95% upper bound on the downgrade rate = `3/n` | Classifier verdict versus the verdict a human would give, per PR | Per classifier change | **≤ 21.4%** (0 downgrades in 14) | ≤10% at n=30; ≤5% at n=60 | No constitutional case may be downgraded — a single downgrade invalidates the bound | Unassigned | **Computable today** (`SECB-WP-FWK-015`) |
+| K-10 | Cost per accepted change | tokens × model price, derived not recorded | OpenTelemetry GenAI conventions: `gen_ai.client.token.usage` by `gen_ai.token.type`, `gen_ai.request.model` | Per WP | Unmeasured; **field names fixed** so future data is comparable | `TBC-OPERATOR` | Observational only — never a gate condition | Unassigned | **Contract identified** (`SECB-WP-FWK-015`); collector deferred |
 
 ## Readiness summary for the stage-1 gate
 
+Updated after `SECB-WP-FWK-015` (research record:
+`docs/17-references/RESEARCH-STAGE1-GATE-INSTRUMENTS.md`).
+
 - **Six metrics are measurable today** (K-01…K-05, K-07) with real baselines
   taken from the fourteen merged work packages.
-- **One has a formula but has never been run** (K-06). It is computable from
-  data that already exists; nothing blocks it but the doing.
-- **Three are not measurable** (K-08, K-09, K-10): they need a defect
-  taxonomy, a labelled corpus, and cost instrumentation respectively. K-09's
-  blocker is recorded as deferred capability D5; K-10 has no instrumentation in
-  the framework at all.
+- **One has a formula but has never been run** (K-06). Nothing blocks it but
+  the doing.
+- **K-09 is now computable** and has a value: a 95% upper bound of **21.4%** on
+  the downgrade rate, from zero downgrades in fourteen observations. The bound
+  is weak by design of the arithmetic, not by evasion — it tightens to ≤10% at
+  thirty observations, which is also the `A1 → A2` ladder threshold, giving that
+  rung a statistical meaning it previously lacked.
+- **K-08 and K-10 have named instruments** costing three recorded fields each,
+  with no tooling: ODC type/trigger plus IEEE 1044 severity, and the
+  OpenTelemetry GenAI attribute names as a recording contract. Neither is
+  implemented; both are now adoption decisions rather than open research.
 
-Stage 1 requires that success KPIs be measurable. Six are, and three are not.
-The honest options for the gate are `APPROVED_WITH_CONDITIONS` — naming owners
-and dates for K-08 to K-10 — or narrowing the PRD's success definition to the
-six that can actually be computed. **That choice belongs to the gate
-authority, not to the executor preparing this record.**
+Stage 1 requires that success KPIs be measurable. Seven are measurable now,
+and the remaining two have defined methods awaiting adoption.
+`APPROVED_WITH_CONDITIONS` is therefore supportable with owners and dates that
+mean something. **The choice of verdict still belongs to the gate authority,
+not to the executor preparing this record.**
 
 Cost-layer KPIs remain deliberately absent from any auto-merge criterion:
 `PERFORMANCE_INDICATORS.md` requires that cost efficiency never override
