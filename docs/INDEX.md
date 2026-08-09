@@ -7,7 +7,7 @@ Last Updated: 2026-08-09
 | Path | Purpose | Governed baseline |
 |---|---|---|
 | `00-governance/` | Authority, RACI/SoD, gates, ballots, policies | Control Gates + risk/budget policies |
-| `01-requirements/` | Requirements and traceability | PRD + RTM + Requirements Traceability Standard |
+| `01-requirements/` | Requirements and traceability | Requirements Traceability Standard (PRD + RTM pending authorization — `SECB-WP-FWK-005`) |
 | `02-architecture/` | System and runtime architecture | Closed-Loop + Runtime Control Architecture |
 | `03-data/` | Data model, classification and invariants | Data Architecture |
 | `04-api-and-integrations/` | APIs, events, errors and contracts | API Baseline |
