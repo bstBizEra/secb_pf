@@ -98,9 +98,13 @@ jobs:
     # Advisory by design: this job reports whether the standing R1
     # authorization covers the PR. It must never block — a HUMAN_REQUIRED
     # verdict is the normal answer for governance and enforcement changes,
-    # not a failure. `continue-on-error` keeps the verdict visible in the
-    # log while the check itself stays green.
-    continue-on-error: true
+    # not a failure.
+    #
+    # `continue-on-error` alone is not enough: it keeps the *workflow run*
+    # green but still reports the job's own check as `failure`, which reads
+    # as a broken build on the PR. So the step captures the classifier's
+    # exit code, records the verdict in the job summary, and exits 0. The
+    # verdict lives in the summary and the log; the check stays green.
     steps:
       - uses: actions/checkout@v4
         with:
@@ -114,6 +118,24 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: >
-          git diff --numstat "$BASE_SHA...$HEAD_SHA"
-          | python scripts/check_merge_autonomy.py
+        run: |
+          git diff --numstat "$BASE_SHA...$HEAD_SHA" > /tmp/pr.numstat
+          set +e
+          verdict=$(python scripts/check_merge_autonomy.py < /tmp/pr.numstat 2>&1)
+          code=$?
+          set -e
+          echo "$verdict"
+          {
+            echo "### Merge autonomy verdict"
+            echo ""
+            echo '```'
+            echo "$verdict"
+            echo '```'
+            echo ""
+            if [ "$code" -eq 0 ]; then
+              echo "Standing R1 authorization covers this PR (see \`docs/00-governance/STANDING_MERGE_AUTHORIZATION.md\`). All gates must still be green."
+            else
+              echo "**Human merge required.** This is a normal verdict for governance, enforcement, oversized, or unclassified changes."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0

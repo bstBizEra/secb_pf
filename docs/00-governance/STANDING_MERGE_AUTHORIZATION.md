@@ -78,4 +78,7 @@ governance change and therefore human-merged.
 
 The classifier's verdict is recorded on every PR by the advisory
 `merge-autonomy` CI job, so the eligibility decision for every merge —
-autonomous or not — is reconstructible from CI history.
+autonomous or not — is reconstructible from CI history. The job writes the
+verdict to its GitHub job summary and always exits `0`: a `HUMAN_REQUIRED`
+verdict must not present as a broken build, because it is the expected
+answer for a large share of pull requests.
