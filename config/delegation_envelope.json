@@ -1,0 +1,85 @@
+{
+  "envelope_id": "ENV-SECB-2026-001",
+  "schema_version": 1,
+  "authority_source": "Operator (vily), Genesis Ratification by merge of SECB-WP-FWK-012 (issue #20)",
+  "effective_from": "2026-08-10",
+  "expires_at": "2026-11-08",
+  "signature": {
+    "state": "UNSIGNED",
+    "reason": "Cryptographic envelope signing requires a trust anchor outside this repository (see docs/14-plans/GOVERNANCE_DEFERRED_CAPABILITIES.md). Until then the envelope's integrity rests on git history and the human merge that ratified it, and the classifier treats an unsigned envelope as valid ONLY for tiers at or below the ratified tier."
+  },
+  "current_tier": "A1",
+  "authority_ladder": {
+    "A0": {
+      "authority": "Documentation only",
+      "advance_conditions": []
+    },
+    "A1": {
+      "authority": "Low-risk (G0) auto-merge inside the envelope scope",
+      "advance_conditions": [
+        "30 consecutive auto-merged PRs with zero rollback",
+        "no CONSTITUTIONAL_REQUIRED verdict misclassified as lower"
+      ]
+    },
+    "A2": {
+      "authority": "Medium-risk change auto-merge",
+      "advance_conditions": [
+        "A1 conditions met",
+        "security review pass",
+        "defect-escape threshold held"
+      ]
+    },
+    "A3": {
+      "authority": "Governance implementation (G1) without fresh human approval",
+      "advance_conditions": [
+        "A2 conditions met",
+        "60 days of shadow-mode evidence comparing base and head gate decisions",
+        "independent ballot layer ACTIVE"
+      ]
+    },
+    "A4": {
+      "authority": "Scope and ceiling adjustment inside the L0 absolute maxima (G2)",
+      "advance_conditions": [
+        "A3 conditions met",
+        "full ballot quorum with no veto",
+        "rollback verified by execution, not by description"
+      ]
+    }
+  },
+  "scope": {
+    "auto_paths": ["docs/", "tests/", "src/", "config/", "evidence/"],
+    "max_changed_lines": 600,
+    "constitutional_paths": [
+      "docs/00-governance/L0_ROOT_CONSTITUTION.md",
+      "config/delegation_envelope.json",
+      "config/ballot.schema.json",
+      "scripts/classify_authority_delta.py",
+      "scripts/check_dual_policy.py",
+      ".github/",
+      "AGENTS.md",
+      "docs/06-agent-orchestration/skill-router/SECB-WP-ENGLOOP-MVP-001"
+    ],
+    "governance_implementation_paths": [
+      "docs/00-governance/",
+      "docs/12-decisions/",
+      "scripts/"
+    ]
+  },
+  "absolute_ceilings": {
+    "max_changed_lines_ever": 2000,
+    "max_tier": "A4",
+    "tiers_requiring_active_ballot_layer": ["A3", "A4"]
+  },
+  "ballot_layer": {
+    "state": "NOT_ACTIVE",
+    "reason": "Five independent agents with separately enforced service identities do not exist in this deployment. One session emitting five role-labelled ballots is self-approval in five hats; role banners are self-asserted text and must never gate a decision. Quorum is therefore not enforced anywhere in code, and every verdict that would depend on it escalates instead.",
+    "required_roles": ["architecture", "governance", "security", "qa", "operations"],
+    "quorum_when_active": "4 of 5, with governance and security holding veto; 5 of 5 for G2-G3",
+    "proposer_may_vote": false
+  },
+  "gate_activation": {
+    "policy": "two_epoch",
+    "note": "A change to a gate script merges INACTIVE and takes effect in the next governance epoch, so no PR is judged by the gate it introduces. Enforced today by the dual-policy rule (base and head logic must agree); full epoch machinery is deferred.",
+    "current_epoch": 1
+  }
+}
