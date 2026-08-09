@@ -1,18 +1,21 @@
 # SecB Agent Operating Contract
 
-Status: Framework documented; three control gates executable (`SECB-WP-FWK-002`, `SECB-WP-FWK-004`); implementation not started
+Status: Framework documented; three control gates executable (`SECB-WP-FWK-002`, `SECB-WP-FWK-004`); implementation started (`SECB-WP-FWK-010`)
 Owner: TBD
 Approvers: Authorized project representative under `SECB-WP-FWK-001`
-Version: 0.3.1
-Last reviewed: 2026-08-09
+Version: 0.4.0
+Last reviewed: 2026-08-10
 
 > This header is the single source of truth for project status
 > (`SECB-WP-FWK-003`). Other documents, including `docs/INDEX.md`, describe
 > the state of their own domain and defer to this header for the state of
 > the project. Evidence for the current status: CI runs Gate 5 (Test),
 > Gate 1 (Authority), and the budget circuit breaker on every pull
-> request; `src/` contains no product code; the skill-router package
-> remains `HELD_AT_INDEPENDENT_REVIEW_GATE`.
+> request; `src/secb_router/` holds router v1.5.1 (the F1 fix on the
+> sealed baseline); the skill-router MVP package is `SANDBOX_TESTED`
+> under review `REV-SECB-ENGLOOP-MVP-001-20260810` (`SECB-WP-FWK-009`);
+> runtime adoption, external/mutating routing and production autonomy
+> remain `NOT_AUTHORIZED`.
 
 ## 1. Purpose
 
