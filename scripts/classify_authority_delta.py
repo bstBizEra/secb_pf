@@ -71,6 +71,32 @@ G5_PATH_DELETIONS = (
     "docs/13-evidence/",
 )
 
+# Enforcement steps whose *removal* from CI is prohibited. Matched only on
+# removed lines, never on a substring of the whole diff: an added line that
+# merely quotes one of these strings — a test fixture, or documentation of
+# this very rule — is not a removal. The first version of this check scanned
+# the diff body as one string and rejected its own test fixture, the same
+# false-positive class the sandbox MVP hit when its scanner read an in-memory
+# `set.remove()` as filesystem deletion (EVIDENCE_RECORD.md, DEF-ENGLOOP-MVP-001).
+G5_REMOVED_STEPS = (
+    "run: python scripts/check_work_package_ref.py",
+    "run: python scripts/check_budget.py",
+    "run: python scripts/classify_authority_delta.py",
+)
+
+
+def removed_enforcement_steps(diff_text: str) -> list[str]:
+    """Enforcement steps that appear on removed lines of *diff_text*."""
+    found = []
+    for line in (diff_text or "").splitlines():
+        if not line.startswith("-") or line.startswith("---"):
+            continue
+        body = line[1:].strip()
+        for step in G5_REMOVED_STEPS:
+            if body.endswith(step):
+                found.append(step)
+    return found
+
 
 def load_envelope(path: str) -> dict:
     with open(path, encoding="utf-8") as handle:
@@ -124,8 +150,12 @@ def classify(
             "prohibited: deletes a control or evidence artifact — "
             + ", ".join(sorted(deleted_controls)[:3])
         )
-    if "-        run: python scripts/check_work_package_ref.py" in diff_text:
-        return REJECTED, "prohibited: removes an enforcement step from CI"
+    removed_steps = removed_enforcement_steps(diff_text)
+    if removed_steps:
+        return REJECTED, (
+            "prohibited: removes an enforcement step from CI — "
+            + ", ".join(sorted(set(removed_steps)))
+        )
 
     # Absolute ceiling: never waivable by any tier or ballot.
     if total_lines > ceilings["max_changed_lines_ever"]:

@@ -176,6 +176,26 @@ def test_g5_removing_a_ci_enforcement_step_is_rejected():
         diff_text="-        run: python scripts/check_work_package_ref.py",
     )
     assert result.returncode == EXIT_REJECTED
+    assert "removes an enforcement step" in result.stderr
+
+
+def test_quoting_an_enforcement_step_on_an_added_line_is_not_a_removal():
+    """Regression: the first version scanned the whole diff as one string and
+    rejected its own test fixture. An ADDED line quoting the marker — a test,
+    or documentation of this rule — must not read as a removal."""
+    added = (
+        '+        diff_text="-        run: python scripts/check_work_package_ref.py",\n'
+        "+# documents that removing `run: python scripts/check_budget.py` is prohibited\n"
+    )
+    result = run("3\t4\tdocs/note.md\n", diff_text=added)
+    assert result.returncode == EXIT_OK
+    assert verdict_of(result) == "AUTO_APPROVED"
+
+
+def test_diff_file_header_is_not_read_as_a_removal():
+    header = "--- a/.github/workflows/ci.yml\n+++ b/.github/workflows/ci.yml\n"
+    result = run("3\t4\tdocs/note.md\n", diff_text=header)
+    assert result.returncode == EXIT_OK
 
 
 def test_editing_a_control_is_not_a_deletion():
