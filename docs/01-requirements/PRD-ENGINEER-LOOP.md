@@ -1,11 +1,12 @@
 # PRD — SecB Engineer Loop v1.5
 
-Version: **1.1.0 — candidate baseline**, pending the stage-1 re-verdict
-Status: Stage 1 **re-entered** on 2026-08-10. Ballot 001 added objective `O7`,
-a §4 material change, so the v1.0.0 verdict is superseded and a new stage-1
-record awaits the authority (`STAGE_GATE_PRD_BASELINED_V1_1.md`). Conditions C-3
-and C-4 carry forward. Stage 2's verdict is deferred by ballot 002 so the gate
-passes once against seven objectives.
+Version: **1.1.0 — baselined** 2026-08-10
+Status: Stage 1 **passed** (second pass). Gate `PRD_BASELINED` rendered
+`APPROVED_WITH_CONDITIONS` on 2026-08-10 — baseline disposition `APPROVED` on
+7/7 criteria, obligation posture `OPEN_NON_BLOCKING` for `C-3` and `C-4`
+(`STAGE_GATE_PRD_BASELINED_V1_1.md`; conditions tracked in
+`CONDITION_REGISTER.md`). Stage 2 is `AUTHORIZED_FOR_COMPOSITE_VERDICT`; stage 3
+is `PENDING_STAGE_2_PASS`.
 Work Package: `SECB-WP-FWK-008` (issue #12); baseline preparation `SECB-WP-FWK-014` (issue #24)
 Template: `docs/16-templates/PRODUCT_DEFINITION_TEMPLATE.md` (`SECB-WP-FWK-007`)
 Product selection authority: operator decision, session 2026-08-10
@@ -16,10 +17,10 @@ Grounding sources: `docs/06-agent-orchestration/ENGINEER_LOOP.md` v1.5.0,
 
 | Item | Value |
 |---|---|
-| Baseline status | **v1.1.0 candidate** — baselined only when the stage-1 re-verdict is issued |
+| Baseline status | **Baselined at v1.1.0**, 2026-08-10 |
 | Change authority | Operator, as Product Sponsor |
 | Change process | After baseline, any change to scope, success metrics or acceptance criteria requires a new version and re-passing stage 1 (`DELIVERY_LIFECYCLE.md` §4) |
-| Approval record | `STAGE_GATE_PRD_BASELINED_V1_1.md` — awaiting verdict · prior: `STAGE_GATE_PRD_BASELINED.md` (v1.0.0, superseded) |
+| Approval record | `STAGE_GATE_PRD_BASELINED_V1_1.md` — `APPROVED_WITH_CONDITIONS` · prior: `STAGE_GATE_PRD_BASELINED.md` (v1.0.0, superseded) |
 | Re-baseline trigger | Any change to scope, success metrics or acceptance criteria, or a change to assumption A-02 |
 | Stage-1 companions | `STAKEHOLDER_REGISTER.md` · `RAID_REGISTER.md` · `KPI_BASELINE.md` |
 
