@@ -67,7 +67,7 @@ requirement. No orphaned code exists.
 |---|---|---|
 | `I-01` | Artifacts exist at stages 7–8 while stages 2–6 have no recorded gate verdicts | **Narrowing.** Stage 1 closed at `06ed153`; stage 2 is in progress and this document is its central artifact. Stages 3–6 remain open |
 | `TX-01` | `FR-12` has no verification and cannot acquire one in this repository | Accepted. Verifiable only by instantiating project #2 |
-| `TX-02` | `FR-17` (authority ladder) has no test asserting its promotion conditions | **New, found by building this matrix.** The ladder is config the classifier reads for tier but never evaluates for advancement. Candidate requirement for stage 3 |
+| `TX-02` | `FR-17` (authority ladder) has no test asserting its promotion conditions | The ladder is config the classifier reads for tier but never evaluates for advancement. **Raised at the stage-2 gate as finding 1**, with recommended condition D-1: make it executable, or record explicitly that advancement is a manual `G4` act with no automated check |
 | `TX-03` | `FR-19` and `FR-20` are adopted methods with no implementation | Tracked as stage-1 condition C-3, due before stage 6 |
 | `TX-04` | Stage 2's exit gate consumes a Definition of Ready that the specification places at stage 6 — a circular stage dependency | **Bridged.** `BOOTSTRAP_STORY_DOR.md` v0.1 in force under `CONFLICT-FWK-019.md`; status `RESOLVED_BY_SPEC_OWNER`; canonical amendment tracked as `SECB-WP-FWK-019-A`. Closes when that merges |
 
