@@ -1,13 +1,16 @@
 # Runbook — Bootstrapping a New Project From SecB
 
-Status: Written 2026-08-10 · **Never executed end to end** — SecB is project #1
+Status: **Executed 2026-08-10** through step 3 in a real fresh repository
+(`bstBizEra/secb-bootstrap-trial`; record: `docs/13-evidence/TRIAL-FR12-BOOTSTRAP.md`).
+The trial found four defects in this runbook, all corrected below. Steps 4–5
+remain unexecuted — they need a real product definition
 Work Package: `SECB-WP-FWK-017` (issue #30)
 Audience: an engineer or agent starting a new BST project from this framework
 
 Every step below is derived from an action this repository actually performed,
-with the commit or run cited. Steps that have never been run in a *new* repo are
-marked **UNTESTED**, because a runbook that implies more than it has done is the
-defect this framework keeps finding.
+with the commit or run cited. Steps 1–3 have now been run in a fresh repository;
+steps 4–5 are still marked **UNTESTED**, because a runbook that implies more than
+it has done is the defect this framework keeps finding.
 
 ## What you are copying, and what you are not
 
@@ -24,7 +27,7 @@ add one, classify it.
 | `docs/08-workflows/DELIVERY_LIFECYCLE*.md` | 14 stages, gate mapping, cross-stage rules |
 | `scripts/check_work_package_ref.py`, `check_budget.py`, `classify_authority_delta.py`, `check_dual_policy.py` | The four enforcement scripts |
 | `tests/test_check_*.py`, `tests/test_classify_*.py` | Their subprocess tests — **copy these too**, an uncopied test is an unproven gate |
-| `.github/workflows/ci.yml`, `.github/ISSUE_TEMPLATE/` | The gates and the work-package intake form |
+| `.github/ISSUE_TEMPLATE/` | The work-package intake form (edit the ID placeholder) |
 | `docs/16-templates/` | Templates |
 | `config/ballot.schema.json` | Inert schema; keep for when identities exist |
 | `.gitignore` | Keeps caches out of evidence directories |
@@ -33,7 +36,9 @@ add one, classify it.
 
 | Path | What to change |
 |---|---|
-| `config/delegation_envelope.json` | `envelope_id`, `authority_source`, `effective_from`, `expires_at`, `current_tier` (**start at `A0` or `A1`, never higher**), `scope.auto_paths`, `max_changed_lines`, `absolute_ceilings`. The ladder conditions are reusable |
+| `config/delegation_envelope.json` | `envelope_id`, `authority_source`, `effective_from`, `expires_at`, `current_tier` (**start at `A0` or `A1`, never higher**), `scope.auto_paths`, `max_changed_lines`, `absolute_ceilings`. The ladder conditions are reusable. **Delete the `scope.constitutional_paths` entry for the sealed-evidence directory** — you never copy it, so the entry protects nothing (trial finding 4) |
+| `.github/workflows/ci.yml` | **Must be edited before the first run.** Its test step hard-codes SecB's sealed-evidence test path, which is on the do-not-copy list. Left unchanged, `pytest` exits 4 and the Test gate is **red on arrival, before any product code exists** — trial finding 2. Replace that step with `python -m pytest -p no:cacheprovider -q tests/` |
+| `tests/test_classify_authority_delta.py` | Prune the two assertions that reference the sealed-evidence path — they cannot hold once its envelope entry is removed (trial finding 3) |
 | `README.md` | Your project |
 | `docs/INDEX.md` | Keep the directory map; replace every "governed baseline" claim with what you actually have — **an INDEX that overstates is the first defect this repo ever found** |
 | `docs/01-requirements/PRD-*.md` | Your product. Use `docs/16-templates/PRODUCT_DEFINITION_TEMPLATE.md` |
@@ -90,23 +95,34 @@ confirm it does, then fix it:
 
 | Gate | Make it fail by | Expect |
 |---|---|---|
-| Authority | Omitting the work-package ID from title and body | `AUTHORITY GATE FAIL: no SECB-WP-* reference` — **change the prefix regex in `check_work_package_ref.py` to your project's ID scheme first** |
+| Authority | Omitting the work-package ID from title and body | `AUTHORITY GATE FAIL: no <PREFIX>-WP-* reference` — **rename the prefix first; see the note below, it is not one file** |
 | Budget | Declaring `max_lines=1` on a real diff | `BUDGET GATE FAIL: diff exceeds the declared budget` |
 | Governance verdict | Touching a path listed in `scope.constitutional_paths` | `VERDICT: CONSTITUTIONAL_REQUIRED` |
 
-Then confirm the dual-policy rule works, which is the control that prevents a
-policy from approving its own widening: add a path to `scope.auto_paths` and
-change a file under it in the same PR. Expect
-`DUAL POLICY: ESCALATE — base and head policies disagree`. If it passes, the
-comparison is not running and the anti-self-approval property is absent.
+Then confirm the dual-policy rule runs. **Do not expect to see divergence in a
+real PR** — the earlier version of this runbook told you to, and the trial proved
+it cannot happen. Editing the envelope is `G4`, and `G4` dominates before the
+comparison matters, so both policies reach the same constitutional verdict and
+report *"both policies agree that this escalates"*. Observed at trial:
+
+```
+VERDICT: CONSTITUTIONAL_REQUIRED — root authority surface touched: config/delegation_envelope.json
+DUAL POLICY: ESCALATE — both policies agree that this escalates
+```
+
+That output **is** the healthy one. The anti-self-approval property holds earlier
+and harder than divergence-hunting suggests. Divergence is observable only in
+unit tests, where the policy change and the judged diff can be separated —
+`test_divergence_escalates_even_when_head_would_pass` does that, and its passing
+is the proof the comparison works (trial finding 5).
 
 Record the failing run IDs. They are the evidence that your gates are real, and
 the first entry in your project's evidence trail.
 
-**UNTESTED in a fresh repository.** In SecB these were proven on runs
-`31320436859` (authority), `31325014002` (budget) and on the Genesis PR
-(constitutional). The procedure is transcribed from those; it has not been
-re-run from a clean clone.
+**Executed 2026-08-10 in a fresh repository.** Authority and Budget both tripped
+with messages carrying the *new* project prefix, proving the rename reached the
+enforcement path and not only the documentation; the recovery leg turned all four
+gates green at trial commit `726ed96`. See `docs/13-evidence/TRIAL-FR12-BOOTSTRAP.md`.
 
 ## Decisions to make before writing code
 
@@ -114,7 +130,7 @@ re-run from a clean clone.
 |---|---|
 | Constitutional authority | No gate verdict is valid; nothing can be approved |
 | Envelope tier and caps | Either every change needs a human merge, or too much does not |
-| Work-package ID prefix | The authority gate matches `SECB-WP-*`; yours will not match until changed |
+| Work-package ID prefix | **Measured: 18 files contain `SECB-WP`** — 3 enforcement scripts, 2 test modules, 1 config, CI, the issue template, and 10 documents including `AGENTS.md`, `L0_ROOT_CONSTITUTION.md` and four other governance files this runbook calls reusable as-is. A single `grep -rl SECB-WP . \| xargs sed -i 's/SECB-WP/<PREFIX>-WP/g'` handles it; the point is to know it is eighteen, not one (trial finding 1) |
 | `auto_paths` and `constitutional_paths` | An unclassified path escalates — safe, but you will notice quickly |
 | Whether a second identity exists | **Determines whether stage 9 is reachable at all.** One identity cannot satisfy an independence requirement; if your project must reach production, resolve this at bootstrap, not at stage 9 |
 

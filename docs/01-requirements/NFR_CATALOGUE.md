@@ -42,12 +42,14 @@ clothing, and is marked as such.
 | `NFR-12` | Enforcement scripts depend on the Python standard library only | 0 third-party imports in `scripts/` | Observed: `json`, `os`, `re`, `sys`, `subprocess`, `datetime` only. CI installs `pytest` for tests, not for the gates | Import inspection |
 | `NFR-13` | The framework runs on a personal GitHub account with no organization, no paid plan, and no branch protection | All gates functional under those constraints | Observed and forced: rulesets and protection both return `403` | Every CI run is the evidence |
 | `NFR-14` | Governance configuration is machine-readable and editable without code changes | Scope, caps, tier and expiry live in `config/delegation_envelope.json` | Design decision, `SECB-WP-FWK-012` | Classifier reads the envelope at runtime; `test_missing_envelope_escalates` |
-| `NFR-15` | A new project can be instantiated without modifying framework logic | 0 edits to `scripts/` required — configuration and content only | Design: `NEW_PROJECT_BOOTSTRAP.md` classification. **Unverified until project #2** — one known exception: the work-package ID prefix is currently hard-coded in `check_work_package_ref.py` | Verified by instantiating |
+| `NFR-15` | A new project can be instantiated without modifying framework logic | **Target withdrawn as false.** Measured 2026-08-10: **18 files** require editing, including 3 enforcement scripts, 2 test modules and 6 governance documents. Revised target: instantiation requires no change to enforcement *logic* — renames and pruning only | **Measured**, `TRIAL-FR12-BOOTSTRAP.md` finding 1 | Verified by instantiating; trial executed through step 3 |
 
-`NFR-15` records a real defect rather than an aspiration: the authority gate's
-regex hard-codes `SECB-WP-`, so a new project must edit a script after all. The
-bootstrap runbook says so, and closing it is a candidate requirement for stage 3
-(make the prefix configuration, not code).
+`NFR-15` was measured and its original target **withdrawn as false**. It claimed
+zero `scripts/` edits with one known exception; the trial found eighteen files,
+including six governance documents the runbook classified reusable as-is. The
+honest target is narrower: instantiation requires no change to enforcement
+*logic*. Making the work-package prefix configuration rather than code remains a
+stage-3 candidate, and would reduce the eighteen to roughly six.
 
 ## Security
 
