@@ -1,4 +1,11 @@
-# Stage-Gate Decision Record — `PRD_BASELINED`
+# Stage-Gate Decision Record — `PRD_BASELINED` (v1.0.0) — **SUPERSEDED**
+
+> **Superseded, not withdrawn.** This record's verdict was issued against PRD
+> **v1.0.0**. Ballot 001 (2026-08-10) added objective `O7`, which is a §4
+> material change, so stage 1 was re-entered and a new record governs:
+> `STAGE_GATE_PRD_BASELINED_V1_1.md`. This record is retained because the
+> evidence chain must show what was approved when, not only what is current.
+> Its conditions C-3 and C-4 carry forward to the new record rather than lapsing.
 
 Prepared by: Claude (executor), `SECB-WP-FWK-014` (issue #24)
 Verdict recorded by: Claude (executor), `SECB-WP-FWK-016` (issue #28)

@@ -40,6 +40,9 @@ convinces itself it is further along than it is.
 | O5 | `FR-13` Knowledge cannot self-promote | `KNOWLEDGE_LAYER.md`, `LEARN_LOOP.md` | — | `KNOWLEDGE_REGISTER.md`, 5 objects `Proposed` | — |
 | O6 | `FR-16` Deterministic minimum-sufficient routing | `SKILL_ROUTER*.md`, 7 schemas | `src/secb_router/router.py` v1.5.1 | FIT-101–120, 20/20, replayed | — |
 | K-10 | `FR-20` Cost recordable | OTel GenAI conventions | — **not implemented** | — | — |
+| O7 | `FR-21` Autonomy rate measured | `DECISION_AUTHORITY.md` | — *(measurement, not code)* | `K-11` = 12/16 post-Genesis; announcements on issues #24 #26 #30 #32 #34 #40 #42 #44 #46 #50 #52 | — |
+| O7 | `FR-22` Ballot-dependent verdicts satisfiable | `ANALYSIS-AUTONOMY-CEILING.md` §5 design | — **not implemented** (`ballot_layer NOT_ACTIVE`) | — | — |
+| O7 | *also served by* `FR-05` `FR-10` `FR-11` `FR-17` `FR-18` | see their `O1` rows | see their `O1` rows | see their `O1` rows | — |
 
 ## Reverse trace — every artifact answers to a requirement
 

@@ -1,10 +1,11 @@
 # PRD — SecB Engineer Loop v1.5
 
-Version: **1.0.0 — baselined**
-Status: Stage 1 **passed**. Gate `PRD_BASELINED` issued
-`APPROVED_WITH_CONDITIONS` by the gate authority on 2026-08-10
-(`docs/13-evidence/STAGE_GATE_PRD_BASELINED.md`); conditions C-3 and C-4 remain
-open with owners and dates. Stage 2 (Requirement Decomposition) is open.
+Version: **1.1.0 — candidate baseline**, pending the stage-1 re-verdict
+Status: Stage 1 **re-entered** on 2026-08-10. Ballot 001 added objective `O7`,
+a §4 material change, so the v1.0.0 verdict is superseded and a new stage-1
+record awaits the authority (`STAGE_GATE_PRD_BASELINED_V1_1.md`). Conditions C-3
+and C-4 carry forward. Stage 2's verdict is deferred by ballot 002 so the gate
+passes once against seven objectives.
 Work Package: `SECB-WP-FWK-008` (issue #12); baseline preparation `SECB-WP-FWK-014` (issue #24)
 Template: `docs/16-templates/PRODUCT_DEFINITION_TEMPLATE.md` (`SECB-WP-FWK-007`)
 Product selection authority: operator decision, session 2026-08-10
@@ -15,10 +16,10 @@ Grounding sources: `docs/06-agent-orchestration/ENGINEER_LOOP.md` v1.5.0,
 
 | Item | Value |
 |---|---|
-| Baseline status | **Baselined at v1.0.0**, 2026-08-10 |
+| Baseline status | **v1.1.0 candidate** — baselined only when the stage-1 re-verdict is issued |
 | Change authority | Operator, as Product Sponsor |
 | Change process | After baseline, any change to scope, success metrics or acceptance criteria requires a new version and re-passing stage 1 (`DELIVERY_LIFECYCLE.md` §4) |
-| Approval record | `docs/13-evidence/STAGE_GATE_PRD_BASELINED.md` — `APPROVED_WITH_CONDITIONS` |
+| Approval record | `STAGE_GATE_PRD_BASELINED_V1_1.md` — awaiting verdict · prior: `STAGE_GATE_PRD_BASELINED.md` (v1.0.0, superseded) |
 | Re-baseline trigger | Any change to scope, success metrics or acceptance criteria, or a change to assumption A-02 |
 | Stage-1 companions | `STAKEHOLDER_REGISTER.md` · `RAID_REGISTER.md` · `KPI_BASELINE.md` |
 
@@ -93,6 +94,9 @@ Grounding sources: `docs/06-agent-orchestration/ENGINEER_LOOP.md` v1.5.0,
 4. Maintain unbroken traceability: Requirement → WP → Change → Test → Evidence → Approval → Release
 5. Run the Learn Loop each cycle round; grow the knowledge register only through the §17 promotion path
 6. Reach a separately-authorized R0 read-only routing pilot before any mutating or external-effect autonomy
+7. **Minimise human involvement: drive every non-constitutional decision to autonomous execution, so that humans act on constitutional change and as the trust anchor rather than in the loop of each decision.** Measured by `K-11` autonomy rate; baseline 75% of post-Genesis merges, target ~100% of `D0` and `D1` decisions.
+
+   **`L0` exclusion, binding:** `O7` never authorizes reducing a control to raise the number. The constitution, absolute ceilings, quorum and trust anchor are not delegable (`L0_ROOT_CONSTITUTION.md`), and every `D2`+ decision reaching a human is this objective **satisfied**, not obstructed — the ceiling is a feature. Added by ballot 001, 2026-08-10.
 
 ## 8. Product Scope
 

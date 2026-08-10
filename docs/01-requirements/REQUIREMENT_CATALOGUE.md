@@ -37,6 +37,8 @@ Acceptance method: how the requirement is *proven*, not how it is described.
 | `FR-18` | An escalated change reaches a human with the reason stated, and the escalation path is not bypassable | O1 | Operator | `AGENT_BALLOT_REQUIRED` on PR #29, merged only on explicit instruction | P1 |
 | `FR-19` | Defect classification supports attribution of an escape to the stage that should have caught it | O3, K-08 | Operator | ODC `defect_type`/`defect_trigger` + IEEE 1044 severity — **adopted, recording not yet in force** (condition C-3) | P2 |
 | `FR-20` | Cost of agent work is recordable under a vendor-neutral contract without a collector | KPI K-10 | Operator | OTel GenAI attribute names adopted — **not yet recorded** (condition C-3) | P3 |
+| `FR-21` | Autonomy rate is measured from the merge record and reported alongside the count of correctly-escalated decisions | O7 | Operator | `K-11` computed from squash-merged PRs since `035b66d` versus announced autonomous merges — 12/16 at adoption | P1 |
+| `FR-22` | Verdicts that depend on a ballot are satisfiable, so that governance implementation can be delegated without reaching a human | O7 | Operator | **Not implemented** — `ballot_layer.state = NOT_ACTIVE`; requires independent agent identities (deferred `D3`), whose design is verified in `ANALYSIS-AUTONOMY-CEILING.md` | P2 |
 
 ## Objective coverage
 
@@ -48,9 +50,20 @@ Acceptance method: how the requirement is *proven*, not how it is described.
 | O4 — unbroken traceability | `FR-01` `FR-07` `FR-08` `FR-12` |
 | O5 — Learn Loop each round | `FR-13` |
 | O6 — reach an R0 read-only routing pilot | `FR-16` |
+| **O7 — minimise human involvement** | `FR-21` `FR-22`, plus `FR-05` `FR-10` `FR-11` `FR-17` `FR-18` **re-mapped** — see below |
 
-**Every objective has at least one requirement.** O5 and O6 have exactly one
-each, which is thin: O5's single requirement covers capture but not the cadence
+**Every objective has at least one requirement.**
+
+**Re-map recorded, 2026-08-10 (`SECB-WP-FWK-029`).** Five requirements —
+`FR-05` no self-widening of authority · `FR-10` autonomous merges announced ·
+`FR-11` delegation expires · `FR-17` pre-authorized ladder · `FR-18` escalation
+not bypassable — were mapped to `O1` (mechanise the gates) because until ballot
+001 there was no objective they actually answered. They are *about* governing
+autonomy, not about mechanising a gate. They now serve **both** `O1` and `O7`,
+and the earlier mapping is recorded as the imprecision it was rather than
+quietly overwritten.
+
+O5 and O6 have exactly one requirement each, which is thin: O5's single requirement covers capture but not the cadence
 the objective claims ("each cycle round"), and O6 covers routing behaviour but
 not the pilot authorization itself. Both are recorded as conflicts below rather
 than papered over.

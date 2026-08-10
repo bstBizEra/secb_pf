@@ -7,6 +7,10 @@ condition 1
 Compiled by: Claude · Work Package: `SECB-WP-FWK-027` (issue #50)
 Supersedes the verdict request posted on issue #38, which asked for a gate
 verdict rather than offering a decision.
+**Status: `DECIDED` — `APPROVE_OPTION_A` (`DEFER_UNTIL` Packet 001 decided)**, by
+the operator, 2026-08-10. Packet 001 was then answered `APPROVE_OPTION_A`, so the
+deferral condition is now met: the stage-2 verdict is issued **once**, against
+seven objectives, after stage 1 re-passes on v1.1.0 (`SECB-WP-FWK-030`).
 
 ## 1. Decision required
 
@@ -134,7 +138,7 @@ is waiving a control, which no verdict may do.
 > open stage 3 now and accept re-passing stage 2 if the autonomy objective is
 > added?**
 
-- `APPROVE_OPTION_A` — defer until Packet 001 is decided *(recommended)*
+- **`APPROVE_OPTION_A` — defer until Packet 001 is decided** ← **selected**
 - `APPROVE_OPTION_B` — `APPROVED_WITH_CONDITIONS` now, with D-1…D-4
 - `APPROVE_OPTION_C` — `APPROVED` now
 - `APPROVE_WITH_CONDITIONS` — state them
