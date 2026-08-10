@@ -173,7 +173,8 @@ impression.
 | Item | Position | Evidence |
 |---|---|---|
 | SecB framework | **Stage 1 PASSED** — `PRD_BASELINED` issued `APPROVED_WITH_CONDITIONS` 2026-08-10 | `STAGE_GATE_PRD_BASELINED.md`; PRD v1.0.0 baselined; conditions C-3 (KPI instruments) and C-4 (governance owner) open with owners and dates |
-| Stage 2 | **OPEN** — the RTM is its first obligation | Unblocked by the stage-1 verdict; pending since `SECB-WP-FWK-005` |
+| Stage 2 | **Artifacts complete; gate `REQUIREMENTS_READY` prepared, awaiting the authority's verdict** | 20 FRs, 18 NFRs, `RTM.md`, `BOOTSTRAP_STORY_DOR.md` v0.1 (12 of 13 P1 ready). Record: `STAGE_GATE_REQUIREMENTS_READY.md`, `PREPARED_AWAITING_VERDICT`; five conditions met, two met with qualification |
+| Stage 3 | **Opens on the stage-2 verdict** — entry map recorded in `STAGE_GATE_REQUIREMENTS_READY.md` | Its four entry criteria are each mapped to the artifact satisfying them, including two that stage 2 folded in rather than wrote separately |
 | Stages 3–5 for the router | Design documentation exists; no recorded gate verdicts | `ENGINEER_LOOP.md` v1.5.0, `SECURITY_THREAT_MODEL.md` — but no `ARCHITECTURE_APPROVED`, `SOLUTION_DESIGN_APPROVED` or `SECURITY_DESIGN_APPROVED` decision record exists |
 | Stage 6 | **No `IMPLEMENTATION_AUTHORIZED` record** for the router; the FWK work packages authorize framework work only | issues #2–#22 |
 | Stage 7–8, router MVP slice | Code plus verified tests, sandbox-certified | `SANDBOX_TESTED` under `REV-SECB-ENGLOOP-MVP-001-20260810` (`SECB-WP-FWK-009`, `663984a`); router v1.5.1 (`SECB-WP-FWK-010`, `de31bb3`) |
