@@ -22,6 +22,7 @@ asked to measure it.
 | K-07 | Autonomous merges under the envelope | count, and rollback rate among them | Governance-verdict job + merge log | Per merge | 0 (envelope ratified 2026-08-10) | Ladder `A1` needs 30 with zero rollback | One rollback resets the count | Operator | **Yes, from now** |
 | K-08 | Defect escape rate | escapes / gates passed, where an escape is a defect whose ODC **trigger** is later than the stage that should have caught it | Three fields at defect close: ODC `defect_type` · ODC `defect_trigger` · IEEE 1044 `severity` | Per stage | 2 defects classifiable retroactively, both `checking` type | `TBC-OPERATOR` | Escapes are attributed to a stage, never averaged away | Operator | **ADOPTED** (`SECB-WP-FWK-016`, condition C-3) — recording not yet in force |
 | K-09 | Constitutional-class recall — **not** accuracy | Rule of three: with 0 downgrades in *n* observations, 95% upper bound on the downgrade rate = `3/n` | Classifier verdict versus the verdict a human would give, per PR | Per classifier change | **≤ 21.4%** (0 downgrades in 14) | ≤10% at n=30; ≤5% at n=60 | No constitutional case may be downgraded — a single downgrade invalidates the bound | Operator | **ADOPTED and live** — 0 downgrades in 16 observations |
+| K-11 | **Autonomy rate** | announced autonomous merges ÷ squash-merged PRs since `035b66d` | Merge record + the mandatory announcements | Per merge | **12/16 = 75%** | ~100% of `D0`/`D1` decisions | **Goodhart guard, binding: never reported without the count of decisions that were correctly escalated.** A rising rate achieved by classifying `D2` work as `D1` is a control failure, not an improvement. `L0` acts are excluded from the denominator | Operator | **Yes** |
 | K-10 | Cost per accepted change | tokens × model price, derived not recorded | OpenTelemetry GenAI conventions: `gen_ai.client.token.usage` by `gen_ai.token.type`, `gen_ai.request.model` | Per WP | Unmeasured; **field names fixed** so future data is comparable | `TBC-OPERATOR` | Observational only — never a gate condition | Operator | **ADOPTED as a recording contract** (`SECB-WP-FWK-016`, condition C-3); collector deferred |
 
 ## Readiness summary for the stage-1 gate
@@ -29,8 +30,10 @@ asked to measure it.
 Updated after `SECB-WP-FWK-015` (research record:
 `docs/17-references/RESEARCH-STAGE1-GATE-INSTRUMENTS.md`).
 
-- **Six metrics are measurable today** (K-01…K-05, K-07) with real baselines
-  taken from the fourteen merged work packages.
+- **Eight metrics are measurable today** (K-01…K-05, K-06, K-07, K-11) with real
+  baselines taken from the merged work packages. `K-11` was added by ballot 001 as
+  objective `O7`'s measure; it is the only KPI carrying a binding Goodhart guard,
+  because it is the only one whose numerator the measured party controls directly.
 - **K-06 is now computed**, closing stage-2 condition `D-2`: median 5.5 minutes
   across 24 work packages. The old `p50 < 1 hour` target was met by an order of
   magnitude, which made it uninformative — a target no plausible regression can

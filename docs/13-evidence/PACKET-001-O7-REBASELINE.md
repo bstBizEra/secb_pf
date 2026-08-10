@@ -4,6 +4,9 @@ Class: **`D4 CONSTITUTIONAL`** — it changes the product definition, which the 
 own change-control block makes a re-baseline trigger
 Authority: operator (vily), as Product Sponsor and constitutional authority
 Compiled by: Claude · Work Package: `SECB-WP-FWK-027` (issue #50)
+**Status: `DECIDED` — `APPROVE_OPTION_A`**, by the operator, 2026-08-10.
+Enacted under `SECB-WP-FWK-029` (issue #54). The ballot was answered by the
+authority; the compiler recorded it and did not supply it.
 Template: `docs/16-templates/DECISION_PACKET_TEMPLATE.md`
 
 ## 1. Decision required
@@ -126,7 +129,7 @@ to accommodate `O7`, halt — that is a `C4` change and out of scope.
 > accepting one PR and two gate records of rework now — or keep it outside the
 > PRD and accept that it disappears when this session ends?**
 
-- `APPROVE_OPTION_A` — full re-baseline to v1.1.0 with `O7`
+- **`APPROVE_OPTION_A` — full re-baseline to v1.1.0 with `O7`** ← **selected**
 - `APPROVE_OPTION_B` — ADR only, PRD untouched
 - `APPROVE_OPTION_C` — no change
 - `APPROVE_WITH_CONDITIONS` — state them
