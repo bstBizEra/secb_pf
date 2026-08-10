@@ -29,7 +29,7 @@ violates one is `INELIGIBLE` and must be labelled so in §5 rather than offered.
 
 ## 5. Options and project-impact matrix
 
-**Rule of Three:** risk-minimising · balanced · speed/cost-optimising · plus
+**Three-Option Requirement:** risk-minimising · balanced · speed/cost-optimising · plus
 status-quo or defer where viable. Every option must be technically feasible, meet
 non-waivable policy, be evidence-backed, and carry implementation, rollback and
 validation plans. **A deliberately weak option is not an option** — if only one
