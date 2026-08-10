@@ -41,7 +41,7 @@ conflict:
     stage_6_artifact: Implementation DoR
     stage_6_requirement: Revalidate all implementation-bound work packages
     tracked_as: SECB-WP-FWK-019-A
-  status: RESOLVED_BY_SPEC_OWNER
+  status: CANONICAL_RESOLVED   # was RESOLVED_BY_SPEC_OWNER; canonical amendment merged under SECB-WP-FWK-019-A
 ```
 
 ## The circularity, stated plainly
@@ -126,8 +126,10 @@ condition; `RAID_REGISTER.md` carries the conflict as issue `I-06`.
 
 ## Closing condition
 
-This bridge closes when `SECB-WP-FWK-019-A` is merged and the canonical stage
-model names the Bootstrap Story DoR as a stage-2 artifact. At that point this
-record becomes history rather than an operating instrument, and
-`BOOTSTRAP_STORY_DOR.md` stops being a bridge and becomes the stage-2 artifact
-it always described.
+**Closed.** `SECB-WP-FWK-019-A` amended the canonical stage model: stage 2 now
+names the Bootstrap Story DoR v0.1 among its required artifacts and in its exit
+condition, and stage 6 names the Implementation DoR v1.0 with a revalidation
+requirement for work packages that passed only the bootstrap level. This record
+is now history rather than an operating instrument, and
+`BOOTSTRAP_STORY_DOR.md` is the stage-2 artifact it always described rather than
+a bridge.

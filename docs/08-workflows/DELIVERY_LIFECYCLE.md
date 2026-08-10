@@ -106,6 +106,23 @@ Each gate returns exactly one controlled verdict:
 > across both layers is preferred, that is a one-line operator decision and a
 > follow-up work package; it is flagged here rather than settled unilaterally.
 
+### 2a. Specification conflicts
+
+A gate can be blocked not by the work but by the specification contradicting
+itself — an artifact consumed at one stage and created at another, an entry
+condition disagreeing with an exit condition, one term carrying two meanings.
+That class is handled deterministically by
+[`SPECIFICATION_CONFLICT_PROTOCOL.md`](../00-governance/SPECIFICATION_CONFLICT_PROTOCOL.md):
+record both statements verbatim, classify the conflict and its impact, take the
+resolution that changes original intent least, and **separate continuing work
+from amending the specification**.
+
+An agent may neither reinterpret the specification silently nor stop for a human
+on every occurrence. Where the decision formula is unmet the status is
+`SPEC_OWNER_REQUIRED` — naming who must decide and what they are deciding.
+The three verdict vocabularies (merge, stage gate, conflict) are reconciled in
+that document and deliberately kept separate.
+
 ### 3. Evidence minimum
 
 Every stage decision records: project and release identifier · stage and gate
