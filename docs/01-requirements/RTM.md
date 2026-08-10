@@ -36,7 +36,7 @@ convinces itself it is further along than it is.
 | O3 | `FR-19` Defect attribution | — | — **not implemented** | — | — |
 | O4 | `FR-07` Stage records with §3 fields | `DELIVERY_LIFECYCLE.md` §3 | — | `STAGE_GATE_PRD_BASELINED.md` | — |
 | O4 | `FR-08` Unbroken chain, breaks recorded | §1 chain | — | This document; exception I-01 | — |
-| O4 | `FR-12` Instantiable by procedure | `NEW_PROJECT_BOOTSTRAP.md` | — | **none — unverifiable here.** Fails Bootstrap DoR criterion 3; carried as a named gap, not waived | — |
+| O4 | `FR-12` Instantiable by procedure | `NEW_PROJECT_BOOTSTRAP.md` | — | **Partially verified** — trial executed through step 3 in a fresh repo, `TRIAL-FR12-BOOTSTRAP.md`, run evidence at trial commit `726ed96`. Product-layer steps 4–5 still unrun | — |
 | O5 | `FR-13` Knowledge cannot self-promote | `KNOWLEDGE_LAYER.md`, `LEARN_LOOP.md` | — | `KNOWLEDGE_REGISTER.md`, 5 objects `Proposed` | — |
 | O6 | `FR-16` Deterministic minimum-sufficient routing | `SKILL_ROUTER*.md`, 7 schemas | `src/secb_router/router.py` v1.5.1 | FIT-101–120, 20/20, replayed | — |
 | K-10 | `FR-20` Cost recordable | OTel GenAI conventions | — **not implemented** | — | — |
@@ -66,7 +66,7 @@ requirement. No orphaned code exists.
 | ID | Exception | State |
 |---|---|---|
 | `I-01` | Artifacts exist at stages 7–8 while stages 2–6 have no recorded gate verdicts | **Narrowing.** Stage 1 closed at `06ed153`; stage 2 is in progress and this document is its central artifact. Stages 3–6 remain open |
-| `TX-01` | `FR-12` has no verification and cannot acquire one in this repository | Accepted. Verifiable only by instantiating project #2 |
+| `TX-01` | `FR-12` has no verification and cannot acquire one in this repository | **Narrowed 2026-08-10.** The framework layer is verified by trial (`TRIAL-FR12-BOOTSTRAP.md`); the product layer — a real PRD traversing stages 1–2 in an instantiated repo — remains unverified and needs a product, not another trial |
 | `TX-02` | `FR-17` (authority ladder) has no test asserting its promotion conditions | The ladder is config the classifier reads for tier but never evaluates for advancement. **Raised at the stage-2 gate as finding 1**, with recommended condition D-1: make it executable, or record explicitly that advancement is a manual `G4` act with no automated check |
 | `TX-03` | `FR-19` and `FR-20` are adopted methods with no implementation | Tracked as stage-1 condition C-3, due before stage 6 |
 | `TX-04` | Stage 2's exit gate consumes a Definition of Ready that the specification places at stage 6 — a circular stage dependency | **Bridged.** `BOOTSTRAP_STORY_DOR.md` v0.1 in force under `CONFLICT-FWK-019.md`; status `RESOLVED_BY_SPEC_OWNER`; canonical amendment tracked as `SECB-WP-FWK-019-A`. Closes when that merges |

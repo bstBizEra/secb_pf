@@ -66,9 +66,12 @@ columns below therefore show the criteria that can actually differ per item.
 ## The failure, carried rather than waived
 
 `FR-12` — *a new project can be instantiated from the framework by following a
-documented procedure* — fails criterion 3. Its acceptance method cannot be
-executed inside this repository: instantiation is only provable by instantiating.
-`NEW_PROJECT_BOOTSTRAP.md` exists and is marked *never executed end to end*.
+documented procedure* — was recorded as failing criterion 3 because its
+acceptance method cannot execute inside this repository. **It was then executed
+outside it** (`SECB-WP-FWK-021`): a fresh repository was created and the runbook
+followed through step 3, which found and fixed four runbook defects, one of them
+leaving a new project's CI red on arrival. The framework layer is now evidenced;
+the product layer — steps 4–5, which need a real PRD — is not.
 
 This is recorded as traceability exception `TX-01` and carried into stage 3 as a
 **known gap with a named closing condition** — the first bootstrap of a second
