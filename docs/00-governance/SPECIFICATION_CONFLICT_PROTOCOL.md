@@ -112,6 +112,17 @@ actionable rather than as a request for attention.
 | Merge authority (`L0`, `SECB-WP-FWK-012`) | Who may land this change? | `AUTO_APPROVED` · `AUTO_APPROVED_WITH_CONDITIONS` · `AGENT_BALLOT_REQUIRED` · `CONSTITUTIONAL_REQUIRED` · `REJECTED` |
 | Stage gate (`DELIVERY_LIFECYCLE.md` §2) | May the project advance? | `APPROVED` · `APPROVED_WITH_CONDITIONS` · `REWORK_REQUIRED` · `BLOCKED` · `REJECTED` · `HUMAN_REQUIRED` |
 | Conflict resolution (this document) | May work proceed under a bridge? | `RESOLVED` · `PROVISIONALLY_RESOLVED` · `RESOLVED_BY_SPEC_OWNER` · `CANONICAL_RESOLVED` · `SPEC_OWNER_REQUIRED` · `REJECTED` |
+| Docs–surface measurement (`BST-EL-METRIC-001`, assessed not adopted) | Is the changed surface documented? | `PASS` · `PASS_WITH_WARNING` · `FAIL_CLOSED` · `HUMAN_REQUIRED` |
+| Human ballot (`DECISION_AUTHORITY.md`) | Which business outcome do we accept? | `APPROVE_OPTION_A/B/C` · `APPROVE_WITH_CONDITIONS` · `RETURN_FOR_MORE_EVIDENCE` · `DEFER_UNTIL` · `REJECT_ALL_OPTIONS` · `ABSTAIN_CONFLICT_OF_INTEREST` |
+| Agent vote (`DECISION_AUTHORITY.md`, Tier 2 — not active) | Does this role support the option? | `SUPPORT` · `SUPPORT_WITH_CONDITIONS` · `OPPOSE` · `POLICY_VETO` · `ABSTAIN_INSUFFICIENT_EVIDENCE` · `ABSTAIN_OUTSIDE_COMPETENCE` |
+
+**Six sets now, and three tokens appear in more than one.** `REJECTED` is a
+conflict verdict *and* a stage-gate verdict *and* a merge verdict;
+`APPROVE_WITH_CONDITIONS` is a stage-gate verdict *and* a human ballot choice;
+`HUMAN_REQUIRED` is a stage-gate verdict *and* a metric verdict, and was
+deliberately **retired** from merge authority. A bare token is therefore
+ambiguous: **always name the set.** Write "stage-gate `REJECTED`", never
+"`REJECTED`".
 
 They are not merged, and `SPEC_OWNER_REQUIRED` is **not** added to the merge
 classifier. A conflict verdict and a merge verdict answer different questions
