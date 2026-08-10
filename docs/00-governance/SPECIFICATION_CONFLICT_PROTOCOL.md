@@ -116,7 +116,19 @@ actionable rather than as a request for attention.
 | Human ballot (`DECISION_AUTHORITY.md`) | Which business outcome do we accept? | `APPROVE_OPTION_A/B/C` · `APPROVE_WITH_CONDITIONS` · `RETURN_FOR_MORE_EVIDENCE` · `DEFER_UNTIL` · `REJECT_ALL_OPTIONS` · `ABSTAIN_CONFLICT_OF_INTEREST` |
 | Agent vote (`DECISION_AUTHORITY.md`, Tier 2 — not active) | Does this role support the option? | `SUPPORT` · `SUPPORT_WITH_CONDITIONS` · `OPPOSE` · `POLICY_VETO` · `ABSTAIN_INSUFFICIENT_EVIDENCE` · `ABSTAIN_OUTSIDE_COMPETENCE` |
 
-**Six sets now, and three tokens appear in more than one.** `REJECTED` is a
+| Baseline disposition (`TWO_PLANE_DECISION_MODEL.md` Plane A) | Is the artifact good enough? | `APPROVED` · `CHANGES_REQUIRED` · `REJECTED` |
+| Obligation posture (Plane B) | What remains owed? | `CLEAR` · `OPEN_NON_BLOCKING` · `OPEN_BLOCKING` · `OPEN_UNCONTROLLED` |
+
+The stage-gate set gains two rendered verdicts from the rendering matrix:
+`HELD_FOR_CONDITION_CLOSURE` (approved baseline, blocking obligation) and
+`DECISION_INCOMPLETE` (approved baseline, uncontrolled obligation).
+
+**`SC-04` resolved, 2026-08-10:** Plane A's `CHANGES_REQUIRED` and the stage-gate
+`REWORK_REQUIRED` name the same outcome at different layers — a property of the
+*artifact* versus a property of the *decision*. Both are kept, scoped to their
+layer, and the rendering matrix maps between them; a seventh synonym was not added.
+
+**Eight sets now, and three tokens appear in more than one.** `REJECTED` is a
 conflict verdict *and* a stage-gate verdict *and* a merge verdict;
 `APPROVE_WITH_CONDITIONS` is a stage-gate verdict *and* a human ballot choice;
 `HUMAN_REQUIRED` is a stage-gate verdict *and* a metric verdict, and was

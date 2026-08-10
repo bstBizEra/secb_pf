@@ -2,7 +2,8 @@
 
 Derived from `docs/13-evidence/STAGE_GATE_PRD_BASELINED.md`, the first gate
 record this framework issued. Carries the twelve evidence-minimum fields of
-`DELIVERY_LIFECYCLE.md` §3.
+`DELIVERY_LIFECYCLE.md` §3 and the two planes of
+[`TWO_PLANE_DECISION_MODEL.md`](../00-governance/TWO_PLANE_DECISION_MODEL.md).
 
 > **Ship this with `decision` empty.** The executor prepares and records; the
 > gate authority decides. A record that arrives pre-approved is self-approval
@@ -35,24 +36,52 @@ Verdict recorded by: `<executor>`, `<WP-ID>` *(fill when the verdict is issued)*
 | Eligible approvers | Who may issue this. If a named body has no members, say so |
 | Votes / signatures | Empty until issued |
 | Decision timestamp | |
-| Effective status | `PREPARED_AWAITING_VERDICT` until issued |
+| Effective status | `PREPARED_AWAITING_VERDICT` until issued; afterwards **see the two-plane disposition** — a single field cannot carry a decision, its inputs and its unfinished business at once |
 
-## Exit-condition assessment
+## Disposition — two planes, then the rendered verdict
 
-One row per exit condition from `DELIVERY_LIFECYCLE_STAGES.md` for this stage.
+```text
+baseline_disposition: APPROVED | CHANGES_REQUIRED | REJECTED
+criteria_passed: <n>    criteria_total: <n>
+
+obligation_posture: CLEAR | OPEN_NON_BLOCKING | OPEN_BLOCKING | OPEN_UNCONTROLLED
+open_conditions:    <IDs, from CONDITION_REGISTER.md>
+```
+
+| Dimension | Value |
+|---|---|
+| Evidence readiness | `PASS — n/n criteria` |
+| Baseline disposition | |
+| Obligation posture | |
+| **Rendered verdict** | per the rendering matrix |
+| Next stage | `OPEN` or `PENDING_…`, from the **transition guard**, never asserted |
+
+## Gate-criteria assessment (`GC-nn`)
+
+One row per exit criterion from `DELIVERY_LIFECYCLE_STAGES.md` for this stage.
 Assess against the **committed** tree and cite the artifact — not the intention.
 
-| # | Condition | State | Evidence |
+> **The verdict is not a criterion** (`GATE-001`). Do not add a row for "formally
+> approved"; that is Plane A's output, recorded above. A record whose criteria
+> count includes its own decision is invalid.
+
+| # | Criterion | State | Evidence |
 |--:|---|---|---|
-| 1 | | Met / Not met / Met in part | |
+| `GC-01` | | Met / Not met / Met in part | |
 
-## Conditions of approval
+## Carried conditions (`C-n`)
 
-| # | Condition | Owner | Due | Status |
-|--:|---|---|---|---|
+**Do not restate the register here.** Cite `CONDITION_REGISTER.md`, which is
+authoritative, and list only the IDs in scope with their blocking scope:
 
-Advancement past a stated milestone with the condition open is a change-control
-event (§4), not discretion.
+| ID | Blocking scope | Status |
+|---|---|---|
+
+New conditions created by *this* decision are added to the register with all
+thirteen fields (`GATE-004`). A condition open at a previous gate and not
+mentioned here **remains open** — absence is not a disposition (`GATE-005`).
+Advancement past a due stage with the condition open is a change-control event
+(§4), not discretion.
 
 ## Available verdicts (§2)
 
