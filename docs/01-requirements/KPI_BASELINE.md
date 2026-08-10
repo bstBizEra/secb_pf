@@ -18,7 +18,7 @@ asked to measure it.
 | K-03 | Evidence completeness | WPs whose gate results are recorded on the ticket / WPs merged | Issue comments | Per WP | 14/14 | 100% | Presence is not sufficiency; a comment must cite run IDs | Operator | **Yes** |
 | K-04 | First-pass budget compliance | WPs needing no budget amendment / WPs merged | Issue comments | Per WP | 11/14 (79%) | ≥90% | Not met by inflating declared budgets | Executor | **Yes** |
 | K-05 | Executable control gates | mechanized gates / 10 | `ci.yml` versus `CONTROL_GATES.md` | Per change to CI | 3/10 (Authority, Test, Budget) | 10/10 | A gate counts only once proven to fail on a real PR (`KN-001`) | Operator | **Yes** |
-| K-06 | Loop lead time, ticket to merge | `merged_at − issue.created_at`, median | GitHub timestamps | Per WP | Not computed | p50 < 1 hour | Speed must never be met by skipping evidence | Operator | **Formula ready, never computed** |
+| K-06 | Loop lead time, ticket to merge | `merged_at − issue.created_at`, median | GitHub timestamps | Per WP | **n=24 · median 5.5 min · p90 26.2 min · max 435.9 min** | p50 ≤ 10 min · p90 ≤ 30 min | Speed must never be met by skipping evidence; the max is a human-decision wait, not slow execution | Operator | **COMPUTED** (`SECB-WP-FWK-028`) |
 | K-07 | Autonomous merges under the envelope | count, and rollback rate among them | Governance-verdict job + merge log | Per merge | 0 (envelope ratified 2026-08-10) | Ladder `A1` needs 30 with zero rollback | One rollback resets the count | Operator | **Yes, from now** |
 | K-08 | Defect escape rate | escapes / gates passed, where an escape is a defect whose ODC **trigger** is later than the stage that should have caught it | Three fields at defect close: ODC `defect_type` · ODC `defect_trigger` · IEEE 1044 `severity` | Per stage | 2 defects classifiable retroactively, both `checking` type | `TBC-OPERATOR` | Escapes are attributed to a stage, never averaged away | Operator | **ADOPTED** (`SECB-WP-FWK-016`, condition C-3) — recording not yet in force |
 | K-09 | Constitutional-class recall — **not** accuracy | Rule of three: with 0 downgrades in *n* observations, 95% upper bound on the downgrade rate = `3/n` | Classifier verdict versus the verdict a human would give, per PR | Per classifier change | **≤ 21.4%** (0 downgrades in 14) | ≤10% at n=30; ≤5% at n=60 | No constitutional case may be downgraded — a single downgrade invalidates the bound | Operator | **ADOPTED and live** — 0 downgrades in 16 observations |
@@ -31,8 +31,10 @@ Updated after `SECB-WP-FWK-015` (research record:
 
 - **Six metrics are measurable today** (K-01…K-05, K-07) with real baselines
   taken from the fourteen merged work packages.
-- **One has a formula but has never been run** (K-06). Nothing blocks it but
-  the doing.
+- **K-06 is now computed**, closing stage-2 condition `D-2`: median 5.5 minutes
+  across 24 work packages. The old `p50 < 1 hour` target was met by an order of
+  magnitude, which made it uninformative — a target no plausible regression can
+  breach measures nothing. It is now set just above observed performance.
 - **K-09 is now computable** and has a value: a 95% upper bound of **21.4%** on
   the downgrade rate, from zero downgrades in fourteen observations. The bound
   is weak by design of the arithmetic, not by evasion — it tightens to ≤10% at

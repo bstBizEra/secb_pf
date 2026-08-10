@@ -25,7 +25,7 @@ clothing, and is marked as such.
 | `NFR-05` | Full CI gate set completes fast enough not to change developer behaviour | ≤ 3 minutes wall clock | Observed: runs complete in 11–13 s; a 3-minute ceiling leaves headroom for a growing test suite | Workflow run duration |
 | `NFR-06` | The test suite stays fast enough to run before every push | ≤ 30 s locally | Observed: 85 tests in ~3.4 s | Local `pytest` timing |
 | `NFR-07` | Classifier evaluation cost is negligible relative to the change it judges | ≤ 2 s per PR, two evaluations included | Observed: sub-second per invocation | Governance job step duration |
-| `NFR-08` | Loop lead time, ticket to merge | p50 < 1 hour | **Provisional** — K-06 has a formula but has never been computed; no basis until it is | GitHub timestamps |
+| `NFR-08` | Loop lead time, ticket to merge | **p50 ≤ 10 min · p90 ≤ 30 min** | **Measured 2026-08-10** (`SECB-WP-FWK-028`): n=24, median **5.5 min**, p90 **26.2 min**, max 435.9 min. The original `p50 < 1 hour` was met by an order of magnitude and therefore carried no information; the target is now set just above observed performance so a regression is visible | GitHub timestamps: `issue.created_at → pull.merged_at` |
 
 ## Auditability
 
@@ -71,3 +71,8 @@ Recorded because an absent NFR is easier to miss than a failing one:
   before a large registry exists, and that is a stage-3 concern.
 - **No cost NFR.** K-10's instrumentation is adopted but not recording, so any
   target would be unmeasurable. Deliberately absent rather than provisional.
+- **One outlier is not explained.** The 435.9-minute maximum belongs to the
+  Specification Conflict Protocol work package, which waited on an operator
+  decision. Lead time as currently defined measures the whole wall clock
+  including human wait, so it conflates agent throughput with decision latency.
+  Splitting the two is a candidate refinement, recorded rather than done.
