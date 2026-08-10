@@ -49,7 +49,7 @@ one. Conflating them produced the self-referential defect corrected in
 |---|---|
 | `condition_id` | `C-3` |
 | `origin_decision` | `STAGE_GATE_PRD_BASELINED.md` (v1.0.0, superseded); carried to v1.1.0 by the verdict of 2026-08-10 |
-| `statement` | Put the three adopted measurement instruments into force: ODC `defect_type` + `defect_trigger` and IEEE 1044 `severity` recorded at defect close (`K-08`); the rule-of-three tally recorded per decision (`K-09`); the OpenTelemetry GenAI attribute names recorded per work package (`K-10`) |
+| `statement` | Put the three adopted measurement instruments into force: ODC `defect_type` + `defect_trigger` and IEEE 1044 `severity` recorded at defect close (`K-08`); the statistical rule-of-three (`3/n`) tally recorded per decision (`K-09`); the OpenTelemetry GenAI attribute names recorded per work package (`K-10`) |
 | `status` | **`OPEN` — partially in force** (see below) |
 | `severity` | Major |
 | `blocking_scope` | Stage 6 (`IMPLEMENTATION_AUTHORIZED`). **Does not block stages 2–5** |
@@ -63,10 +63,17 @@ one. Conflating them produced the self-referential defect corrected in
 
 ### `C-3` is one-third in force, and nobody had recorded it
 
-Predicate (b) is **already satisfied in practice.** Every autonomous-merge
-announcement since `e76f8b4` has carried the rule-of-three tally — *"0 downgrades
-in N observations → 95% bound X%"* — thirteen times, currently at n=31 and 9.7%.
-That instrument is in force.
+Predicate (b) is **partly satisfied, and its evidence was defective.** Every
+autonomous-merge announcement since `e76f8b4` carried a tally — *"0 downgrades in
+N observations → 95% bound X%"* — sixteen times. But `SECB-WP-FWK-034` found the
+denominator had **no definition**: the values were hand-incremented on an unstated
+rule and over-stated confidence. With an observation now defined as one governance
+verdict on a merged PR head, the reproducible figure is **0 downgrades in 22 → 13.6%**,
+not the 8.1% last announced.
+
+So the instrument is **in force in form and was unreliable in substance.** Closing
+predicate (b) now requires the tally to be recorded in a repository artifact rather
+than only in issue comments, which is the open follow-up.
 
 Predicates (a) and (c) are not: no defect has been recorded with ODC fields, and
 no work package has recorded token attributes.

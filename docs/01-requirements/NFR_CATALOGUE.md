@@ -14,7 +14,7 @@ clothing, and is marked as such.
 | ID | NFR | Target | Basis | Verification |
 |---|---|---|---|---|
 | `NFR-01` | Every enforcement script fails closed: absent, empty, malformed or unparseable input escalates or rejects, never passes | 100% of fail-closed paths covered by a subprocess test | Observed: 65 repo tests, every gate has explicit fail-closed cases | `pytest tests/` in CI |
-| `NFR-02` | No constitutional-class change is ever downgraded to an autonomous verdict | 0 downgrades; 95% upper bound on the rate ≤10% | Rule of three at n=30, the `A1→A2` ladder threshold. Currently ≤16.7% at n=18 | Per-PR verdict versus the verdict a human would give |
+| `NFR-02` | No constitutional-class change is ever downgraded to an autonomous verdict | 0 downgrades; 95% upper bound on the rate ≤10% | Statistical rule of three (`3/n`) at n=30, the `A1→A2` ladder threshold. Currently ≤13.6% at n=22 | Per-PR verdict versus the verdict a human would give |
 | `NFR-03` | Gate decisions are deterministic: identical inputs yield an identical verdict | 100% reproducible | Observed: FIT suite run twice with identical results at certification, and again against v1.5.1 | Dual-policy job compares two evaluations of the same diff |
 | `NFR-04` | Sealed evidence is bit-stable | SHA-256 unchanged across every subsequent operation | Observed: `router.py` `4d1dab78…` unchanged across five work packages | Digest recomputation in review records |
 

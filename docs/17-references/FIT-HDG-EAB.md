@@ -66,7 +66,7 @@ was working because the human kept saying yes.
 |---|---|
 | `D0`–`D4` authority classes | Partly present as `G0`–`G5`, but keyed to *authority delta*, not to *business materiality*. Nothing distinguishes a costly reversible change from a cheap one |
 | Mandatory human-decision triggers (budget, scope, date, customer-visible, SLO, lock-in, irreversible migration, accepted risk) | **Absent.** SecB triggers on *paths and size*, which is exactly the semantic blindness recorded in `ADR-EVIDENCE-BACKED-AGENT-GOVERNANCE.md` |
-| Rule of Three options | **Absent** |
+| Three-Option Requirement (HDG-EAB calls it "Rule of Three") | **Absent** |
 | Project Impact Choice Matrix (13 dimensions) | **Absent** |
 | Scoring with policy vetoes above score | Absent; no scoring exists |
 | Agent Decision Council, 7 voting roles + 2 non-voting | `ballot_layer NOT_ACTIVE`; also SecB's proposer **is** its own recommender and merger — HDG-EAB makes the Proposal Agent **non-voting** |
@@ -144,7 +144,7 @@ large gain — but the ceiling is a feature.
 
 | Tier | Content | Cost | When |
 |---|---|---|---|
-| **1 — now** | `D0`–`D4` authority matrix mapped onto `G0`–`G5`/`R0`–`R4`; the mandatory human-decision trigger list, with project thresholds set once in the charter and unchangeable inside a ballot; the Human Decision Packet template including Rule of Three and the twelve required sections; fail-safe no-response defaults; `E0`–`E4` evidence levels applied retroactively to existing evidence; vocabulary reconciliation | Documentation only, ~4 files | On approval |
+| **1 — now** | `D0`–`D4` authority matrix mapped onto `G0`–`G5`/`R0`–`R4`; the mandatory human-decision trigger list, with project thresholds set once in the charter and unchangeable inside a ballot; the Human Decision Packet template including the Three-Option Requirement and the twelve required sections; fail-safe no-response defaults; `E0`–`E4` evidence levels applied retroactively to existing evidence; vocabulary reconciliation | Documentation only, ~4 files | On approval |
 | **2 — when identities exist** | Agent Decision Council roles, vote types, sealed voting, quorum table, non-voting proposer, evidence auditor separate from ballot compiler | Depends on the one-repo-per-role design | After the identity decision |
 | **3 — trigger-gated** | `decision_classifier.py`, `ballot_quorum_engine.py`, `evidence_verifier.py`, six schemas, `decision_register.jsonl` | Substantial | When `D2`+ decision volume or a real quorum makes hand-running the model the bottleneck |
 

@@ -13,7 +13,7 @@ asked to measure it.
 
 | # | KPI | Formula | Source | Cadence | Baseline | Target | Guardrail | Owner | Ready? |
 |--:|---|---|---|---|---|---|---|---|---|
-| K-01 | PRs merged with all gates green | `green_prs / merged_prs` | GitHub check-runs API | Per merge | 13/13 (100%) | 100% | Never met by relaxing a gate | Operator | **Yes** |
+| K-01 | PRs merged with all gates green | `green_prs / merged_prs` | GitHub check-runs API | Per merge | **30/30 (100%)** | 100% | Never met by relaxing a gate | Operator | **Yes** |
 | K-02 | Unauthorized-action rate | count of merges without a passing Authority gate | Check-runs API + issue records | Per merge | 0 | 0 | Any occurrence is an incident, not a metric movement | Operator | **Yes** |
 | K-03 | Evidence completeness | WPs whose gate results are recorded on the ticket / WPs merged | Issue comments | Per WP | 14/14 | 100% | Presence is not sufficiency; a comment must cite run IDs | Operator | **Yes** |
 | K-04 | First-pass budget compliance | WPs needing no budget amendment / WPs merged | Issue comments | Per WP | 11/14 (79%) | ≥90% | Not met by inflating declared budgets | Executor | **Yes** |
@@ -21,8 +21,8 @@ asked to measure it.
 | K-06 | Loop lead time, ticket to merge | `merged_at − issue.created_at`, median | GitHub timestamps | Per WP | **n=24 · median 5.5 min · p90 26.2 min · max 435.9 min** | p50 ≤ 10 min · p90 ≤ 30 min | Speed must never be met by skipping evidence; the max is a human-decision wait, not slow execution | Operator | **COMPUTED** (`SECB-WP-FWK-028`) |
 | K-07 | Autonomous merges under the envelope | count, and rollback rate among them | Governance-verdict job + merge log | Per merge | 0 (envelope ratified 2026-08-10) | Ladder `A1` needs 30 with zero rollback | One rollback resets the count | Operator | **Yes, from now** |
 | K-08 | Defect escape rate | escapes / gates passed, where an escape is a defect whose ODC **trigger** is later than the stage that should have caught it | Three fields at defect close: ODC `defect_type` · ODC `defect_trigger` · IEEE 1044 `severity` | Per stage | 2 defects classifiable retroactively, both `checking` type | `TBC-OPERATOR` | Escapes are attributed to a stage, never averaged away | Operator | **ADOPTED** (`SECB-WP-FWK-016`, condition C-3) — recording not yet in force |
-| K-09 | Constitutional-class recall — **not** accuracy | Rule of three: with 0 downgrades in *n* observations, 95% upper bound on the downgrade rate = `3/n` | Classifier verdict versus the verdict a human would give, per PR | Per classifier change | **≤ 21.4%** (0 downgrades in 14) | ≤10% at n=30; ≤5% at n=60 | No constitutional case may be downgraded — a single downgrade invalidates the bound | Operator | **ADOPTED and live** — 0 downgrades in 16 observations |
-| K-11 | **Autonomy rate** | announced autonomous merges ÷ squash-merged PRs since `035b66d` | Merge record + the mandatory announcements | Per merge | **12/16 = 75%** | ~100% of `D0`/`D1` decisions | **Goodhart guard, binding: never reported without the count of decisions that were correctly escalated.** A rising rate achieved by classifying `D2` work as `D1` is a control failure, not an improvement. `L0` acts are excluded from the denominator | Operator | **Yes** |
+| K-09 | Constitutional-class recall — **not** accuracy | **Statistical rule of three (`3/n`)**: with 0 downgrades in *n* observations, 95% upper bound on the downgrade rate = `3/n`. **One observation = one governance verdict rendered on a merged PR's head SHA** — a definition that did not exist before `SECB-WP-FWK-034` and without which the series was not reproducible | Governance-verdict check-runs on merged PR heads | Per classifier change | **≤ 13.6%** — 0 downgrades in **22** observations, counted from CI history | ≤10% at n=30; ≤5% at n=60 | No constitutional case may be downgraded — a single downgrade invalidates the bound | Operator | **ADOPTED and live** |
+| K-11 | **Autonomy rate** | announced autonomous merges ÷ squash-merged PRs since `035b66d` | Merge record + the mandatory announcements | Per merge | **14/19 = 74%** | ~100% of `D0`/`D1` decisions | **Goodhart guard, binding: never reported without the count of decisions that were correctly escalated.** A rising rate achieved by classifying `D2` work as `D1` is a control failure, not an improvement. `L0` acts are excluded from the denominator | Operator | **Yes** |
 | K-10 | Cost per accepted change | tokens × model price, derived not recorded | OpenTelemetry GenAI conventions: `gen_ai.client.token.usage` by `gen_ai.token.type`, `gen_ai.request.model` | Per WP | Unmeasured; **field names fixed** so future data is comparable | `TBC-OPERATOR` | Observational only — never a gate condition | Operator | **ADOPTED as a recording contract** (`SECB-WP-FWK-016`, condition C-3); collector deferred |
 
 ## Readiness summary for the stage-1 gate
@@ -30,6 +30,11 @@ asked to measure it.
 Updated after `SECB-WP-FWK-015` (research record:
 `docs/17-references/RESEARCH-STAGE1-GATE-INSTRUMENTS.md`).
 
+- **Values are recounted at each report, never carried.** `K-01` and `K-11` were
+  found stale while fixing `K-09` and are corrected here (30/30 and 14/19). The
+  remaining rows — `K-03`, `K-04`, `K-05`, `K-07` — still hold values from earlier
+  work packages and need a refresh pass; that is a separate need, recorded rather
+  than done inside a naming change.
 - **Eight metrics are measurable today** (K-01…K-05, K-06, K-07, K-11) with real
   baselines taken from the merged work packages. `K-11` was added by ballot 001 as
   objective `O7`'s measure; it is the only KPI carrying a binding Goodhart guard,
@@ -38,11 +43,16 @@ Updated after `SECB-WP-FWK-015` (research record:
   across 24 work packages. The old `p50 < 1 hour` target was met by an order of
   magnitude, which made it uninformative — a target no plausible regression can
   breach measures nothing. It is now set just above observed performance.
-- **K-09 is now computable** and has a value: a 95% upper bound of **21.4%** on
-  the downgrade rate, from zero downgrades in fourteen observations. The bound
-  is weak by design of the arithmetic, not by evasion — it tightens to ≤10% at
-  thirty observations, which is also the `A1 → A2` ladder threshold, giving that
-  rung a statistical meaning it previously lacked.
+- **K-09 is computable and now reproducible.** 95% upper bound **13.6%** from zero
+  downgrades in **22** observations, where an observation is defined as one
+  governance verdict rendered on a merged PR's head SHA and counted from CI
+  history. Before `SECB-WP-FWK-034` the denominator had **no definition**: this row
+  carried `n=14` in one column and `n=16` in another while merge announcements had
+  reached `n=37`, all incremented by hand on an unstated rule. The bound is weak by
+  the arithmetic, not by evasion — it tightens to ≤10% at thirty observations, which
+  is also the `A1 → A2` ladder threshold, giving that rung a statistical meaning it
+  previously lacked. **The announced series over-stated confidence and is
+  superseded by this row.**
 - **K-08 and K-10 have named instruments** costing three recorded fields each,
   with no tooling: ODC type/trigger plus IEEE 1044 severity, and the
   OpenTelemetry GenAI attribute names as a recording contract. Neither is
