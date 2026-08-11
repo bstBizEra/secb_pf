@@ -1,7 +1,7 @@
 {
   "$comment": "Identifier taxonomy registry for SecB_PF (SECB-WP-FWK-041, corrected under the operator's research verdict of 2026-08-11). Adopted from BACP v1.1 TaxonomyModel section 6: identifier ladders are versioned DATA, not assumptions spread across prose. THIS FILE IS A FACTUAL LEDGER. It preserves provenance-backed recorded assertions and an immutable-by-git-history baseline of the collision debt observed at as_of_commit. It does NOT prevent new collision debt from arising in the governed system, it does NOT issue allow/deny verdicts, and it does NOT originate a prohibition, threshold or authority. Any normative effect is performed by an external authorized policy and enforcement mechanism.",
   "taxonomy_id": "TAX-SECB-2026-001",
-  "taxonomy_version": "1.1.0",
+  "taxonomy_version": "1.2.0",
   "as_of_commit": "3b61307",
   "recorded_by": "SECB-WP-FWK-041",
   "ladders": [
@@ -157,6 +157,96 @@
       "enforced_by": "scripts/check_work_package_ref.py, reading config/delegation_envelope.json",
       "ordering": "none",
       "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
+    },
+    {
+      "prefix": "O",
+      "form": "O1-O7",
+      "bound_to": "PRD objectives -- O7 was added by ballot 001",
+      "home": "docs/01-requirements/PRD-ENGINEER-LOOP.md",
+      "enforced_by": "reading",
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit",
+      "registered_in": "1.2.0 -- missed by v1.0.0's hand-picked enumeration"
+    },
+    {
+      "prefix": "I",
+      "form": "I-01..",
+      "bound_to": "Impediments in the RAID register",
+      "home": "docs/01-requirements/RAID_REGISTER.md",
+      "enforced_by": "reading",
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit",
+      "registered_in": "1.2.0 -- missed by v1.0.0's hand-picked enumeration"
+    },
+    {
+      "prefix": "F",
+      "form": "F1-F5",
+      "bound_to": "Independent-review findings on the skill-router MVP",
+      "home": "docs/13-evidence/SECB-WP-ENGLOOP-MVP-001_INDEPENDENT_REVIEW.md",
+      "enforced_by": "reading",
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit",
+      "registered_in": "1.2.0 -- missed by v1.0.0's hand-picked enumeration"
+    },
+    {
+      "prefix": "GC",
+      "form": "GC-nn",
+      "bound_to": "Gate criteria inside a stage-gate record",
+      "home": "docs/13-evidence/STAGE_GATE_REQUIREMENTS_READY.md",
+      "enforced_by": "reading",
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit",
+      "registered_in": "1.2.0 -- missed by v1.0.0's hand-picked enumeration"
+    },
+    {
+      "prefix": "EL",
+      "form": "EL-nn",
+      "bound_to": "Engineer Loop implementation-pack items",
+      "home": "docs/06-agent-orchestration/IMPLEMENTATION_PACK_INDEX.md",
+      "enforced_by": "reading",
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit",
+      "registered_in": "1.2.0 -- missed by v1.0.0's hand-picked enumeration"
+    },
+    {
+      "prefix": "DWRC",
+      "form": "DWRC-nn",
+      "bound_to": "Durable-workflow history/replay/compensation requirements",
+      "home": "docs/06-agent-orchestration/durable-workflow/DURABLE_WORKFLOW_HISTORY_REPLAY_COMPENSATION.md",
+      "enforced_by": "reading",
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit",
+      "registered_in": "1.2.0 -- missed by v1.0.0's hand-picked enumeration"
+    },
+    {
+      "prefix": "ASF",
+      "form": "ASF-nn",
+      "bound_to": "Autonomous-lifecycle test-plan scenarios",
+      "home": "docs/09-testing/AUTONOMOUS_LIFECYCLE_TEST_PLAN.md",
+      "enforced_by": "reading",
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit",
+      "registered_in": "1.2.0 -- missed by v1.0.0's hand-picked enumeration"
+    },
+    {
+      "prefix": "FI",
+      "form": "FI-nn",
+      "bound_to": "FIT suite cases for the sandbox router",
+      "home": "docs/06-agent-orchestration/skill-router/",
+      "enforced_by": "reading",
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit",
+      "registered_in": "1.2.0 -- missed by v1.0.0's hand-picked enumeration"
+    },
+    {
+      "prefix": "GIT",
+      "form": "GIT-nn",
+      "bound_to": "Autonomous git-controller contract requirements",
+      "home": "docs/06-agent-orchestration/autonomous-git-controller/",
+      "enforced_by": "reading",
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit",
+      "registered_in": "1.2.0 -- missed by v1.0.0's hand-picked enumeration"
     }
   ],
   "collisions_recorded": [
@@ -216,6 +306,20 @@
       "second_claimant_adopted": false,
       "recommendation_advisory": "Advisory, not a rule: if BACP's artifact layers are adopted, bind them to a free prefix -- M0-M4 is reserved below for that purpose. This registry records that L is taken, and that L0 is the constitution's filename; it does not forbid anything.",
       "superseded_disposition_v1_0_0": "BLOCKED -- BACP's artifact layers may not enter SecB as bare L-n. Reserved alternative below."
+    },
+    {
+      "prefix": "containment",
+      "kind": "PREFIX_CONTAINMENT -- structurally distinct from rebinding the same prefix",
+      "severity": "5 pairs, all in force",
+      "meanings": [
+        "G is a string-prefix of GATE, GC and GIT",
+        "E is a string-prefix of EL; D of DWRC; A of ASF; F of FI"
+      ],
+      "distinguisher": "the digit that follows, which a naive prefix matcher does not consider",
+      "evidenced_by": "measured at taxonomy 1.2.0 while enumerating declaration tables; it is why the single-letter collisions were hard to see",
+      "observed_status": "BOTH_IN_FORCE",
+      "second_claimant_adopted": true,
+      "recommendation_advisory": "Advisory, not a rule: any future matcher over these identifiers should anchor on the full term shape rather than the leading letters. No rename is implied -- containment is a matcher property, not a meaning conflict."
     }
   ],
   "reserved_unbound": [
@@ -230,7 +334,8 @@
     "Every prefix above is recorded because it is IN USE at as_of_commit, verified by the command in verified_by. Records are provenance-backed recorded assertions, not self-proving facts: registration shows the assertion was made and by whom, not that it is true (the reasoning of IETF RFC 9943).",
     "The guard on this file asserts that a NEW prefix is not bound twice without a collision record, and that every recorded collision carries meanings, evidence, an observational status and an advisory recommendation. That is integrity validation of this file, not governance of the repository.",
     "This registry does NOT enact a rule. The naming rule recommended by SECB-WP-FWK-039 -- a single-letter prefix, once bound, is never rebound -- remains ungranted; a rule binding agent behaviour belongs to the constitutional authority.",
-    "Corrected in v1.1.0 under the operator's research verdict: v1.0.0's `disposition` field carried verdict-shaped prohibitions (\"may not enter SecB\") and a test enforced them, which made the registry originate a prohibition while claiming it originated none. The prohibitions are now advisory recommendations and the superseded wording is retained per-collision rather than deleted."
+    "Corrected in v1.1.0 under the operator's research verdict: v1.0.0's `disposition` field carried verdict-shaped prohibitions (\"may not enter SecB\") and a test enforced them, which made the registry originate a prohibition while claiming it originated none. The prohibitions are now advisory recommendations and the superseded wording is retained per-collision rather than deleted.",
+    "Corrected in v1.2.0 under the operator's research verdict: v1.0.0's enumeration was incomplete by 9 prefixes and its absence claim named no boundary. An observation_boundary is now declared, the 9 are registered, prefix containment is recorded as a distinct collision kind, and the permitted absence claim is OBSERVED_CLEAR_WITHIN_BOUNDARY rather than anything global."
   ],
   "record_class": "provenance-backed recorded assertion",
   "scope_and_limits": {
@@ -238,6 +343,43 @@
     "demonstrated_limit": "A colliding `G` ladder was written into a document under docs/17-references/ without touching this file: all 73 tests passed, the classifier returned AUTO_APPROVED, and the budget gate passed. The probe was then removed. Growth outside the boundary is not detected.",
     "what_the_baseline_freeze_means": "the recorded collision values at as_of_commit cannot be silently overwritten or reclassified -- a change to them appears as a diff in git history and as a taxonomy_version bump. It does NOT mean the debt itself cannot grow.",
     "append_only_basis": "git history plus the as_of_commit boundary. This file is a mutable JSON document, NOT a linked-record chain with prior_record_digest. It is therefore weaker than an append-only ledger, and stated as such rather than implied. docs/13-evidence/K09_LEDGER.md is the append-only pattern this repository actually holds.",
-    "growth_prevention_owner": "external policy and enforcement -- CI gates, admission control, or a ratified naming rule. Not this file."
+    "growth_prevention_owner": "external policy and enforcement -- CI gates, admission control, or a ratified naming rule. Not this file.",
+    "absence_claim_form": "Every absence claim names its subject (as_of_commit) and its boundary (observation_boundary). UNKNOWN, UNPARSED or EXCLUDED-without-justification never satisfies a zero-collision condition; it makes the boundary INCOMPLETE instead (FR-11, FR-12).",
+    "baseline_vs_projection": "A newly observed collision is APPENDED as a new record; it never rewrites the frozen baseline (FR-13). The baseline stays at its captured value while the current projection may increase."
+  },
+  "observation_boundary": {
+    "boundary_id": "OB-SECB-TAX-001",
+    "carriers": [
+      "docs/**/*.md",
+      "AGENTS.md"
+    ],
+    "selector": "a markdown table row whose first cell declares a ladder term: ^\\|\\s*`?[A-Z]{1,5}-?\\s?[0-9]{1,3}`?(\\s+[A-Z_]+)?\\s*\\|",
+    "excluded_with_justification": [
+      "config/*.json -- machine-readable, no declaration tables",
+      "src/, tests/, scripts/ -- code; identifiers there are literals, not ladder declarations",
+      "prose mentions outside a declaration table -- a mention is not a binding, and treating it as one would flag every citation"
+    ],
+    "closure_state": "CLOSED_FOR_DECLARATION_TABLES_ONLY",
+    "not_closed_over": [
+      "normative prose that binds a ladder without a declaration table",
+      "identifiers introduced in issue or PR text and never landed in a carrier"
+    ],
+    "enumeration_result_at_1_2_0": {
+      "declaration_shaped_prefixes_found": 21,
+      "registered": 26,
+      "unregistered_remaining": 0,
+      "note": "v1.0.0 registered 17 from a hand-picked grep and claimed 'in use, verified by grep'. That claim was true of what was grepped and false as an enumeration: 9 prefixes were missing -- O, I, F, GC, EL, DWRC, ASF, FI, GIT. FR-15's point, measured on this file."
+    }
+  },
+  "prohibited_output_vocabulary": {
+    "reason": "FR-14 and the corrected canonical wording: registry output stays factual and non-authorizing, and no message may assert a global absence.",
+    "forbidden_strings": [
+      "NO_COLLISION",
+      "COLLISION_DEBT_CANNOT_GROW",
+      "REGISTRY_PREVENTED_COLLISION",
+      "ALLOW",
+      "DENY"
+    ],
+    "permitted_absence_claim": "OBSERVED_CLEAR_WITHIN_BOUNDARY -- no qualifying collision was observed in the declared subject snapshot under the attested observation boundary"
   }
 }

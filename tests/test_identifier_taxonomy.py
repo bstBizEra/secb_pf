@@ -171,3 +171,150 @@ def test_registry_claims_no_rule_it_has_not_been_granted():
     notes = " ".join(load().get("notes", []))
     assert "does NOT enact a rule" in notes
     assert "remains ungranted" in notes
+
+
+# --- observation boundary: the external observer the operator authorized -----
+#
+# `SECB-WP-FWK-041` v1.0.0 claimed "17 ladders in use, verified by grep". True
+# of what was grepped, false as an enumeration -- 9 were missing. The fix is
+# not a bigger grep by hand; it is an observer that recomputes the set, so the
+# enumeration is checked rather than asserted (`FR-15`).
+#
+# This observer lives in the test suite, NOT in the registry: enforcement is
+# external by `FR-08`, and Gate 5 is where the authority already placed it.
+
+DECLARATION = re.compile(
+    r"^\|\s*`?([A-Z]{1,5})-?\s?(\d{1,3})`?(?:\s+[A-Z_]+)?\s*\|"
+)
+
+
+def observe_declared_prefixes() -> dict[str, set[str]]:
+    """Recompute the declared-ladder set from the declared carriers.
+
+    Returns prefix -> the files declaring it. This is an *observation*: it
+    covers declaration tables in markdown carriers and nothing else, which is
+    exactly what `observation_boundary` says it covers.
+    """
+    found: dict[str, set[str]] = {}
+    carriers = sorted(REPO_ROOT.glob("docs/**/*.md")) + [REPO_ROOT / "AGENTS.md"]
+    for path in carriers:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            m = DECLARATION.match(line.strip())
+            if m:
+                found.setdefault(m.group(1), set()).add(
+                    str(path.relative_to(REPO_ROOT))
+                )
+    return found
+
+
+def test_every_declared_prefix_inside_the_boundary_is_registered():
+    """The growth signal. A 22nd declared prefix fails here.
+
+    This is what the `G` probe defeated: it declared `G0`-`G2` in a document
+    and no test looked. Now one does.
+    """
+    registered = {ladder["prefix"] for ladder in load()["ladders"]}
+    unregistered = sorted(set(observe_declared_prefixes()) - registered)
+    assert not unregistered, (
+        f"declared but unregistered ladder prefixes: {unregistered}. "
+        "Register them, or add a justified exclusion to observation_boundary. "
+        "An unregistered declaration makes the enumeration incomplete, and an "
+        "incomplete enumeration cannot support an absence claim (FR-15)."
+    )
+
+
+def test_the_recorded_enumeration_count_matches_what_the_observer_sees():
+    # A recorded count that drifts from reality is the defect this whole work
+    # package is about: an assertion nothing re-derives.
+    recorded = load()["observation_boundary"]["enumeration_result_at_1_2_0"]
+    observed = observe_declared_prefixes()
+    assert recorded["declaration_shaped_prefixes_found"] == len(observed), (
+        f"registry records {recorded['declaration_shaped_prefixes_found']} "
+        f"declared prefixes; the observer sees {len(observed)}"
+    )
+    assert recorded["unregistered_remaining"] == 0
+
+
+def test_prose_collision_inside_the_boundary_is_observed(tmp_path):
+    """Mandatory regression 1: the `G` probe must now be caught.
+
+    Reconstructs the exact counterexample -- a ladder declaration table for a
+    prefix already bound -- and asserts the observer sees it.
+    """
+    probe = REPO_ROOT / "docs" / "17-references" / "_probe_collision_fixture.md"
+    probe.write_text(
+        "# fixture\n\n| Class | Meaning |\n|---|---|\n"
+        "| `G0` | Glossary stage: not started |\n"
+        "| `G1` | Glossary stage: term mapped |\n",
+        encoding="utf-8",
+    )
+    try:
+        observed = observe_declared_prefixes()
+        assert "G" in observed, "the observer must see a G declaration"
+        assert any("_probe_collision_fixture" in f for f in observed["G"]), (
+            "the observer must attribute the declaration to the fixture -- "
+            "this is the counterexample that passed 73 tests before"
+        )
+    finally:
+        probe.unlink()
+
+
+def test_a_declaration_outside_the_carriers_is_not_claimed_as_clear(tmp_path):
+    """Mandatory regression 2: outside the boundary is INCOMPLETE, not clear.
+
+    A collision in a carrier the boundary does not cover must not be reported
+    as absence. The registry states this rather than the observer inferring
+    it, because silence from an observer is not evidence.
+    """
+    outside = tmp_path / "ladder.txt"
+    outside.write_text("| `G0` | invented |\n", encoding="utf-8")
+    assert "G" not in {
+        p for p, files in observe_declared_prefixes().items()
+        if any(str(outside) in f for f in files)
+    }
+    boundary = load()["observation_boundary"]
+    assert boundary["not_closed_over"], (
+        "the boundary must enumerate what it does NOT cover, or its silence "
+        "would read as absence (FR-11)"
+    )
+    assert "CLOSED_FOR_DECLARATION_TABLES_ONLY" == boundary["closure_state"], (
+        "closure must be qualified, never global"
+    )
+
+
+def test_no_forbidden_absence_wording_anywhere_in_the_registry_or_this_suite():
+    """`FR-14`: no output may assert a global absence or an authorization."""
+    forbidden = load()["prohibited_output_vocabulary"]["forbidden_strings"]
+    haystacks = {
+        "registry": TAXONOMY.read_text(encoding="utf-8"),
+        "suite": Path(__file__).read_text(encoding="utf-8"),
+    }
+    for name, text in haystacks.items():
+        for bad in ("NO_COLLISION", "COLLISION_DEBT_CANNOT_GROW",
+                    "REGISTRY_PREVENTED_COLLISION"):
+            # the declaration list itself is where these strings are allowed
+            occurrences = text.count(bad)
+            allowed = 1 if bad in forbidden and name == "registry" else 0
+            allowed += 1 if name == "suite" else 0
+            assert occurrences <= allowed, (
+                f"{name} uses forbidden absence wording {bad!r}"
+            )
+
+
+def test_the_permitted_absence_claim_is_boundary_qualified():
+    permitted = load()["prohibited_output_vocabulary"]["permitted_absence_claim"]
+    assert permitted.startswith("OBSERVED_CLEAR_WITHIN_BOUNDARY")
+    assert "observation boundary" in permitted
+
+
+def test_a_new_collision_appends_and_never_rewrites_the_baseline():
+    """`FR-13`, checked structurally: the superseded wording is retained."""
+    for c in load()["collisions_recorded"]:
+        if "superseded_disposition_v1_0_0" in c:
+            assert c["superseded_disposition_v1_0_0"], (
+                "a superseded record must be retained, not emptied"
+            )
