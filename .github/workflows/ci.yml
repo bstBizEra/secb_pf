@@ -150,6 +150,19 @@ jobs:
           done
           echo "concurrent change family excluding this PR: $family lines"
 
+          # Was this verdict computed against the tree that will actually
+          # merge? Under squash merge the head goes onto whatever the base is at
+          # merge time, so a base that has moved means the verdict describes a
+          # different tree. Reports rather than blocks -- see the script for the
+          # measurement behind that. FWK-047, scenario BACP-05.
+          current_base=$(gh api \
+            "repos/$GITHUB_REPOSITORY/git/ref/heads/${{ github.event.pull_request.base.ref }}" \
+            --jq .object.sha 2>/dev/null || echo "")
+          base_out=$(python scripts/check_base_currency.py \
+            "$BASE_SHA" "${current_base:-unknown}" \
+            "${{ github.event.pull_request.base.ref }}" 2>&1)
+          base_code=$?
+
           single=$(DIFF_PATH=/tmp/pr.diff FAMILY_LINES="$family" \
             python scripts/classify_authority_delta.py < /tmp/pr.numstat 2>&1)
           single_code=$?
@@ -165,6 +178,22 @@ jobs:
             echo '```'
             echo "$single"
             echo '```'
+            echo ""
+            echo "### Base currency"
+            echo ""
+            echo '```'
+            echo "$base_out"
+            echo '```'
+            echo ""
+            if [ "$base_code" -eq 1 ]; then
+              echo "The base moved after this verdict was computed. Not a"
+              echo "blocking condition -- with a queue of open pull requests"
+              echo "every merge staleifies the rest -- but re-run before merging"
+              echo "if the classification could plausibly differ."
+            elif [ "$base_code" -eq 2 ]; then
+              echo "**Base currency could not be determined.** Treat the verdict"
+              echo "as unbound to a base."
+            fi
             echo ""
             echo "### Dual-policy evaluation"
             echo ""

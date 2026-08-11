@@ -22,7 +22,7 @@ nothing noticed.
 | Catalogue | Target | Covered | Gap | Dormant | Applicable | Covered / applicable | Covered / target |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | FPSA §15 | **16** | 6 | 6 | 4 | 12 | **50.0%** | **37.5%** |
-| BACP §14 | 18 | 2 | 2 | 14 | 4 | **50.0%** | **11.1%** |
+| BACP §14 | 18 | 3 | 1 | 14 | 4 | **75.0%** | **16.7%** |
 
 A dormant scenario is **not** a failure while the capability it attacks is
 absent — and it is **not** coverage of the target state either. Quoting only
@@ -92,7 +92,7 @@ should not look alike.
 | # | Scenario | Status | Evidence or reason |
 |--:|---|---|---|
 | 17 | Squash merge falsifies a tested-head ancestry check | **COVERED** | The property SecB depends on, proven in a hermetic repository: `test_squash_merge_breaks_ancestry_but_preserves_the_tree`, and `test_a_squash_that_changes_content_is_detectable_by_the_tree` proves the substitute can fail |
-| 05 | Base branch changes after CI passes | **`GAP_UNCHARACTERIZED`, partially mitigated** | No `baseline_is_current` check. The dual-policy rule catches a *policy* change under the PR, not a content change under it. `mergeable_state` is checked by hand before every merge |
+| 05 | Base branch changes after CI passes | **`CONTROL_FIXED_CONDITIONAL`** | No `baseline_is_current` check. The dual-policy rule catches a *policy* change under the PR, not a content change under it. `mergeable_state` is checked by hand before every merge |
 | 06 | A status check arrives from an unexpected source | **`GAP_UNCHARACTERIZED`, unfixable here** | Requires rulesets to pin the expected app. The API returns `403 Upgrade to GitHub Pro`; recorded in `AGENTS.md` and in `GOVERNANCE_DEFERRED_CAPABILITIES.md` §D1 |
 | 10 | Sub-work items created to evade a budget | **`CONTROL_FIXED_CONDITIONAL`** | Same mechanism as `FPSA-02`, same fix and same residual |
 | 18 | Several agents share a signer but are counted as a quorum | **`DORMANT`** | One identity; quorum is enforced nowhere in code, which is the compensating control |

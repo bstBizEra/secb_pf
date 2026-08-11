@@ -26,12 +26,12 @@
     },
     "BACP": {
       "target": 18,
-      "covered": 2,
-      "gap": 2,
+      "covered": 3,
+      "gap": 1,
       "dormant": 14,
       "applicable": 4,
-      "covered_over_applicable_pct": 50.0,
-      "covered_over_target_pct": 11.1
+      "covered_over_applicable_pct": 75.0,
+      "covered_over_target_pct": 16.7
     },
     "note": "Dormant scenarios are not failures while the capability is absent, and they are not coverage of the target state either. Both fractions are published so neither reading can stand alone. Updated by SECB-WP-FWK-044: FPSA-03 moved from gap to covered, so FPSA is 5 of 11 applicable and 5 of 15 target.",
     "corrections": [
@@ -188,8 +188,9 @@
     {
       "id": "BACP-05",
       "title": "Base branch changes after CI passes",
-      "status": "GAP_UNCHARACTERIZED",
-      "observed": "No baseline_is_current check; the dual-policy rule catches a policy change under the PR, not a content change"
+      "status": "CONTROL_FIXED_CONDITIONAL",
+      "observed": "SECB-WP-FWK-047 reports base staleness with the distance, so a verdict computed against a moved base says so. CONDITIONAL because it reports rather than blocks: with a queue open, every merge staleifies the rest, so a blocking gate would make the queue undrainable. Compensating control is the human merge gate; trigger to make it blocking is a merge queue (deferred, §D4, behind 403 branch protection)",
+      "regression_by": "test_a_moved_base_is_stale_and_names_both_shas"
     },
     {
       "id": "BACP-06",
