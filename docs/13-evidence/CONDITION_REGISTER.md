@@ -71,9 +71,13 @@ rule and over-stated confidence. With an observation now defined as one governan
 verdict on a merged PR head, the reproducible figure is **0 downgrades in 22 → 13.6%**,
 not the 8.1% last announced.
 
-So the instrument is **in force in form and was unreliable in substance.** Closing
-predicate (b) now requires the tally to be recorded in a repository artifact rather
-than only in issue comments, which is the open follow-up.
+So the instrument was **in force in form and unreliable in substance.**
+
+**Predicate (b) is now met** (`SECB-WP-FWK-035`): the series lives in
+`docs/13-evidence/K09_LEDGER.md`, append-only, carrying the observation definition,
+the reproduction command, and the corrections to the announced values. `C-3` is
+therefore **one of three instruments closed** — predicates (a) ODC defect fields and
+(c) OTel token attributes remain open, so the condition itself stays `OPEN`.
 
 Predicates (a) and (c) are not: no defect has been recorded with ODC fields, and
 no work package has recorded token attributes.
