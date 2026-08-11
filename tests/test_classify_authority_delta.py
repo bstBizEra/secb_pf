@@ -425,3 +425,80 @@ def test_docs_src_and_tests_still_auto_approve():
     result = run("10\t0\tdocs/a.md\n5\t0\tsrc/x.py\n3\t0\ttests/t.py\n")
     assert result.returncode == EXIT_OK
     assert "AUTO_APPROVED" in result.stdout
+
+
+# --- the cap applies to the change family (`SECB-WP-FWK-046`) ----------------
+
+
+def run_family(numstat: str, family: str | None = None):
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("ENVELOPE", "DIFF_TEXT", "DIFF_PATH", "FAMILY_LINES")
+    }
+    env["ENVELOPE"] = str(REAL_ENVELOPE)
+    if family is not None:
+        env["FAMILY_LINES"] = family
+    return subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        input=numstat, capture_output=True, text=True, env=env, timeout=30,
+    )
+
+
+def test_a_split_change_escalates_when_its_family_is_reported():
+    """The measured evasion, closed.
+
+    `SECB-WP-FWK-042` locked the behaviour: one 1300-line change escalated
+    while two ~550-line halves each auto-approved, because this script sees one
+    diff at a time.
+    """
+    half = "300\t250\tdocs/a.md\n"
+    alone = run_family(half)
+    assert alone.returncode == EXIT_OK, "one half alone is inside the cap"
+
+    with_sibling = run_family(half, family="550")
+    assert with_sibling.returncode == EXIT_ESCALATE
+    assert "change family totals 1100" in with_sibling.stderr
+    assert "splitting a change does not lower its class" in with_sibling.stderr
+
+
+def test_absence_of_a_family_is_stated_rather_than_silent():
+    """`FAMILY_LINES` is caller-supplied, so its absence must be visible.
+
+    It cannot be mandatory: every local self-check in this repository invokes
+    the classifier without it, and making it required would fail those closed.
+    So the verdict line distinguishes "no family reported" from "family of
+    zero", and a reader can tell which kind of verdict they are holding.
+    """
+    quiet = run_family("5\t0\tdocs/a.md\n")
+    assert "no concurrent family reported" in quiet.stdout
+
+    reported = run_family("5\t0\tdocs/a.md\n", family="10")
+    assert "family +10" in reported.stdout
+
+
+def test_a_family_within_the_cap_still_auto_approves():
+    """The control must discriminate, not merely refuse."""
+    result = run_family("100\t0\tdocs/a.md\n", family="200")
+    assert result.returncode == EXIT_OK
+    assert "family +200" in result.stdout
+
+
+def test_a_single_change_over_the_cap_keeps_its_own_reason():
+    """The family check must not swallow the plain over-cap case.
+
+    Two different findings deserve two different sentences, or a reader cannot
+    tell whether the change or its family was the problem.
+    """
+    result = run_family("700\t600\tdocs/a.md\n", family="0")
+    assert result.returncode == EXIT_ESCALATE
+    assert "1300 lines exceeds the envelope cap" in result.stderr
+    assert "change family" not in result.stderr
+
+
+def test_a_malformed_family_size_fails_closed():
+    """An unparseable family size is not a family of zero."""
+    for bad in ("abc", "-5", "12.5"):
+        result = run_family("5\t0\tdocs/a.md\n", family=bad)
+        assert result.returncode == EXIT_ESCALATE, bad
+        assert "CONSTITUTIONAL_REQUIRED" in result.stderr, bad

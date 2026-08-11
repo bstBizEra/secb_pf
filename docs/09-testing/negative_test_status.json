@@ -9,27 +9,29 @@
     "CONTROL_FIXED": "a control now blocks it; the characterization fixture is retired and a desired-behaviour regression replaces it",
     "DORMANT_ABSENT_CAPABILITY": "the scenario cannot occur because the capability it attacks does not exist. Carries an activation_predicate so the test wakes when the capability appears",
     "$comment": "Replaces NOT_APPLICABLE, which read as 'considered and dismissed'. Dormant is the honest word: absent, not irrelevant.",
-    "GAP_UNCHARACTERIZED": "the scenario is named and believed to succeed today, but no fixture demonstrates it. Weaker evidence than GAP_REPRODUCED and recorded as such rather than blurred into it"
+    "GAP_UNCHARACTERIZED": "the scenario is named and believed to succeed today, but no fixture demonstrates it. Weaker evidence than GAP_REPRODUCED and recorded as such rather than blurred into it",
+    "CONTROL_FIXED_CONDITIONAL": "a control blocks the scenario, but only when the caller supplies the input it needs. Weaker than CONTROL_FIXED and recorded as its own status rather than rounded up to it: a caller that omits the input gets the pre-fix behaviour, and the verdict line says so"
   },
   "coverage": {
     "read_two_ways_because_one_number_flatters": true,
     "FPSA": {
-      "target": 15,
-      "covered": 5,
+      "target": 16,
+      "covered": 6,
       "gap": 6,
       "dormant": 4,
-      "applicable": 11,
-      "covered_over_applicable_pct": 45.5,
-      "covered_over_target_pct": 33.3
+      "applicable": 12,
+      "covered_over_applicable_pct": 50.0,
+      "covered_over_target_pct": 37.5,
+      "note_target_grew": "target 15 -> 16: FPSA-02-SEQ is a new scenario created by closing FPSA-02, not a scenario that was overlooked. A fix that reveals a narrower residual should enlarge the denominator, not hide inside the old one"
     },
     "BACP": {
       "target": 18,
-      "covered": 1,
-      "gap": 3,
+      "covered": 2,
+      "gap": 2,
       "dormant": 14,
       "applicable": 4,
-      "covered_over_applicable_pct": 25.0,
-      "covered_over_target_pct": 5.6
+      "covered_over_applicable_pct": 50.0,
+      "covered_over_target_pct": 11.1
     },
     "note": "Dormant scenarios are not failures while the capability is absent, and they are not coverage of the target state either. Both fractions are published so neither reading can stand alone. Updated by SECB-WP-FWK-044: FPSA-03 moved from gap to covered, so FPSA is 5 of 11 applicable and 5 of 15 target.",
     "corrections": [
@@ -45,17 +47,14 @@
     {
       "id": "FPSA-02",
       "title": "Split a change into several tickets to evade a class",
-      "status": "GAP_REPRODUCED",
-      "observed": "one 1300-line change escalates; two ~550-line halves each AUTO_APPROVED",
+      "status": "CONTROL_FIXED_CONDITIONAL",
+      "observed": "SECB-WP-FWK-046: the cap applies to total + FAMILY_LINES, so 550 lines with a 550-line sibling escalates where it used to auto-approve. CONDITIONAL because FAMILY_LINES is caller-supplied -- NFR-12 keeps the classifier off the network, so CI computes the aggregate. A caller that omits it gets the old behaviour, and the verdict line reports 'no concurrent family reported' so the omission is visible",
       "characterized_by": "test_characterize_gap_splitting_evades_the_line_ceiling",
       "remediation": {
-        "owner": "operator",
-        "requires": "aggregate change-family classification -- the classifier must judge effective_change_scope, not one diff",
-        "authority": "G1 (scripts/)",
-        "activation_condition": "a ChangeFamilyModel or sibling-declaration field exists at intake",
-        "review_by": "2026-11-08",
-        "$comment": "Review date matches the envelope expiry so the obligation cannot outlive the delegation that tolerates it."
-      }
+        "status": "CLOSED for concurrent splitting by SECB-WP-FWK-046",
+        "residual": "sequential splitting -- see FPSA-02-SEQ"
+      },
+      "regression_by": "test_a_split_change_escalates_when_its_family_is_reported"
     },
     {
       "id": "FPSA-03",
@@ -201,8 +200,20 @@
     {
       "id": "BACP-10",
       "title": "Sub-work items created to evade a budget",
+      "status": "CONTROL_FIXED_CONDITIONAL",
+      "observed": "SECB-WP-FWK-046: the cap applies to total + FAMILY_LINES, so 550 lines with a 550-line sibling escalates where it used to auto-approve. CONDITIONAL because FAMILY_LINES is caller-supplied -- NFR-12 keeps the classifier off the network, so CI computes the aggregate. A caller that omits it gets the old behaviour, and the verdict line reports 'no concurrent family reported' so the omission is visible",
+      "regression_by": "test_a_split_change_escalates_when_its_family_is_reported",
+      "remediation": {
+        "status": "CLOSED for concurrent splitting by SECB-WP-FWK-046",
+        "residual": "sequential splitting -- see FPSA-02-SEQ"
+      }
+    },
+    {
+      "id": "FPSA-02-SEQ",
+      "title": "Split sequentially: merge one half, then open the other",
       "status": "GAP_UNCHARACTERIZED",
-      "observed": "Same mechanism as FPSA-02, and it shares that fixture"
+      "observed": "Each half is judged alone because the family is computed over OPEN pull requests only. Closing it needs a lookback over merged work, and a window wide enough to matter would fold most of this repository into one family -- the RAAF profile suggests 30 days, which would make the cap unreachable. Recorded rather than claimed, per SECB-WP-FWK-046",
+      "successor_of": "FPSA-02"
     }
   ],
   "artifact_classification": {

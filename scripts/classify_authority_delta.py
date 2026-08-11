@@ -18,6 +18,8 @@ Contract:
 
     stdin        output of ``git diff --numstat <base>...<head>``
     ENVELOPE     path to the delegation envelope (default config/delegation_envelope.json)
+    FAMILY_LINES aggregate changed lines of the concurrent change family,
+                 excluding this candidate (default 0 -- see below)
     DIFF_PATH    path to a file holding the unified diff body (preferred)
     DIFF_TEXT    the unified diff body inline (retained; size-limited, see below)
 
@@ -36,6 +38,21 @@ Exit codes:
     0  AUTO_APPROVED or AUTO_APPROVED_WITH_CONDITIONS — the envelope covers it
     2  escalation required (AGENT_BALLOT_REQUIRED or CONSTITUTIONAL_REQUIRED)
     3  REJECTED — prohibited change
+
+The line ceiling applies to the **change family**, not to one diff
+(`SECB-WP-FWK-046`). Splitting a change across concurrent pull requests evaded
+it: one 1300-line change escalated while two 550-line halves each auto-approved,
+because this script sees one diff at a time. `NFR-12` forbids it the network, so
+it does not discover its siblings -- CI computes the aggregate and passes
+`FAMILY_LINES`. **Absent means zero, and the verdict line says whether a family
+was considered**, so a verdict taken without one is distinguishable from a
+verdict taken with an empty one. A malformed or negative value escalates rather
+than degrading to zero.
+
+Not caught: sequential splitting. Merge one half, open the other, and each is
+judged alone. Closing that needs a lookback over merged work, and a window wide
+enough to matter would fold most of this repository into one family. Recorded as
+a residual rather than claimed.
 
 Fail-closed: a missing, unreadable, malformed, or expired envelope, an
 unparseable diff, or an empty diff all escalate. A `DIFF_PATH` that is set but
@@ -144,7 +161,11 @@ def parse_numstat(numstat: str) -> tuple[list[tuple[str, int, bool]], int]:
 
 
 def classify(
-    rows: list[tuple[str, int, bool]], total_lines: int, envelope: dict, diff_text: str
+    rows: list[tuple[str, int, bool]],
+    total_lines: int,
+    envelope: dict,
+    diff_text: str,
+    family_lines: int = 0,
 ) -> tuple[str, str]:
     """Return (verdict, reason)."""
     if not rows:
@@ -203,16 +224,56 @@ def classify(
             "path(s) outside the delegated envelope: " + ", ".join(sorted(outside)[:4])
         )
 
-    if total_lines > scope["max_changed_lines"]:
+    cap = scope["max_changed_lines"]
+
+    if total_lines > cap:
         return AGENT_BALLOT_REQUIRED, (
-            f"{total_lines} lines exceeds the envelope cap {scope['max_changed_lines']} "
+            f"{total_lines} lines exceeds the envelope cap {cap} "
             f"but is within the absolute ceiling"
         )
 
+    # The cap applies to the change FAMILY, not to one diff. Splitting a change
+    # across concurrent pull requests evaded it until FWK-046: two 550-line
+    # halves each auto-approved where one 1100-line change would not.
+    if family_lines and total_lines + family_lines > cap:
+        return AGENT_BALLOT_REQUIRED, (
+            f"{total_lines} lines is within the cap {cap} but the concurrent "
+            f"change family totals {total_lines + family_lines} "
+            f"({total_lines} here + {family_lines} in sibling changes), which "
+            f"exceeds it — splitting a change does not lower its class"
+        )
+
+    family_note = (
+        f", family +{family_lines}" if family_lines
+        else ", no concurrent family reported"
+    )
     return AUTO_APPROVED, (
-        f"G0, {len(paths)} path(s), {total_lines}/{scope['max_changed_lines']} lines, "
+        f"G0, {len(paths)} path(s), {total_lines}/{cap} lines{family_note}, "
         f"tier {envelope['current_tier']}"
     )
+
+
+def read_family_lines() -> int:
+    """Aggregate lines of the concurrent family, or raise ValueError.
+
+    Supplied by the caller because `NFR-12` keeps this script off the network.
+    An absent value is zero -- it has to be, or every local self-check in this
+    repository would fail closed -- so the verdict line reports whether a family
+    was considered instead of leaving absence invisible.
+    """
+    raw = os.environ.get("FAMILY_LINES", "").strip()
+    if not raw:
+        return 0
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"FAMILY_LINES is set to {raw!r}, which is not an integer; "
+            "an unparseable family size is not a family of zero"
+        ) from exc
+    if value < 0:
+        raise ValueError(f"FAMILY_LINES is negative ({value})")
+    return value
 
 
 def read_diff_body() -> str:
@@ -268,7 +329,13 @@ def main() -> int:
         print(f"VERDICT: {CONSTITUTIONAL_REQUIRED} — {exc}", file=sys.stderr)
         return EXIT_ESCALATE
 
-    verdict, reason = classify(rows, total, envelope, diff_body)
+    try:
+        family_lines = read_family_lines()
+    except ValueError as exc:
+        print(f"VERDICT: {CONSTITUTIONAL_REQUIRED} — {exc}", file=sys.stderr)
+        return EXIT_ESCALATE
+
+    verdict, reason = classify(rows, total, envelope, diff_body, family_lines)
     line = f"VERDICT: {verdict} — {reason}"
     if EXIT_FOR[verdict] == EXIT_OK:
         print(line)

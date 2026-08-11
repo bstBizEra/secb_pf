@@ -121,6 +121,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git diff --numstat "$BASE_SHA...$HEAD_SHA" > /tmp/pr.numstat
           git diff "$BASE_SHA...$HEAD_SHA" > /tmp/pr.diff
@@ -131,7 +132,25 @@ jobs:
           # E2BIG, the classifier never ran, the G5 prohibited-action scan never
           # executed, and the summary below reported it as a routine
           # escalation. SECB-WP-FWK-043.
-          single=$(DIFF_PATH=/tmp/pr.diff \
+          # The cap applies to the change FAMILY, not to one diff: splitting a
+          # change across concurrent pull requests evaded it (FWK-046). The
+          # classifier is kept off the network by NFR-12, so CI computes the
+          # aggregate here -- the other open PRs by this actor against this base
+          # -- and passes it. Sequential splitting is NOT caught; see the
+          # script's docstring.
+          family=0
+          for n in $(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
+                       --base "${{ github.event.pull_request.base.ref }}" \
+                       --author "${{ github.event.pull_request.user.login }}" \
+                       --json number --jq '.[].number'); do
+            [ "$n" = "${{ github.event.pull_request.number }}" ] && continue
+            lines=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$n/files" --paginate \
+                      --jq '[.[] | .additions + .deletions] | add // 0')
+            family=$(( family + lines ))
+          done
+          echo "concurrent change family excluding this PR: $family lines"
+
+          single=$(DIFF_PATH=/tmp/pr.diff FAMILY_LINES="$family" \
             python scripts/classify_authority_delta.py < /tmp/pr.numstat 2>&1)
           single_code=$?
           dual=$(BASE_REF="$BASE_SHA" \

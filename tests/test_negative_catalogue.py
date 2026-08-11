@@ -34,6 +34,11 @@ CLASSIFIER = REPO_ROOT / "scripts" / "classify_authority_delta.py"
 AUTO_APPROVED = 0
 ESCALATES = 2
 
+# A conditional fix IS coverage -- weaker coverage, which is what the status name
+# records. Counting it keeps the arithmetic honest; naming it separately keeps the
+# strength honest. Rounding it up to CONTROL_FIXED would do the opposite of both.
+COUNTS_AS_COVERED = {"COVERED", "CONTROL_FIXED", "CONTROL_FIXED_CONDITIONAL"}
+
 STATUS_FILE = REPO_ROOT / "docs" / "09-testing" / "negative_test_status.json"
 
 
@@ -47,8 +52,14 @@ def declared(scenario_id: str) -> dict:
     raise AssertionError(f"{scenario_id} is not declared in {STATUS_FILE.name}")
 
 
-def classify(numstat: str, envelope: Path | None = None):
-    env = {k: v for k, v in os.environ.items() if k not in ("ENVELOPE", "DIFF_TEXT")}
+def classify(numstat: str, envelope: Path | None = None, family_lines: int | None = None):
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("ENVELOPE", "DIFF_TEXT", "FAMILY_LINES")
+    }
+    if family_lines is not None:
+        env["FAMILY_LINES"] = str(family_lines)
     if envelope:
         env["ENVELOPE"] = str(envelope)
     return subprocess.run(
@@ -92,6 +103,23 @@ def test_characterize_gap_splitting_evades_the_line_ceiling():
 
     halves = [classify("300\t250\tdocs/a.md\n"), classify("300\t250\tdocs/b.md\n")]
     split_evades = all(h.returncode == AUTO_APPROVED for h in halves)
+
+    if row["status"] == "CONTROL_FIXED_CONDITIONAL":
+        # The control exists but is caller-supplied. Both facts are asserted:
+        # with the family reported the split escalates, and without it the old
+        # behaviour remains -- which is why the status is CONDITIONAL and why
+        # the verdict line has to say which case it was.
+        with_family = classify("300\t250\tdocs/a.md\n", family_lines=550)
+        assert with_family.returncode == ESCALATES, (
+            "FPSA-02 is declared fixed; a reported family must escalate"
+        )
+        assert "change family totals" in verdict_text(with_family)
+        assert split_evades, (
+            "and without a reported family the old behaviour stands -- that is "
+            "what CONDITIONAL means, and hiding it would overstate the fix"
+        )
+        assert "no concurrent family reported" in verdict_text(halves[0])
+        return
 
     if row["status"] == "GAP_REPRODUCED":
         assert split_evades, (
@@ -307,8 +335,7 @@ def test_the_catalogue_agrees_with_the_machine_readable_status():
         counted = sum(
             1
             for r in data["scenarios"]
-            if r["id"].startswith(family) and r["status"] != "DORMANT_ABSENT_CAPABILITY"
-            and r["status"] in ("COVERED", "CONTROL_FIXED")
+            if r["id"].startswith(family) and r["status"] in COUNTS_AS_COVERED
         )
         assert counted == cov["covered"], (
             f"{family}: coverage block says {cov['covered']} covered, the scenario "
