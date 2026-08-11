@@ -247,3 +247,62 @@ def test_expired_envelope_escalates(custom_envelope):
 def test_sealed_path_with_spaces_and_em_dash_read_whole():
     result = run(f"1\t1\t{SEALED}\n")
     assert verdict_of(result) == "CONSTITUTIONAL_REQUIRED"
+
+
+# --- config/ is governance implementation (`SECB-WP-FWK-044`) -----------------
+
+
+def test_a_new_config_file_is_governance_implementation_not_ordinary_work():
+    """The desired-behaviour regression that replaces `FPSA-03`'s fixture.
+
+    `config/` used to be an `auto_path`, so a new file under it classified `G0`
+    and auto-merged -- and `SECB-WP-FWK-041` landed
+    `config/identifier_taxonomy.json` that way before `FWK-042` characterized
+    the gap. Configuration is where authority lives here.
+    """
+    result = run("40\t0\tconfig/permissions.json\n")
+    assert result.returncode == EXIT_ESCALATE
+    assert "AGENT_BALLOT_REQUIRED" in result.stderr
+    assert "governance implementation" in result.stderr
+
+
+def test_the_two_named_config_files_stay_constitutional_not_merely_governance():
+    """`G4` must still beat `G1` for the envelope and the ballot schema.
+
+    Adding `config/` to the governance list must not *demote* the two files
+    that were already constitutional -- the classifier checks `G4` first, and
+    this asserts that ordering rather than trusting it.
+    """
+    for path in ("config/delegation_envelope.json", "config/ballot.schema.json"):
+        result = run(f"1\t0\t{path}\n")
+        assert result.returncode == EXIT_ESCALATE
+        assert "CONSTITUTIONAL_REQUIRED" in result.stderr, path
+
+
+def test_removing_config_from_the_governance_list_fails_closed(tmp_path):
+    """The reason `config/` left `auto_paths` as well as joining the other list.
+
+    Both edits produce `G1` today. They differ in how a future mistake fails:
+    with `config/` still in `auto_paths`, dropping it from the governance list
+    would silently restore `G0`. Removed from both, the same slip yields
+    "outside the delegated envelope" -- stricter, not looser.
+    """
+    envelope = json.loads(REAL_ENVELOPE.read_text(encoding="utf-8"))
+    envelope["scope"]["governance_implementation_paths"] = [
+        p for p in envelope["scope"]["governance_implementation_paths"] if p != "config/"
+    ]
+    path = tmp_path / "envelope.json"
+    path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    result = run("40\t0\tconfig/permissions.json\n", envelope=path)
+    assert result.returncode == EXIT_ESCALATE
+    assert "outside the delegated envelope" in result.stderr, (
+        "with config/ in neither list the verdict must be constitutional, not G0"
+    )
+
+
+def test_docs_src_and_tests_still_auto_approve():
+    """The blast radius, asserted rather than assumed."""
+    result = run("10\t0\tdocs/a.md\n5\t0\tsrc/x.py\n3\t0\ttests/t.py\n")
+    assert result.returncode == EXIT_OK
+    assert "AUTO_APPROVED" in result.stdout

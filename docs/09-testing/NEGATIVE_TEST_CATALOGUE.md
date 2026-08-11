@@ -13,14 +13,20 @@ and nothing had mapped them against what the gates stop. This is that map.
 
 One fraction flatters, so both are published.
 
+The machine-readable source of these numbers is `negative_test_status.json`;
+`test_the_catalogue_agrees_with_the_machine_readable_status` fails the build if
+this table and that file disagree. It was added after they did — closing
+`FPSA-03` moved the status file to 5 covered while this table still said 4, and
+nothing noticed.
+
 | Catalogue | Target | Covered | Gap | Dormant | Applicable | Covered / applicable | Covered / target |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| FPSA §15 | 15 | 4 | 7 | 4 | 11 | **36.4%** | **26.7%** |
-| BACP §14 | 18 | 2 | 3 | 13 | 5 | **40.0%** | **11.1%** |
+| FPSA §15 | 15 | 5 | 6 | 4 | 11 | **45.5%** | **33.3%** |
+| BACP §14 | 18 | 1 | 3 | 14 | 4 | **25.0%** | **5.6%** |
 
 A dormant scenario is **not** a failure while the capability it attacks is
 absent — and it is **not** coverage of the target state either. Quoting only
-*"36.4% of what applies"* would hide how far the target is; quoting only
+*"45.5% of what applies"* would hide how far the target is; quoting only
 *"11.1% of the target"* would read as neglect of scenarios that cannot happen.
 
 Every `COVERED` row names a test that exists and passes; a claim citing a test
@@ -60,7 +66,7 @@ tolerates it.
 |--:|---|---|---|
 | 01 | Rename a request to evade the duplicate detector | **GAP** | No duplicate detector exists. `FWK-038` measured the need at 2 for 2 on supplied specs and 0 for 36 on work items, and deferred the machinery with a trigger |
 | 02 | Split a change into several tickets to evade a class | **`GAP_REPRODUCED`** | Verified: one 1,300-line change escalates, two ~550-line halves each auto-approve. `test_characterize_gap_splitting_evades_the_line_ceiling` locks the behaviour. The classifier sees one diff at a time and has no notion of a sibling ticket |
-| 03 | Hide a permission grant in configuration | **`GAP_REPRODUCED`** | `config/` is an `auto_path` and only two files in it are named constitutional, so `config/permissions.json` auto-merges. **Found by doing it**: `FWK-041` landed `config/identifier_taxonomy.json` at `G0` under this rule. `test_characterize_gap_a_new_config_file_classifies_as_low_risk` |
+| 03 | Hide a permission grant in configuration | **`CONTROL_FIXED`** | Closed by `SECB-WP-FWK-044`: `config/` is governance implementation, so a new file under it returns `AGENT_BALLOT_REQUIRED` while `delegation_envelope.json` and `ballot.schema.json` stay `CONSTITUTIONAL_REQUIRED`. Regression: `test_a_new_config_file_is_governance_implementation_not_ordinary_work`, plus `test_removing_config_from_the_governance_list_fails_closed`. Retroactive: `config/identifier_taxonomy.json`, landed at `G0` by `FWK-041` under the old rule, now escalates |
 | 04 | Add an integration without declaring it | **GAP** | No expansion manifest and no declared `write_set`. `FWK-039` deferred both with triggers |
 | 05 | Add an exception with no expiry | **GAP** | No exception registry. The two live exceptions — the accepted single-identity risk and the envelope — both carry expiry by hand |
 | 06 | Reduce an approval threshold or quorum | **COVERED** | Quorum lives in the envelope, which is constitutional. `test_lowering_a_quorum_or_ceiling_cannot_auto_approve`, and `g4_root_authority_surface_is_constitutional` |
@@ -86,8 +92,8 @@ should not look alike.
 | # | Scenario | Status | Evidence or reason |
 |--:|---|---|---|
 | 17 | Squash merge falsifies a tested-head ancestry check | **COVERED** | The property SecB depends on, proven in a hermetic repository: `test_squash_merge_breaks_ancestry_but_preserves_the_tree`, and `test_a_squash_that_changes_content_is_detectable_by_the_tree` proves the substitute can fail |
-| 05 | Base branch changes after CI passes | **GAP, partially mitigated** | No `baseline_is_current` check. The dual-policy rule catches a *policy* change under the PR, not a content change under it. `mergeable_state` is checked by hand before every merge |
-| 06 | A status check arrives from an unexpected source | **GAP, unfixable here** | Requires rulesets to pin the expected app. The API returns `403 Upgrade to GitHub Pro`; recorded in `AGENTS.md` and in `GOVERNANCE_DEFERRED_CAPABILITIES.md` §D1 |
+| 05 | Base branch changes after CI passes | **`GAP_UNCHARACTERIZED`, partially mitigated** | No `baseline_is_current` check. The dual-policy rule catches a *policy* change under the PR, not a content change under it. `mergeable_state` is checked by hand before every merge |
+| 06 | A status check arrives from an unexpected source | **`GAP_UNCHARACTERIZED`, unfixable here** | Requires rulesets to pin the expected app. The API returns `403 Upgrade to GitHub Pro`; recorded in `AGENTS.md` and in `GOVERNANCE_DEFERRED_CAPABILITIES.md` §D1 |
 | 10 | Sub-work items created to evade a budget | **GAP** | Same mechanism as FPSA 02, same lock |
 | 18 | Several agents share a signer but are counted as a quorum | **`DORMANT`** | One identity; quorum is enforced nowhere in code, which is the compensating control |
 | 01–04, 07–09, 11–16 | Crash after an external effect · replayed webhook · lease expiry mid-write · takeover without inspection · tampered policy bundle · borrowed auditor credential · injected tool response · kill signal mid-call · partial compensation · lagging cost telemetry · learning candidate edits its evaluator · claimed-complete with a failing postcondition · rollback to an incompatible schema | **`DORMANT`** | No durable workflow, no external effects, no leases, no signed bundles, no second identity, no learning pipeline. Each is a real scenario for a system that has those; none is one here |

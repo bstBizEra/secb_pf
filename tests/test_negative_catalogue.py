@@ -289,9 +289,39 @@ def test_every_covered_scenario_names_a_test_that_exists():
     assert not missing, f"catalogue cites tests that do not exist: {missing}"
 
 
-def test_the_catalogue_states_its_coverage_as_a_measured_fraction():
+def test_the_catalogue_agrees_with_the_machine_readable_status():
+    """The guard that was missing, added because the two records did disagree.
+
+    `SECB-WP-FWK-044` closed `FPSA-03` and flipped the status file to 5
+    covered, while the catalogue's table still read 4 and 36.4%. Every test
+    passed. Prose and machine-readable record must not be able to drift
+    silently -- the whole point of having the second one.
+    """
+    import json
+
+    data = json.loads(STATUS_FILE.read_text(encoding="utf-8"))
     text = CATALOGUE.read_text(encoding="utf-8")
-    assert "4 of 15" in text, (
-        "the catalogue must state measured coverage, not a qualitative claim"
-    )
-    assert "GAP" in text and "NOT_APPLICABLE" in text
+
+    for family in ("FPSA", "BACP"):
+        cov = data["coverage"][family]
+        counted = sum(
+            1
+            for r in data["scenarios"]
+            if r["id"].startswith(family) and r["status"] != "DORMANT_ABSENT_CAPABILITY"
+            and r["status"] in ("COVERED", "CONTROL_FIXED")
+        )
+        assert counted == cov["covered"], (
+            f"{family}: coverage block says {cov['covered']} covered, the scenario "
+            f"rows contain {counted}"
+        )
+        row = f"| {family} §{'15' if family == 'FPSA' else '14'} |"
+        line = next((l for l in text.splitlines() if l.startswith(row)), None)
+        assert line, f"{family} coverage row missing from the catalogue"
+        for value in (str(cov["target"]), str(cov["covered"]),
+                      f"{cov['covered_over_applicable_pct']}%"):
+            assert value in line, (
+                f"{family}: catalogue row does not carry {value!r} from the status "
+                f"file — prose and record have drifted"
+            )
+
+    assert "GAP" in text and "DORMANT" in text
