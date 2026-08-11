@@ -47,7 +47,12 @@
     }
   },
   "scope": {
-    "auto_paths": ["docs/", "tests/", "src/", "config/", "evidence/"],
+    "auto_paths": [
+      "docs/",
+      "tests/",
+      "src/",
+      "evidence/"
+    ],
     "max_changed_lines": 600,
     "constitutional_paths": [
       "docs/00-governance/L0_ROOT_CONSTITUTION.md",
@@ -62,18 +67,36 @@
     "governance_implementation_paths": [
       "docs/00-governance/",
       "docs/12-decisions/",
-      "scripts/"
-    ]
+      "scripts/",
+      "config/"
+    ],
+    "classification_notes": {
+      "config/": "Governance implementation, not ordinary work (SECB-WP-FWK-044). config/ was an auto_path, so any NEW file under it classified G0 and auto-merged -- and SECB-WP-FWK-041 landed config/identifier_taxonomy.json that way before SECB-WP-FWK-042 characterized it as FPSA-03. Configuration is where authority lives here: NFR-14 says governance config is machine-readable, and the envelope is itself a config file. Removed from auto_paths as well as added here, so that a future removal from governance_implementation_paths yields 'outside the delegated envelope' -> CONSTITUTIONAL_REQUIRED rather than silently restoring G0. The failure mode of a future edit should be stricter, not looser.",
+      "still_constitutional": [
+        "config/delegation_envelope.json",
+        "config/ballot.schema.json"
+      ],
+      "deferred": "Per-file semantic classification (a NormativeSurfaceManifest: constitutional / governing / operational / factual / unknown) is the better answer and is a model rather than a policy line. Trigger to build it: a config file appears that is genuinely non-governing and the blanket G1 becomes friction."
+    }
   },
   "absolute_ceilings": {
     "max_changed_lines_ever": 2000,
     "max_tier": "A4",
-    "tiers_requiring_active_ballot_layer": ["A3", "A4"]
+    "tiers_requiring_active_ballot_layer": [
+      "A3",
+      "A4"
+    ]
   },
   "ballot_layer": {
     "state": "NOT_ACTIVE",
     "reason": "Five independent agents with separately enforced service identities do not exist in this deployment. One session emitting five role-labelled ballots is self-approval in five hats; role banners are self-asserted text and must never gate a decision. Quorum is therefore not enforced anywhere in code, and every verdict that would depend on it escalates instead.",
-    "required_roles": ["architecture", "governance", "security", "qa", "operations"],
+    "required_roles": [
+      "architecture",
+      "governance",
+      "security",
+      "qa",
+      "operations"
+    ],
     "quorum_when_active": "4 of 5, with governance and security holding veto; 5 of 5 for G2-G3",
     "proposer_may_vote": false
   },
