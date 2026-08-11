@@ -4,12 +4,21 @@
 supplied specifications handed this project 33 evasion scenarios; the catalogue
 maps them, and this module holds the ones implementable today.
 
-Two of these tests **document a hole rather than defend against one.** They
-assert current behaviour, so they fail if the hole is ever closed — and the
-failure message says the catalogue is stale rather than that something broke.
+Two kinds of test live here, and the first version of this module conflated
+them — corrected under the operator's review of 2026-08-11 §P1:
+
+- **Characterization fixture** — demonstrates that a gap exists today. It is
+  *not* a conformance requirement, so closing the gap must not turn CI red.
+- **Desired-behaviour regression** — asserts a control blocks the scenario.
+
+The fix is that a characterization fixture compares observed behaviour against
+the status **declared** in `negative_test_status.json`. Fixing a gap therefore
+requires flipping the declared status, and CI stays meaningful in both states
+instead of going red on an improvement. Same shape as `FWK-041`'s
+"observed status agrees with the world".
+
 A green suite here means *"the recorded coverage still holds"*, never *"no
-evasion is possible"*. That distinction is the correction `SECB-WP-FWK-041`
-was put through, applied to test semantics.
+evasion is possible"*.
 """
 
 from __future__ import annotations
@@ -24,6 +33,18 @@ CLASSIFIER = REPO_ROOT / "scripts" / "classify_authority_delta.py"
 
 AUTO_APPROVED = 0
 ESCALATES = 2
+
+STATUS_FILE = REPO_ROOT / "docs" / "09-testing" / "negative_test_status.json"
+
+
+def declared(scenario_id: str) -> dict:
+    import json
+
+    data = json.loads(STATUS_FILE.read_text(encoding="utf-8"))
+    for row in data["scenarios"]:
+        if row["id"] == scenario_id:
+            return row
+    raise AssertionError(f"{scenario_id} is not declared in {STATUS_FILE.name}")
 
 
 def classify(numstat: str, envelope: Path | None = None):
@@ -53,47 +74,68 @@ def verdict_text(result) -> str:
 # --- FPSA §15 case 2 / WICG rule 8: splitting to evade a class ---------------
 
 
-def test_known_gap_splitting_a_change_evades_the_line_ceiling():
-    """One change over the cap escalates; two halves each auto-approve.
+def test_characterize_gap_splitting_evades_the_line_ceiling():
+    """Characterization fixture for `FPSA-02`, not a conformance requirement.
 
-    FPSA `FP-05` and WICG rule 8 both prohibit this, and nothing detects it:
+    One change over the cap escalates; two halves each auto-approve, because
     the classifier sees one diff at a time and has no notion of a sibling
-    ticket. Recorded as a **gap**, locked by this test.
+    ticket. FPSA `FP-05` and WICG rule 8 both prohibit this.
 
-    If this test fails, a splitting detector has been added — update
-    `NEGATIVE_TEST_CATALOGUE.md` scenario `FPSA-02` from GAP to COVERED.
+    The assertion compares observed behaviour to the **declared** status, so
+    landing a splitting detector means flipping `FPSA-02` to `CONTROL_FIXED`
+    — it does not turn CI red on an improvement.
     """
+    row = declared("FPSA-02")
     whole = classify("700\t600\tdocs/a.md\n")
     assert whole.returncode == ESCALATES, "a 1300-line change must escalate"
     assert "exceeds the envelope cap" in verdict_text(whole)
 
-    half_a = classify("300\t250\tdocs/a.md\n")
-    half_b = classify("300\t250\tdocs/b.md\n")
-    assert half_a.returncode == AUTO_APPROVED
-    assert half_b.returncode == AUTO_APPROVED
-    # 1100 lines of the same work, landed with no escalation, in two pieces.
+    halves = [classify("300\t250\tdocs/a.md\n"), classify("300\t250\tdocs/b.md\n")]
+    split_evades = all(h.returncode == AUTO_APPROVED for h in halves)
+
+    if row["status"] == "GAP_REPRODUCED":
+        assert split_evades, (
+            "FPSA-02 is declared GAP_REPRODUCED but splitting no longer "
+            "evades the ceiling. Flip the status to CONTROL_FIXED."
+        )
+        assert row["remediation"]["review_by"], "a gap must carry a review date"
+    else:
+        assert not split_evades, (
+            f"FPSA-02 is declared {row['status']} but two halves still "
+            "auto-approve -- the declared control is not in force"
+        )
 
 
 # --- FPSA §15 case 3: authority-shaped data smuggled into configuration ------
 
 
-def test_known_gap_a_new_config_file_classifies_as_low_risk():
-    """`config/` is an `auto_path`; only two files in it are constitutional.
+def test_characterize_gap_a_new_config_file_classifies_as_low_risk():
+    """Characterization fixture for `FPSA-03`.
 
-    So a new `config/permissions.json` auto-merges. This is not hypothetical:
-    `SECB-WP-FWK-041` landed `config/identifier_taxonomy.json` at `G0` under
-    exactly this rule, which is how the gap was found.
+    `config/` is an `auto_path` and only two files in it are named
+    constitutional, so `config/permissions.json` auto-merges. Not
+    hypothetical: `SECB-WP-FWK-041` landed `config/identifier_taxonomy.json`
+    at `G0` under exactly this rule, which is how the gap was found.
 
-    If this test fails, `config/` classification has been tightened — update
-    scenario `FPSA-03` and re-check that `FWK-041`'s registry still lands
-    where its work package said it would.
+    Tightening `config/` is a `G4` act that would reclassify that registry —
+    so when it happens, `FPSA-03` flips and this fixture asserts the new
+    behaviour instead of reddening the build.
     """
+    row = declared("FPSA-03")
     result = classify("40\t0\tconfig/permissions.json\n")
-    assert result.returncode == AUTO_APPROVED, (
-        "gap closed: a new config file no longer auto-approves. Update the "
-        "catalogue — and note that this changes where FWK-041's registry sits."
-    )
-    assert "G0" in verdict_text(result)
+    auto = result.returncode == AUTO_APPROVED
+
+    if row["status"] == "GAP_REPRODUCED":
+        assert auto and "G0" in verdict_text(result), (
+            "FPSA-03 is declared GAP_REPRODUCED but a new config file no "
+            "longer auto-approves. Flip the status to CONTROL_FIXED, and "
+            "re-check where FWK-041's registry now sits."
+        )
+    else:
+        assert not auto, (
+            f"FPSA-03 is declared {row['status']} but a new config file still "
+            "auto-approves"
+        )
 
 
 def test_the_two_named_config_files_are_still_constitutional():
