@@ -1,10 +1,9 @@
 {
-  "$comment": "Identifier taxonomy registry for SecB_PF (SECB-WP-FWK-041). Adopted from BACP v1.1 TaxonomyModel section 6: identifier ladders are versioned DATA with stable IDs and namespaces, not assumptions spread across prose. This file records WHAT IS BOUND. It does not assert a new rule -- binding agent behaviour is an act on the authority surface and belongs to the constitutional authority, not to an executor adding a config file. What this file does buy, today, is that a prefix collision becomes a failing test instead of a discovery made three messages later: tests/test_identifier_taxonomy.py.",
+  "$comment": "Identifier taxonomy registry for SecB_PF (SECB-WP-FWK-041, corrected under the operator's research verdict of 2026-08-11). Adopted from BACP v1.1 TaxonomyModel section 6: identifier ladders are versioned DATA, not assumptions spread across prose. THIS FILE IS A FACTUAL LEDGER. It preserves provenance-backed recorded assertions and an immutable-by-git-history baseline of the collision debt observed at as_of_commit. It does NOT prevent new collision debt from arising in the governed system, it does NOT issue allow/deny verdicts, and it does NOT originate a prohibition, threshold or authority. Any normative effect is performed by an external authorized policy and enforcement mechanism.",
   "taxonomy_id": "TAX-SECB-2026-001",
-  "taxonomy_version": "1.0.0",
+  "taxonomy_version": "1.1.0",
   "as_of_commit": "3b61307",
   "recorded_by": "SECB-WP-FWK-041",
-
   "ladders": [
     {
       "prefix": "G",
@@ -12,7 +11,8 @@
       "bound_to": "Change classes -- the authority delta a diff carries",
       "home": "docs/00-governance/L0_ROOT_CONSTITUTION.md",
       "enforced_by": "scripts/classify_authority_delta.py",
-      "ordering": "ascending severity; take the strictest"
+      "ordering": "ascending severity; take the strictest",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "A",
@@ -20,7 +20,8 @@
       "bound_to": "Authority ladder tiers -- how much an agent may land without fresh approval",
       "home": "config/delegation_envelope.json (authority_ladder)",
       "enforced_by": "scripts/classify_authority_delta.py",
-      "ordering": "ascending authority; A3/A4 require an active ballot layer"
+      "ordering": "ascending authority; A3/A4 require an active ballot layer",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "R",
@@ -28,7 +29,8 @@
       "bound_to": "Risk tiers -- how much damage a change can do",
       "home": "docs/00-governance/RISK_AUTHORITY_MATRIX.md",
       "enforced_by": "reading",
-      "ordering": "ascending damage; an agent may not lower its own tier"
+      "ordering": "ascending damage; an agent may not lower its own tier",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "E",
@@ -36,7 +38,8 @@
       "bound_to": "Evidence levels -- how strong the assurance behind a claim is",
       "home": "docs/00-governance/DECISION_AUTHORITY.md",
       "enforced_by": "reading",
-      "ordering": "ascending strength; E4 is production telemetry and SecB holds none"
+      "ordering": "ascending strength; E4 is production telemetry and SecB holds none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "D",
@@ -44,7 +47,8 @@
       "bound_to": "Decision classes -- who decides, as distinct from who may land it (G) or how much damage (R)",
       "home": "docs/00-governance/DECISION_AUTHORITY.md",
       "enforced_by": "reading",
-      "ordering": "ascending authority required"
+      "ordering": "ascending authority required",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "L",
@@ -52,7 +56,8 @@
       "bound_to": "Governance layers -- L0 root constitution, L1 delegation envelope, L2 policy implementation, L3 operational",
       "home": "docs/00-governance/L0_ROOT_CONSTITUTION.md",
       "enforced_by": "reading; L0 is also the constitution's filename",
-      "ordering": "L0 is not delegable"
+      "ordering": "L0 is not delegable",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "C",
@@ -60,7 +65,8 @@
       "bound_to": "Conflict impact ladder -- how much a specification conflict costs to resolve",
       "home": "docs/00-governance/SPECIFICATION_CONFLICT_PROTOCOL.md",
       "enforced_by": "reading",
-      "ordering": "ascending impact; C4 is constitutional-authority-only, C5 is refused"
+      "ordering": "ascending impact; C4 is constitutional-authority-only, C5 is refused",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "SC",
@@ -68,7 +74,8 @@
       "bound_to": "Specification conflict types",
       "home": "docs/00-governance/SPECIFICATION_CONFLICT_PROTOCOL.md",
       "enforced_by": "reading",
-      "ordering": "none -- a taxonomy, not a ladder"
+      "ordering": "none -- a taxonomy, not a ladder",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "GATE",
@@ -76,7 +83,8 @@
       "bound_to": "Two-plane verdict validation rules",
       "home": "docs/00-governance/TWO_PLANE_DECISION_MODEL.md",
       "enforced_by": "reading",
-      "ordering": "none"
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "K",
@@ -84,7 +92,8 @@
       "bound_to": "Key performance indicators",
       "home": "docs/01-requirements/KPI_BASELINE.md",
       "enforced_by": "recount from source at each report",
-      "ordering": "none"
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "KN",
@@ -92,7 +101,8 @@
       "bound_to": "Knowledge register entries",
       "home": "docs/13-evidence/KNOWLEDGE_REGISTER.md",
       "enforced_by": "reading",
-      "ordering": "none"
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "FR",
@@ -100,7 +110,8 @@
       "bound_to": "Functional requirements",
       "home": "docs/01-requirements/REQUIREMENT_CATALOGUE.md",
       "enforced_by": "docs/01-requirements/RTM.md",
-      "ordering": "none"
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "NFR",
@@ -108,7 +119,8 @@
       "bound_to": "Non-functional requirements",
       "home": "docs/01-requirements/NFR_CATALOGUE.md",
       "enforced_by": "docs/01-requirements/RTM.md",
-      "ordering": "none"
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "TX",
@@ -116,7 +128,8 @@
       "bound_to": "Traceability exceptions -- a requirement that cannot acquire verification here",
       "home": "docs/01-requirements/RTM.md",
       "enforced_by": "stage-gate records",
-      "ordering": "none"
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "PACKET",
@@ -124,7 +137,8 @@
       "bound_to": "Decision packets issued to the constitutional authority",
       "home": "docs/13-evidence/",
       "enforced_by": "reading",
-      "ordering": "none"
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "REV",
@@ -132,7 +146,8 @@
       "bound_to": "Independent review records -- the only E3 artifacts SecB holds",
       "home": "docs/13-evidence/",
       "enforced_by": "reading",
-      "ordering": "none"
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     },
     {
       "prefix": "SECB-WP",
@@ -140,10 +155,10 @@
       "bound_to": "Work packages",
       "home": "GitHub issues; prefix is configuration since SECB-WP-FWK-036",
       "enforced_by": "scripts/check_work_package_ref.py, reading config/delegation_envelope.json",
-      "ordering": "none"
+      "ordering": "none",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit"
     }
   ],
-
   "collisions_recorded": [
     {
       "prefix": "C",
@@ -155,7 +170,10 @@
       ],
       "distinguisher": "a hyphen, and nothing else",
       "evidenced_by": "SECB-WP-FWK-037 wrote both 'impact C4' and 'C-4 governance owner' in one work package; the third meaning was found by SECB-WP-FWK-039's duplicate check",
-      "disposition": "OPEN -- rename candidates are the two non-ladder uses, since C0-C5 is the ordered ladder and the others are registers. Operator's call: renaming a condition ID rewrites decision records that cite it."
+      "observed_status": "BOTH_IN_FORCE",
+      "second_claimant_adopted": true,
+      "recommendation_advisory": "Advisory, not a rule: the two non-ladder uses are the cheaper renames, since C0-C5 is the ordered ladder and the others are registers. Renaming a condition ID rewrites the decision records that cite it, so any rename is the constitutional authority's act.",
+      "superseded_disposition_v1_0_0": "OPEN -- rename candidates are the two non-ladder uses, since C0-C5 is the ordered ladder and the others are registers. Operator's call: renaming a condition ID rewrites decision records that cite it."
     },
     {
       "prefix": "D",
@@ -166,7 +184,10 @@
       ],
       "distinguisher": "context only",
       "evidenced_by": "both merged and in force since SECB-WP-FWK-026",
-      "disposition": "OPEN -- the deferred-capability list is the cheaper rename; it is a plan, not a control, and nothing enforces on its IDs."
+      "observed_status": "BOTH_IN_FORCE",
+      "second_claimant_adopted": true,
+      "recommendation_advisory": "Advisory, not a rule: the deferred-capability list is the cheaper rename -- it is a plan, not a control, and nothing enforces on its IDs.",
+      "superseded_disposition_v1_0_0": "OPEN -- the deferred-capability list is the cheaper rename; it is a plan, not a control, and nothing enforces on its IDs."
     },
     {
       "prefix": "E",
@@ -177,7 +198,10 @@
       ],
       "distinguisher": "none if adopted",
       "evidenced_by": "SECB-WP-FWK-039; bOPEN resolved the same collision by writing 'expansion class E-n' set-qualified at every use",
-      "disposition": "BLOCKED -- expansion classes may not enter SecB as bare E-n. Either set-qualify per bOPEN's ratified precedent, or take a free prefix."
+      "observed_status": "SECOND_CLAIMANT_NOT_ADOPTED",
+      "second_claimant_adopted": false,
+      "recommendation_advisory": "Advisory, not a rule: if expansion classes are adopted, either set-qualify them at every use per bOPEN's ratified precedent, or bind them to a free prefix. This registry records that E is taken; it does not forbid anything.",
+      "superseded_disposition_v1_0_0": "BLOCKED -- expansion classes may not enter SecB as bare E-n. Either set-qualify per bOPEN's ratified precedent, or take a free prefix."
     },
     {
       "prefix": "L",
@@ -188,22 +212,32 @@
       ],
       "distinguisher": "none if adopted, and L2 would mean two things that sound alike",
       "evidenced_by": "SECB-WP-FWK-041 assessment of BACP v1.1",
-      "disposition": "BLOCKED -- BACP's artifact layers may not enter SecB as bare L-n. Reserved alternative below."
+      "observed_status": "SECOND_CLAIMANT_NOT_ADOPTED",
+      "second_claimant_adopted": false,
+      "recommendation_advisory": "Advisory, not a rule: if BACP's artifact layers are adopted, bind them to a free prefix -- M0-M4 is reserved below for that purpose. This registry records that L is taken, and that L0 is the constitution's filename; it does not forbid anything.",
+      "superseded_disposition_v1_0_0": "BLOCKED -- BACP's artifact layers may not enter SecB as bare L-n. Reserved alternative below."
     }
   ],
-
   "reserved_unbound": [
     {
       "prefix": "M",
       "form": "M0-M4",
       "reserved_for": "BACP v1.1 artifact layers -- metamodel, domain models, policy profile, runtime instance, evidence record",
-      "status": "RESERVED, NOT ADOPTED. Recorded so the next work package does not have to rediscover that L is taken. Adoption of BACP is a separate decision."
+      "status": "RESERVED, NOT ADOPTED. Recording a reservation is an observation, not an authorization: it states that L is already bound so the next work package need not rediscover it. Adopting BACP remains a separate decision of the constitutional authority."
     }
   ],
-
   "notes": [
-    "Every prefix above is recorded because it is IN USE, verified by grep at as_of_commit. Nothing here is aspirational.",
-    "The test guarding this file asserts two things: no prefix is bound twice outside collisions_recorded, and every recorded collision carries a disposition. It freezes the debt and blocks its growth; it does not pretend the debt is paid.",
-    "This registry is data. The rule 'a single-letter prefix, once bound, is never rebound' was recommended by SECB-WP-FWK-039 and is NOT enacted here -- a rule that binds agent behaviour belongs to the constitutional authority."
-  ]
+    "Every prefix above is recorded because it is IN USE at as_of_commit, verified by the command in verified_by. Records are provenance-backed recorded assertions, not self-proving facts: registration shows the assertion was made and by whom, not that it is true (the reasoning of IETF RFC 9943).",
+    "The guard on this file asserts that a NEW prefix is not bound twice without a collision record, and that every recorded collision carries meanings, evidence, an observational status and an advisory recommendation. That is integrity validation of this file, not governance of the repository.",
+    "This registry does NOT enact a rule. The naming rule recommended by SECB-WP-FWK-039 -- a single-letter prefix, once bound, is never rebound -- remains ungranted; a rule binding agent behaviour belongs to the constitutional authority.",
+    "Corrected in v1.1.0 under the operator's research verdict: v1.0.0's `disposition` field carried verdict-shaped prohibitions (\"may not enter SecB\") and a test enforced them, which made the registry originate a prohibition while claiming it originated none. The prohibitions are now advisory recommendations and the superseded wording is retained per-collision rather than deleted."
+  ],
+  "record_class": "provenance-backed recorded assertion",
+  "scope_and_limits": {
+    "observation_boundary": "this file. A ladder introduced anywhere else in the repository without a record here is invisible to the guard.",
+    "demonstrated_limit": "A colliding `G` ladder was written into a document under docs/17-references/ without touching this file: all 73 tests passed, the classifier returned AUTO_APPROVED, and the budget gate passed. The probe was then removed. Growth outside the boundary is not detected.",
+    "what_the_baseline_freeze_means": "the recorded collision values at as_of_commit cannot be silently overwritten or reclassified -- a change to them appears as a diff in git history and as a taxonomy_version bump. It does NOT mean the debt itself cannot grow.",
+    "append_only_basis": "git history plus the as_of_commit boundary. This file is a mutable JSON document, NOT a linked-record chain with prior_record_digest. It is therefore weaker than an append-only ledger, and stated as such rather than implied. docs/13-evidence/K09_LEDGER.md is the append-only pattern this repository actually holds.",
+    "growth_prevention_owner": "external policy and enforcement -- CI gates, admission control, or a ratified naming rule. Not this file."
+  }
 }

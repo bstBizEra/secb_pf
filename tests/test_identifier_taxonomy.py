@@ -6,11 +6,17 @@ packages, each one discovered messages or days after it was introduced --
 already bound. The registry turns that class of defect into a failing test:
 a sixth collision is a duplicate key, not an archaeology exercise.
 
-What these tests enforce is deliberately narrow. They **freeze the recorded
-debt and block its growth**; they do not pretend the debt is paid. Renaming
-a bound prefix rewrites decision records that cite it, which is the
-operator's call, so the registry records dispositions rather than applying
-them.
+What these tests enforce is deliberately narrow, and the previous version of
+this docstring overstated it. They are **integrity checks on one file**: they
+detect a new duplicate *recorded here*. They do **not** prevent collision debt
+from growing in the repository -- demonstrated, not assumed: a colliding `G`
+ladder written into a document without touching the registry passed all 73
+tests, the classifier and the budget gate. Growth prevention belongs to
+external policy and enforcement.
+
+Corrected under the operator's research verdict of 2026-08-11: baseline freeze
+and growth prevention are different properties, and only the first is a
+registry function.
 """
 
 from __future__ import annotations
@@ -58,36 +64,61 @@ def test_no_prefix_is_bound_twice_outside_the_recorded_collisions():
     assert not unexpected, (
         f"prefix bound twice without a collision record: {sorted(unexpected)}. "
         "Either give the new ladder a free prefix, or add it to "
-        "collisions_recorded with a disposition."
+        "collisions_recorded with an observational status and an advisory "
+        "recommendation."
     )
 
 
-def test_every_recorded_collision_names_its_meanings_and_a_disposition():
-    # A collision recorded without a disposition is a note, not a decision.
+OBSERVATIONAL_STATUS = {"BOTH_IN_FORCE", "SECOND_CLAIMANT_NOT_ADOPTED", "RESOLVED"}
+
+
+def test_every_recorded_collision_carries_meanings_evidence_and_an_observation():
     for c in load().get("collisions_recorded", []):
         assert len(c.get("meanings", [])) >= 2, f"{c['prefix']}: needs 2+ meanings"
-        assert c.get("disposition"), f"{c['prefix']}: needs a disposition"
         assert c.get("evidenced_by"), f"{c['prefix']}: needs evidence"
-        assert c["disposition"].split()[0] in ("OPEN", "BLOCKED", "RESOLVED"), (
-            f"{c['prefix']}: disposition must start OPEN, BLOCKED or RESOLVED"
+        assert c.get("observed_status") in OBSERVATIONAL_STATUS, (
+            f"{c['prefix']}: observed_status must be observational, one of "
+            f"{sorted(OBSERVATIONAL_STATUS)} -- a verdict token here would make "
+            "the registry originate a decision"
         )
 
 
-def test_blocked_collisions_are_the_ones_with_an_unadopted_claimant():
-    """`E` and `L` are BLOCKED because the second meaning is only proposed.
+def test_no_collision_record_carries_a_prohibition():
+    """The registry may recommend; it may not forbid.
 
-    That distinction matters: a BLOCKED collision can still be prevented, an
-    OPEN one has already shipped and can only be renamed.
+    v1.0.0 of this file failed this: its `disposition` read *"BLOCKED --
+    expansion classes may not enter SecB as bare E-n"*, and a test enforced
+    that they stay blocked. That is a prohibition originated by a factual
+    ledger and enforced by its own guard -- which contradicted the adjacent
+    test asserting the registry enacts no rule. Caught by the operator's
+    research verdict, not by this suite, which is why the check now exists.
     """
-    blocked = {
-        c["prefix"]
-        for c in load()["collisions_recorded"]
-        if c["disposition"].startswith("BLOCKED")
-    }
-    assert {"E", "L"} <= blocked, (
-        "E (expansion classes) and L (BACP artifact layers) must stay BLOCKED "
-        "until they take a free prefix or are set-qualified at every use"
-    )
+    forbidding = re.compile(r"\b(SHALL NOT|MUST NOT|may not|is prohibited|forbidden)\b")
+    for c in load().get("collisions_recorded", []):
+        reco = c.get("recommendation_advisory", "")
+        assert reco.startswith("Advisory, not a rule"), (
+            f"{c['prefix']}: a recommendation must label itself advisory"
+        )
+        assert not forbidding.search(reco), (
+            f"{c['prefix']}: recommendation contains prohibitive language -- "
+            "the registry records and recommends; enforcement is external"
+        )
+
+
+def test_observed_status_agrees_with_whether_the_second_claimant_is_adopted():
+    """The status is a reading of the world, so it must match the world.
+
+    This replaces a test that *mandated* `E` and `L` stay blocked. Mandating
+    is enforcement; the registry only observes. If expansion classes or BACP
+    layers are ever adopted, this test wants the record updated to say so --
+    not to keep asserting a prohibition the authority never granted.
+    """
+    for c in load()["collisions_recorded"]:
+        adopted = c["second_claimant_adopted"]
+        expected = "BOTH_IN_FORCE" if adopted else "SECOND_CLAIMANT_NOT_ADOPTED"
+        assert c["observed_status"] == expected, (
+            f"{c['prefix']}: observed_status and second_claimant_adopted disagree"
+        )
 
 
 def test_reserved_prefixes_do_not_collide_with_bound_ones():
@@ -112,6 +143,23 @@ def test_the_L_prefix_is_recorded_as_belonging_to_the_constitution():
     assert "L0_ROOT_CONSTITUTION.md" in ladders["L"]["home"]
 
 
+def test_the_registry_states_its_own_boundary_and_what_it_cannot_do():
+    """`FR-07`: a baseline freeze must not be read as growth prevention."""
+    limits = load()["scope_and_limits"]
+    for field in (
+        "observation_boundary",
+        "demonstrated_limit",
+        "what_the_baseline_freeze_means",
+        "append_only_basis",
+        "growth_prevention_owner",
+    ):
+        assert limits.get(field), f"scope_and_limits is missing {field}"
+    assert "NOT" in limits["what_the_baseline_freeze_means"]
+    assert "external" in limits["growth_prevention_owner"]
+    # The append-only claim must not be stronger than the mechanism.
+    assert "git history" in limits["append_only_basis"]
+
+
 def test_registry_claims_no_rule_it_has_not_been_granted():
     """The registry records facts; it must not enact the naming rule.
 
@@ -121,4 +169,5 @@ def test_registry_claims_no_rule_it_has_not_been_granted():
     file. The registry says so about itself, and this test keeps it honest.
     """
     notes = " ".join(load().get("notes", []))
-    assert "NOT enacted here" in notes
+    assert "does NOT enact a rule" in notes
+    assert "remains ungranted" in notes
