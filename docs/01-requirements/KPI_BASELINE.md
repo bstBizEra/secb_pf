@@ -13,17 +13,24 @@ asked to measure it.
 
 | # | KPI | Formula | Source | Cadence | Baseline | Target | Guardrail | Owner | Ready? |
 |--:|---|---|---|---|---|---|---|---|---|
-| K-01 | PRs merged with all gates green | `green_prs / merged_prs` | GitHub check-runs API | Per merge | **31/31 (100%)** — recounted 2026-08-11 | 100% | Never met by relaxing a gate | Operator | **Yes** |
+| K-01a | **Required-gate pass rate** | `merged_prs_all_required_checks_success / merged_prs` | GitHub check-runs API | Per merge | **32/32 (100%)** — recounted as of `3b61307`; 32 merged PRs, all carrying check runs, none with a non-`success` conclusion | 100% | Never met by relaxing a gate. **Green is not the same as effective** — see `K-05b` | Operator | **Yes** |
+| K-01b | **Advisory-job health** | `advisory_job_success / merged_prs` | Same | Per merge | **32/32** — the governance-verdict job exits 0 by design, so this row measures that the job *ran*, never that a verdict was favourable | 100% | A row that cannot fail is a liveness check, not a gate. Recorded as such so it is never cited as assurance | Operator | **Yes** |
 | K-02 | Unauthorized-action rate | count of merges without a passing Authority gate | Check-runs API + issue records | Per merge | **0** — every merged PR carrying an Authority check passed it | 0 | Any occurrence is an incident, not a metric movement | Operator | **Yes** |
-| K-03 | Evidence completeness | WPs whose gate results are recorded on the ticket / WPs merged | Issue comments | Per WP | **28/32 (88%)** — the four misses are #28, #36, #48, #58, **all escalated and operator-merged**; see the note below | 100% | Presence is not sufficiency; a comment must cite run IDs | Operator | **Yes** |
-| K-04 | First-pass budget compliance | WPs needing no budget amendment / WPs merged | Issue comments | Per WP | **29/32 (91%)** — 3 amendments: FWK-007, FWK-013, FWK-022 | ≥90% | Not met by inflating declared budgets | Executor | **Yes** |
-| K-05 | Executable control gates | mechanized gates / 10 | `ci.yml` versus `CONTROL_GATES.md` | Per change to CI | **3/10** (Authority, Test, Budget). The governance-verdict job is **not counted**: it exits 0 by design so a verdict is never a broken build, which means it cannot fail a PR and therefore is not a mechanically fail-able gate | 10/10 | A gate counts only once proven to fail on a real PR (`KN-001`) | Operator | **Yes** |
-| K-06 | Loop lead time, ticket to merge | `merged_at − issue.created_at`, median | GitHub timestamps | Per WP | **n=24 · median 5.5 min · p90 26.2 min · max 435.9 min** | p50 ≤ 10 min · p90 ≤ 30 min | Speed must never be met by skipping evidence; the max is a human-decision wait, not slow execution | Operator | **COMPUTED** (`SECB-WP-FWK-028`) |
-| K-07 | Autonomous merges under the envelope | count, and rollback rate among them | Governance-verdict job + merge log | Per merge | **17 autonomous merges, 0 rollbacks** (recounted 2026-08-11) | Ladder `A1 → A2` needs 30 with zero rollback — 13 to go | One rollback resets the count | Operator | **Yes, from now** |
+| K-03 | Evidence completeness — **overall** | WPs whose gate results are recorded on the ticket / WPs merged | Issue comments | Per WP | **28/32 = 87.5%** — stated exactly. The previous `88%` rounded **up**, in the flattering direction | 100% | Presence is not sufficiency; a comment must cite run IDs | Operator | **Yes** |
+| K-03a | Evidence completeness — **autonomous class** | Same, restricted to autonomously merged WPs | Issue comments | Per WP | **28/28 = 100%** | 100% | — | Operator | **Yes** |
+| K-03b | Evidence completeness — **escalated class** | Same, restricted to escalated, operator-merged WPs | Issue comments | Per WP | **0/4 = 0%** — #28, #36, #48, #58 | 100% | **The overall figure hides this row.** Proposed promotion gate: `K-03b < 100%` blocks any autonomy advance. Recorded as *proposed* — a promotion gate lives on the authority surface and is the operator's to install | Operator | **Yes** |
+| K-04 | First-pass budget compliance | WPs needing no budget amendment / WPs merged | Issue comments | Per WP | **29/32 = 90.625%** — 3 amendments: FWK-007, FWK-013, FWK-022. Stated exactly: the previous `91%` rounded **up** past a target of `≥90%`, which is where rounding does the most damage | ≥90% | Not met by inflating declared budgets | Executor | **Yes** |
+| K-05a | **Enforcement coverage** | mechanically fail-able gates / 10 | `ci.yml` versus `CONTROL_GATES.md` | Per change to CI | **3/10 = 30%** (Authority, Test, Budget). The governance-verdict job is **not counted**: it exits 0 by design, so it cannot fail a PR | 10/10 | Counting a job that cannot fail would inflate this row | Operator | **Yes** |
+| K-05b | **Negative-test pass rate** | enforcing gates proven to fail on a real PR / enforcing gates | Recorded failing run IDs | Per gate change | **3/3 = 100%** | 100% | `KN-001`: a gate counts only once **observed** failing. `K-05a` says how many controls can block; this row says whether they do | Operator | **Yes** |
+| K-06 | Loop lead time, ticket to merge | `merged_at − issue.created_at`, median | GitHub timestamps | Per WP | **n=24 · median 5.5 min · p90 26.2 min · max 435.9 min** — counted pre-`3b61307`, so **stale by one merge**; not recounted here because `SECB-WP-FWK-040`'s scope is instruments, and a stale value labelled stale is honest while a silently refreshed one is not | p50 ≤ 10 min · p90 ≤ 30 min | Speed must never be met by skipping evidence; the max is a human-decision wait, not slow execution | Operator | **COMPUTED** (`SECB-WP-FWK-028`) |
+| K-07a | Autonomous merges under the envelope | count | Merge log + the mandatory announcements | Per merge | **18** as of `3b61307` — the prior `17` could not count PR #67, its own merge | Ladder `A1 → A2` needs 30 — **12 to go** | One rollback resets the count | Operator | **Yes** |
+| K-07b | Production rollbacks among them | count | Merge log | Per merge | **0** | 0 | **Zero is ambiguous:** it means either that nothing needed rolling back, or that rollback has never been exercised. This row alone cannot distinguish them — `K-07c` is what separates the two | Operator | **Yes** |
+| K-07c | **Rollback drill pass rate** | successful drills / scheduled drills | Drill records | Per drill | **0/0 — undefined.** No drill has ever been scheduled or run | ≥3 successful drills before any autonomy advance | An untested rollback is a plan, not a capability. Recorded as `undefined` rather than as `100%`, which is what dividing zero by zero would flatter it into | Operator | **NO — instrument defined, never exercised** |
 | K-08 | Defect escape rate | escapes / gates passed, where an escape is a defect whose ODC **trigger** is later than the stage that should have caught it | Three fields at defect close: ODC `defect_type` · ODC `defect_trigger` · IEEE 1044 `severity` | Per stage | 2 defects classifiable retroactively, both `checking` type | `TBC-OPERATOR` | Escapes are attributed to a stage, never averaged away | Operator | **ADOPTED** (`SECB-WP-FWK-016`, condition C-3) — recording not yet in force |
-| K-09 | Constitutional-class recall — **not** accuracy | **Statistical rule of three (`3/n`)**: with 0 downgrades in *n* observations, 95% upper bound on the downgrade rate = `3/n`. **One observation = one governance verdict rendered on a merged PR's head SHA** — a definition that did not exist before `SECB-WP-FWK-034` and without which the series was not reproducible | Governance-verdict check-runs on merged PR heads | Per classifier change | **≤ 13.0%** — 0 downgrades in **23** observations · authoritative series: `docs/13-evidence/K09_LEDGER.md` | ≤10% at n=30; ≤5% at n=60 | No constitutional case may be downgraded — a single downgrade invalidates the bound | Operator | **ADOPTED and live** |
-| K-11 | **Autonomy rate** | announced autonomous merges ÷ squash-merged PRs since `035b66d` | Merge record + the mandatory announcements | Per merge | **17/22 = 77%** (recounted 2026-08-11) | ~100% of `D0`/`D1` decisions | **Goodhart guard, binding: never reported without the count of decisions that were correctly escalated.** A rising rate achieved by classifying `D2` work as `D1` is a control failure, not an improvement. `L0` acts are excluded from the denominator | Operator | **Yes** |
+| K-09 | Constitutional-class recall — **not** accuracy | **Wilson 95% upper bound for a zero numerator: `z²/(n+z²)`**, `z=1.96`. The statistical rule of three (`3/n`) is retained as a reference column only — it is an approximation, and above n≈13.7 it is the **optimistic** one. **One observation = one governance verdict rendered on a merged PR's head SHA** — a definition that did not exist before `SECB-WP-FWK-034` and without which the series was not reproducible | Governance-verdict check-runs on merged PR heads | Per classifier change | **≤ 13.80%** — 0 downgrades in **24** observations, as of `3b61307` · **instrument: Wilson 95% upper bound `z²/(n+z²)`**, not `3/n` · authoritative series: `docs/13-evidence/K09_LEDGER.md` | ≤10% requires **n ≥ 35** under Wilson, not n=30 — see the note below; ≤5% at n≈73 | No constitutional case may be downgraded — a single downgrade invalidates the bound | Operator | **ADOPTED and live** |
+| K-11 | **Autonomy rate** | announced autonomous merges ÷ squash-merged PRs since `035b66d` | Merge record + the mandatory announcements | Per merge | **18/23 = 78.3%** as of `3b61307` — the prior `17/22` predates its own merge | ~100% of `D0`/`D1` decisions | **Goodhart guard, binding: never reported without the count of decisions that were correctly escalated.** A rising rate achieved by classifying `D2` work as `D1` is a control failure, not an improvement. `L0` acts are excluded from the denominator | Operator | **Yes** |
 | K-10 | Cost per accepted change | tokens × model price, derived not recorded | OpenTelemetry GenAI conventions: `gen_ai.client.token.usage` by `gen_ai.token.type`, `gen_ai.request.model` | Per WP | Unmeasured; **field names fixed** so future data is comparable | `TBC-OPERATOR` | Observational only — never a gate condition | Operator | **ADOPTED as a recording contract** (`SECB-WP-FWK-016`, condition C-3); collector deferred |
+| K-12 | **Net surface change** (`FP-K02`, adopted from FPSA v1.0) | `files_added − files_deleted`, all history | `git log --diff-filter=A/D --name-only` | Per work package | **164 added / 5 deleted = +159**; a **3% retirement ratio**, and 109 of 159 tracked files are documents | No target — this is a **watch** metric | Never reported as a single net figure: added and retired are shown separately, because a healthy +2 and an unhealthy +40 have the same sign | Operator | **Yes, measured `SECB-WP-FWK-039`** |
 
 ## Readiness summary for the stage-1 gate
 
@@ -33,6 +40,42 @@ Updated after `SECB-WP-FWK-015` (research record:
 - **Every row was recounted from source on 2026-08-11** (`SECB-WP-FWK-035`), with
   the command recorded beside the value so the next recount is mechanical. **No
   value in this table is carried from a previous report.**
+
+### Values carry an as-of SHA, not a date (`SECB-WP-FWK-040`)
+
+`FWK-035` recorded `K-01` as `31/31` and `K-09` as `n=23`, dated 2026-08-11. Both
+were correct when written and wrong when merged: **a recount cannot count its own
+merge.** PR #67 landed as `3b61307` and made them `32/32` and `n=24`.
+
+This is structural, not carelessness, and it cannot be fixed by being more careful.
+So values now state the commit they were counted at. *"Recounted 2026-08-11"*
+cannot be checked; *"as of `3b61307`"* can.
+
+### The instruments changed, not just the numbers
+
+Three analyses (`FWK-037`, `FWK-038`, `FWK-039`) found defects in this table rather
+than in the frameworks they were analysing:
+
+| Row | Was | Is | Why |
+|---|---|---|---|
+| `K-09` | `3/n` = 12.50% at n=24 | **Wilson `z²/(n+z²)` = 13.80%** | `3/n` is an approximation, **optimistic for every n above ≈13.7** — and every figure this repository ever published sat above that crossover |
+| `K-03` | `88%` | **`87.5%`** | The rounding went **up**, in the flattering direction. A metric that rounds toward its target should not round |
+| `K-01` | one number | `K-01a` / `K-01b` | *Green* and *effective* are different claims. `K-01b` measures a job that **cannot fail**, and says so |
+| `K-05` | one number | `K-05a` / `K-05b` | How many controls **can** block, versus whether they **do** |
+| `K-07` | `17 merges, 0 rollbacks` | `K-07a` / `K-07b` / `K-07c` | **`0` rollbacks is ambiguous.** It means either nothing needed rolling back, or rollback has never been exercised — and `K-07c` is `0/0`, undefined, because no drill has ever run |
+
+**`K-09`'s correction moves a rung, and this work package does not move it.** The
+`A1 → A2` requirement *"≤10% at n=30"* was set because `3/30` is exactly 10.0%.
+Under Wilson, n=30 gives 11.35%; ≤10% needs **n ≥ 35**. The ladder's
+`advance_conditions` live in `config/delegation_envelope.json` — the authority
+surface, `G4`. The disagreement is recorded in `K09_LEDGER.md` and put to the
+constitutional authority. Raising a threshold is the *stricter* direction, and
+"stricter" is an argument to bring to the authority, not a licence to act.
+
+**`NFR-02` cites the old bound and is not corrected here.** It lives in
+`NFR_CATALOGUE.md`, which PR #69 is currently changing. Editing it now would create
+the overlap the standing intake constraint forbids, so it is deferred to the first
+work package after #69 merges — named, not forgotten.
 
 ### `K-03`'s four misses are systematic, not scatter
 
@@ -49,7 +92,7 @@ Not fixed by back-posting tables to those four tickets — that would be back-da
 evidence. **Fixed forward:** an escalated merge gets the same gate table an
 autonomous merge does, and the omission is recorded here so the four gaps stay
 visible rather than being papered over.
-- **Eight metrics are measurable today** (K-01…K-05, K-06, K-07, K-11) with real
+- **Eleven rows are measurable today** (`K-01a`/`K-01b`, `K-02`, `K-03`/`K-03a`/`K-03b`, `K-04`, `K-05a`/`K-05b`, `K-06`, `K-07a`/`K-07b`, `K-11`, `K-12`) with real
   baselines taken from the merged work packages. `K-11` was added by ballot 001 as
   objective `O7`'s measure; it is the only KPI carrying a binding Goodhart guard,
   because it is the only one whose numerator the measured party controls directly.
@@ -57,23 +100,25 @@ visible rather than being papered over.
   across 24 work packages. The old `p50 < 1 hour` target was met by an order of
   magnitude, which made it uninformative — a target no plausible regression can
   breach measures nothing. It is now set just above observed performance.
-- **K-09 is computable and now reproducible.** 95% upper bound **13.6%** from zero
-  downgrades in **22** observations, where an observation is defined as one
-  governance verdict rendered on a merged PR's head SHA and counted from CI
-  history. Before `SECB-WP-FWK-034` the denominator had **no definition**: this row
-  carried `n=14` in one column and `n=16` in another while merge announcements had
-  reached `n=37`, all incremented by hand on an unstated rule. The bound is weak by
-  the arithmetic, not by evasion — it tightens to ≤10% at thirty observations, which
-  is also the `A1 → A2` ladder threshold, giving that rung a statistical meaning it
-  previously lacked. **The announced series over-stated confidence and is
-  superseded by this row.**
+- **K-09 is computable, reproducible, and no longer computed with an
+  approximation.** Wilson 95% upper bound **13.80%** from zero downgrades in **24**
+  observations as of `3b61307`, where an observation is one governance verdict on a
+  merged PR's head SHA. Before `SECB-WP-FWK-034` the denominator had **no
+  definition**: this row carried `n=14` in one column and `n=16` in another while
+  announcements had reached `n=37`, all hand-incremented on an unstated rule. The
+  bound is weak by the arithmetic, not by evasion. It reaches ≤10% at **n=35**, not
+  at the n=30 the ladder names — that discrepancy is the substantive finding of
+  `SECB-WP-FWK-040` and is put to the constitutional authority rather than resolved
+  here. **Both the announced series and the `3/n` figures that replaced it
+  understated the bound.**
 - **K-08 and K-10 have named instruments** costing three recorded fields each,
   with no tooling: ODC type/trigger plus IEEE 1044 severity, and the
   OpenTelemetry GenAI attribute names as a recording contract. Neither is
   implemented; both are now adoption decisions rather than open research.
 
-Stage 1 requires that success KPIs be measurable. Seven are measurable now,
-and the remaining two have defined methods awaiting adoption.
+Stage 1 requires that success KPIs be measurable. Eleven rows are measurable now (`K-01a` … `K-07b`, `K-09`, `K-11`, `K-12`), one is
+defined and never exercised (`K-07c`), and two have defined methods awaiting
+adoption (`K-08`, `K-10`).
 `APPROVED_WITH_CONDITIONS` is therefore supportable with owners and dates that
 mean something. **The choice of verdict still belongs to the gate authority,
 not to the executor preparing this record.**
