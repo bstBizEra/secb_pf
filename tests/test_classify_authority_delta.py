@@ -29,11 +29,22 @@ SEALED = (
 )
 
 
-def run(numstat: str, envelope: Path | None = None, diff_text: str | None = None):
-    env = {k: v for k, v in os.environ.items() if k not in ("ENVELOPE", "DIFF_TEXT")}
+def run(
+    numstat: str,
+    envelope: Path | None = None,
+    diff_text: str | None = None,
+    diff_path: Path | str | None = None,
+):
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("ENVELOPE", "DIFF_TEXT", "DIFF_PATH")
+    }
     env["ENVELOPE"] = str(envelope or REAL_ENVELOPE)
     if diff_text is not None:
         env["DIFF_TEXT"] = diff_text
+    if diff_path is not None:
+        env["DIFF_PATH"] = str(diff_path)
     return subprocess.run(
         [sys.executable, str(SCRIPT)],
         input=numstat,
@@ -247,3 +258,113 @@ def test_expired_envelope_escalates(custom_envelope):
 def test_sealed_path_with_spaces_and_em_dash_read_whole():
     result = run(f"1\t1\t{SEALED}\n")
     assert verdict_of(result) == "CONSTITUTIONAL_REQUIRED"
+
+
+# --- the diff body arrives by path (`SECB-WP-FWK-043`) -----------------------
+#
+# `DIFF_TEXT` cannot carry a large diff: Linux caps one environment string at
+# MAX_ARG_STRLEN = 131072 bytes. Before this work package, `ci.yml` passed the
+# whole diff that way, so a 160-line PR of long-line JSON made the shell fail
+# with E2BIG **before the classifier started** -- the G5 prohibited-action scan
+# never ran, `REJECTED` was unreachable, and the summary announced a routine
+# escalation. These tests exist so that cannot recur silently.
+
+ENV_STRING_LIMIT = 131072
+
+
+def oversized_diff(tmp_path: Path, extra_line: str | None = None) -> tuple[Path, str]:
+    """A diff over the env-string limit, built from this repo's own content.
+
+    The long lines come from `route-plan.schema.json`, whose longest line is
+    1053 bytes. Using real content keeps the fixture honest about where a diff
+    like this comes from: not a contrived blob, but six schema files already
+    sitting under `docs/`, which is an `auto_path`.
+    """
+    source = (
+        ROOT
+        / "docs/06-agent-orchestration/skill-router/route-plan.schema.json"
+    ).read_text(encoding="utf-8").splitlines()
+    longest = sorted(source, key=len, reverse=True)[:8]
+    body, count = [], 0
+    while count < 160:
+        for line in longest:
+            body.append("+" + line)
+            count += 1
+            if count >= 160:
+                break
+    if extra_line is not None:
+        body.insert(len(body) // 2, extra_line)
+    diff = (
+        "diff --git a/docs/x.schema.json b/docs/x.schema.json\n"
+        "new file mode 100644\n--- /dev/null\n+++ b/docs/x.schema.json\n"
+        f"@@ -0,0 +1,{len(body)} @@\n" + "\n".join(body) + "\n"
+    )
+    assert len(diff) > ENV_STRING_LIMIT, "fixture must exceed the env-string limit"
+    path = tmp_path / "big.diff"
+    path.write_text(diff, encoding="utf-8")
+    return path, diff
+
+
+def test_oversized_diff_classifies_when_passed_by_path(tmp_path):
+    """160 lines, over 131 KB, well inside the 600-line auto-merge cap."""
+    path, diff = oversized_diff(tmp_path)
+    result = run("160\t0\tdocs/x.schema.json\n", diff_path=path)
+    assert result.returncode == EXIT_OK
+    assert "AUTO_APPROVED" in result.stdout
+    assert len(diff) > ENV_STRING_LIMIT
+
+
+def test_g5_is_reachable_inside_an_oversized_diff(tmp_path):
+    """The verdict that was unreachable. This is the whole point of FWK-043.
+
+    A removed CI enforcement step buried in the middle of a 168 KB diff must
+    still produce `REJECTED`. Passed by `DIFF_TEXT` this test cannot even
+    start the interpreter.
+    """
+    path, _ = oversized_diff(
+        tmp_path, extra_line="-          run: python scripts/check_work_package_ref.py"
+    )
+    result = run("161\t0\tdocs/x.schema.json\n", diff_path=path)
+    assert result.returncode == EXIT_REJECTED
+    assert "REJECTED" in result.stderr
+    assert "removes an enforcement step" in result.stderr
+
+
+def test_unreadable_diff_path_escalates_and_is_not_read_as_an_empty_diff(tmp_path):
+    """The fail-open this fix could have introduced, closed deliberately.
+
+    An empty diff means "no prohibited signature found". A diff that could not
+    be read means nothing at all, and must never borrow the empty diff's
+    meaning.
+    """
+    result = run("5\t0\tdocs/a.md\n", diff_path=tmp_path / "absent.diff")
+    assert result.returncode == EXIT_ESCALATE
+    assert "cannot be read" in result.stderr
+    assert "not an empty diff" in result.stderr
+
+
+def test_diff_path_wins_when_both_channels_are_set(tmp_path):
+    """The file channel is authoritative, because only it can carry the diff.
+
+    A caller that sets both -- a half-migrated workflow, say -- must get the
+    complete body, not the truncatable one.
+    """
+    path = tmp_path / "d.diff"
+    path.write_text("-          run: python scripts/check_budget.py\n", encoding="utf-8")
+    result = run(
+        "3\t0\tdocs/a.md\n",
+        diff_path=path,
+        diff_text="+ nothing prohibited here\n",
+    )
+    assert result.returncode == EXIT_REJECTED, (
+        "DIFF_PATH holds a G5 signature and DIFF_TEXT does not; the path must win"
+    )
+
+
+def test_diff_text_still_works_for_callers_that_already_use_it():
+    """Compatibility: the old channel is retained, only no longer preferred."""
+    result = run(
+        "4\t0\tdocs/a.md\n",
+        diff_text="-          run: python scripts/check_work_package_ref.py\n",
+    )
+    assert result.returncode == EXIT_REJECTED

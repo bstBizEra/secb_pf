@@ -18,7 +18,18 @@ Contract:
 
     stdin        output of ``git diff --numstat <base>...<head>``
     ENVELOPE     path to the delegation envelope (default config/delegation_envelope.json)
-    DIFF_TEXT    optional unified diff body, used to detect G5 signatures
+    DIFF_PATH    path to a file holding the unified diff body (preferred)
+    DIFF_TEXT    the unified diff body inline (retained; size-limited, see below)
+
+The diff body is what the `G5` scan reads, so it is not optional in effect:
+without it, a change that deletes an enforcement control cannot be recognised
+as prohibited. `DIFF_PATH` exists because `DIFF_TEXT` cannot carry one.
+Linux caps a single environment string at ``MAX_ARG_STRLEN`` = 131072 bytes,
+and a 160-line diff of long-line JSON exceeds that (`SECB-WP-FWK-043`). When
+it did, the classifier was never executed at all: the shell failed with
+`E2BIG`, `REJECTED` became unreachable, and CI reported the failure as a
+routine escalation. Prefer `DIFF_PATH`; `DIFF_TEXT` remains for callers that
+already work.
 
 Exit codes:
 
@@ -27,7 +38,9 @@ Exit codes:
     3  REJECTED — prohibited change
 
 Fail-closed: a missing, unreadable, malformed, or expired envelope, an
-unparseable diff, or an empty diff all escalate. `HUMAN_REQUIRED` is
+unparseable diff, or an empty diff all escalate. A `DIFF_PATH` that is set but
+cannot be read also escalates -- it must never be treated as an empty diff,
+because an empty diff means "no prohibited signature found". `HUMAN_REQUIRED` is
 deliberately absent from the vocabulary: the constitutional authority may in
 future be a committee, a threshold-signature council, or an external body,
 so the verdict names the *authority level* required, not the species of the
@@ -40,6 +53,7 @@ import json
 import os
 import sys
 from datetime import date
+from pathlib import Path
 
 AUTO_APPROVED = "AUTO_APPROVED"
 AUTO_APPROVED_WITH_CONDITIONS = "AUTO_APPROVED_WITH_CONDITIONS"
@@ -201,6 +215,28 @@ def classify(
     )
 
 
+def read_diff_body() -> str:
+    """Return the unified diff body, or raise ValueError to fail closed.
+
+    `DIFF_PATH` wins over `DIFF_TEXT` when both are set, because the file
+    channel has no size limit and the environment channel does. An empty or
+    absent value in either means "no diff body supplied", which is the
+    pre-existing behaviour and leaves the G5 scan with nothing to read -- but
+    a path that is *set and unreadable* is a different thing entirely, and it
+    escalates rather than silently degrading into an empty diff.
+    """
+    path = os.environ.get("DIFF_PATH", "").strip()
+    if path:
+        try:
+            return Path(path).read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            raise ValueError(
+                f"DIFF_PATH is set to {path!r} but cannot be read ({exc}); "
+                "an unreadable diff is not an empty diff"
+            ) from exc
+    return os.environ.get("DIFF_TEXT", "")
+
+
 def main() -> int:
     envelope_path = os.environ.get("ENVELOPE", "config/delegation_envelope.json")
     try:
@@ -226,7 +262,13 @@ def main() -> int:
         print(f"VERDICT: {CONSTITUTIONAL_REQUIRED} — {exc}", file=sys.stderr)
         return EXIT_ESCALATE
 
-    verdict, reason = classify(rows, total, envelope, os.environ.get("DIFF_TEXT", ""))
+    try:
+        diff_body = read_diff_body()
+    except ValueError as exc:
+        print(f"VERDICT: {CONSTITUTIONAL_REQUIRED} — {exc}", file=sys.stderr)
+        return EXIT_ESCALATE
+
+    verdict, reason = classify(rows, total, envelope, diff_body)
     line = f"VERDICT: {verdict} — {reason}"
     if EXIT_FOR[verdict] == EXIT_OK:
         print(line)

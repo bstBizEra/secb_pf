@@ -125,7 +125,13 @@ jobs:
           git diff --numstat "$BASE_SHA...$HEAD_SHA" > /tmp/pr.numstat
           git diff "$BASE_SHA...$HEAD_SHA" > /tmp/pr.diff
           set +e
-          single=$(DIFF_TEXT="$(cat /tmp/pr.diff)" \
+          # The diff goes by PATH, not by environment variable. Linux caps one
+          # env string at MAX_ARG_STRLEN = 131072 bytes, and a 160-line diff of
+          # long-line JSON exceeds it -- when it did, this step failed with
+          # E2BIG, the classifier never ran, the G5 prohibited-action scan never
+          # executed, and the summary below reported it as a routine
+          # escalation. SECB-WP-FWK-043.
+          single=$(DIFF_PATH=/tmp/pr.diff \
             python scripts/classify_authority_delta.py < /tmp/pr.numstat 2>&1)
           single_code=$?
           dual=$(BASE_REF="$BASE_SHA" \
@@ -147,7 +153,18 @@ jobs:
             echo "$dual"
             echo '```'
             echo ""
-            if [ "$single_code" -eq 0 ] && [ "$dual_code" -eq 0 ]; then
+            # 0 / 2 / 3 are the classifier's own verdicts. Anything else means
+            # it did not run -- a crash, a shell failure, a missing
+            # interpreter. That is INVALID GATE OUTPUT and must not be read as
+            # a verdict, least of all as the routine one: before FWK-043 an
+            # E2BIG failure landed in the else-branch and a prohibited change
+            # would have been announced as "normal".
+            if ! echo "$single_code $dual_code" | grep -Eq '^[023] [023]$'; then
+              echo "**INVALID GATE OUTPUT.** A gate did not run"
+              echo "(classifier exit \`$single_code\`, dual-policy exit \`$dual_code\`);"
+              echo "no verdict was produced, so none may be inferred. Treat as"
+              echo "unevaluated and fail closed: do not merge on this summary."
+            elif [ "$single_code" -eq 0 ] && [ "$dual_code" -eq 0 ]; then
               echo "The ratified delegation envelope covers this change; all gates must still be green."
             elif [ "$single_code" -eq 3 ] || [ "$dual_code" -eq 3 ]; then
               echo "**REJECTED** — prohibited under \`docs/00-governance/L0_ROOT_CONSTITUTION.md\`. Withdraw the change."
