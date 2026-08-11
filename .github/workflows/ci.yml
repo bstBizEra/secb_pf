@@ -48,6 +48,17 @@ jobs:
           "docs/06-agent-orchestration/skill-router/SECB-WP-ENGLOOP-MVP-001 — Sandbox Evidence/test_router.py"
           tests/
 
+      # NFR-18: the sandbox router performs no external effect. Verified twice by
+      # hand -- at certification and at independent review -- and never since.
+      # SECB-WP-FWK-048 makes it a gate. ast-based, so a mention in a docstring is
+      # not a finding and a set.remove() is not a filesystem write, which the
+      # first version of the scanner got wrong (DEF-ENGLOOP-MVP-001).
+      - name: "Gate 6 - prohibited-call scan (NFR-18)"
+        run: |
+          python scripts/check_prohibited_calls.py \
+            "docs/06-agent-orchestration/skill-router/SECB-WP-ENGLOOP-MVP-001 — Sandbox Evidence" \
+            src
+
   authority-gate:
     name: "Gate 1 — Authority (No Ticket, No Work)"
     if: github.event_name == 'pull_request'
