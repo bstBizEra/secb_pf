@@ -42,14 +42,69 @@ clothing, and is marked as such.
 | `NFR-12` | Enforcement scripts depend on the Python standard library only | 0 third-party imports in `scripts/` | Observed: `json`, `os`, `re`, `sys`, `subprocess`, `datetime` only. CI installs `pytest` for tests, not for the gates | Import inspection |
 | `NFR-13` | The framework runs on a personal GitHub account with no organization, no paid plan, and no branch protection | All gates functional under those constraints | Observed and forced: rulesets and protection both return `403` | Every CI run is the evidence |
 | `NFR-14` | Governance configuration is machine-readable and editable without code changes | Scope, caps, tier and expiry live in `config/delegation_envelope.json` | Design decision, `SECB-WP-FWK-012` | Classifier reads the envelope at runtime; `test_missing_envelope_escalates` |
-| `NFR-15` | A new project can be instantiated without modifying framework logic | **Target withdrawn as false.** Measured 2026-08-10: **18 files** require editing, including 3 enforcement scripts, 2 test modules and 6 governance documents. Revised target: instantiation requires no change to enforcement *logic* — renames and pruning only | **Measured**, `TRIAL-FR12-BOOTSTRAP.md` finding 1 | Verified by instantiating; trial executed through step 3 |
+| `NFR-15` | A new project can be instantiated without modifying enforcement **logic** | **Met on the logic clause, re-measured 2026-08-11** (`SECB-WP-FWK-036`): **0 of 3** enforcement scripts now require an edit, down from 3. Total files still requiring an edit: **13**, of which 1 is the intended configuration change and 12 are prose or identity strings. The original "no framework logic" target stays **withdrawn as false** | **Measured twice**: `TRIAL-FR12-BOOTSTRAP.md` finding 1 (18 files, 2026-08-10) and the re-measurement below | Custom prefix proven **by invoking the gate**: `test_custom_prefix_from_envelope_passes`, `test_foreign_prefix_rejected_under_custom_configuration` |
 
-`NFR-15` was measured and its original target **withdrawn as false**. It claimed
-zero `scripts/` edits with one known exception; the trial found eighteen files,
-including six governance documents the runbook classified reusable as-is. The
-honest target is narrower: instantiation requires no change to enforcement
-*logic*. Making the work-package prefix configuration rather than code remains a
-stage-3 candidate, and would reduce the eighteen to roughly six.
+`NFR-15`'s original target claimed zero `scripts/` edits with one known
+exception. The bootstrap trial found **eighteen** files, and the error was in the
+direction that flattered the framework. The target was withdrawn rather than
+defended, and narrowed to a clause that could be met: no change to enforcement
+*logic*.
+
+### Re-measurement, 2026-08-11 (`SECB-WP-FWK-036`)
+
+The work-package prefix moved from a regex inside `check_work_package_ref.py` to
+`project.work_package_prefix` in the delegation envelope.
+
+Both measurements use the same scope — the files a new project copies:
+`AGENTS.md`, `README.md`, `docs/00-governance/`, `docs/16-templates/`,
+`.github/`, `config/`, `scripts/`, `tests/`. The trial's total reproduces exactly
+at its own commit `d52968b`, which is why the comparison is meaningful:
+
+```bash
+git grep -l SECB-WP d52968b -- AGENTS.md README.md docs/00-governance \
+    docs/16-templates .github config scripts tests | wc -l   # 18
+git grep -l SECB-WP        -- AGENTS.md README.md docs/00-governance \
+    docs/16-templates .github config scripts tests | wc -l   # 20
+```
+
+| Kind | Trial, 2026-08-10 | Contains it now | **Requires an edit now** | Why |
+|---|---:|---:|---:|---|
+| Enforcement scripts | 3 | 3 | **0** | Each remaining `SECB-WP` in `scripts/` is a docstring citation of the work package that created the file (`SECB-WP-FWK-012`, `-011`, `-036`). Renaming a provenance citation would falsify it, so a new project leaves it alone |
+| Test modules | 3 | 3 | **0** | The gate's own tests derive the prefix from the envelope the gate reads. The other two name the sealed-evidence path (pruned, not renamed) or synthetic fixture filenames the classifier never parses as prefixes |
+| CI workflow | 1 | 1 | **0** | The step name and header comment no longer name a prefix. The single remaining occurrence is the sealed-evidence test path — a *different* defect, trial finding 2 |
+| Config | 1 | 1 | **1** | The intended edit point. One string |
+| Issue template | 1 | 1 | **1** | Irreducible: GitHub issue forms are static YAML with no interpolation, so the title format and placeholder must be literal |
+| Documents naming the prefix in prose | 9 | 11 | **11** | Not addressed here, and it **grew** |
+| **Total** | **18** | **20** | **13** | |
+
+The trial's own per-kind split read *"2 test modules"* and *"10 documents"* where
+the reproduction gives 3 and 9. Its **total of 18 is exact**; the internal split
+was off by one in two rows. Recorded rather than quietly re-cast, because the
+number this entry now compares against has to be the one that can be re-derived.
+
+**The prediction in the previous version of this entry was wrong.** It said this
+change "would reduce the eighteen to roughly six." Thirteen files still require an
+edit, because the prediction counted only the code and assumed the prose surface
+would hold still. It did not: two governance documents written after the trial —
+`DECISION_AUTHORITY.md` and `TWO_PLANE_DECISION_MODEL.md` — each name `SECB-WP`
+in prose, so the document count rose from nine to eleven while the code count
+fell to zero.
+
+That is the durable finding, and it is more useful than the number: **the
+mechanical surface is now closed and the prose surface grows with the
+framework.** Every governance document added from here adds instantiation cost
+unless it refers to "the work-package prefix" rather than spelling `SECB-WP`.
+Left open deliberately rather than fixed in this work package — a sweep of
+eleven governance documents is its own change with its own review, and
+`AGENTS.md` plus `docs/00-governance/` are constitutional paths.
+
+**The logic clause is verified by invocation, not by reading.** A gate that reads
+its prefix from configuration has a failure mode the hard-coded one did not: a
+missing or malformed envelope. All six such paths — absent file, invalid JSON,
+absent `project` block, empty prefix, non-string prefix, and a prefix containing
+regex metacharacters such as `.*` that would match every title — exit `2`. A
+configurable gate that fails **open** when its configuration is absent would be
+worse than the hard-coded gate it replaced.
 
 ## Security
 

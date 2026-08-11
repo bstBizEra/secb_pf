@@ -4,7 +4,7 @@
 # of them mechanically fail-able, and reports a fourth signal:
 #
 #   test-gate           (gate 5, Test)      — FIT-101..120 + repo tests
-#   authority-gate      (gate 1, Authority) — every PR cites a SECB-WP-* ID
+#   authority-gate      (gate 1, Authority) — every PR cites a work-package ID
 #   budget-gate         (AGENTS.md §6/§7)   — declared diff budget honoured
 #   governance-verdict  (L0 constitution)   — advisory: authority-delta class
 #                                             plus dual-policy evaluation
@@ -61,7 +61,7 @@ jobs:
 
       # PR title/body are attacker-controlled text; they enter through the
       # environment, never through shell interpolation.
-      - name: Require a SECB-WP-* work-package reference
+      - name: Require a work-package reference (prefix from the envelope)
         env:
           WP_TEXT: |
             ${{ github.event.pull_request.title }}

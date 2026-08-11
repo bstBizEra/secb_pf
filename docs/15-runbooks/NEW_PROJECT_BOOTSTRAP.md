@@ -95,7 +95,7 @@ confirm it does, then fix it:
 
 | Gate | Make it fail by | Expect |
 |---|---|---|
-| Authority | Omitting the work-package ID from title and body | `AUTHORITY GATE FAIL: no <PREFIX>-WP-* reference` — **rename the prefix first; see the note below, it is not one file** |
+| Authority | Omitting the work-package ID from title and body | `AUTHORITY GATE FAIL: no <PREFIX>-* work-package reference found` — **set `project.work_package_prefix` in the envelope first**, or the gate enforces SecB's scheme and rejects every PR you open |
 | Budget | Declaring `max_lines=1` on a real diff | `BUDGET GATE FAIL: diff exceeds the declared budget` |
 | Governance verdict | Touching a path listed in `scope.constitutional_paths` | `VERDICT: CONSTITUTIONAL_REQUIRED` |
 
@@ -130,7 +130,7 @@ gates green at trial commit `726ed96`. See `docs/13-evidence/TRIAL-FR12-BOOTSTRA
 |---|---|
 | Constitutional authority | No gate verdict is valid; nothing can be approved |
 | Envelope tier and caps | Either every change needs a human merge, or too much does not |
-| Work-package ID prefix | **Measured: 18 files contain `SECB-WP`** — 3 enforcement scripts, 2 test modules, 1 config, CI, the issue template, and 10 documents including `AGENTS.md`, `L0_ROOT_CONSTITUTION.md` and four other governance files this runbook calls reusable as-is. A single `grep -rl SECB-WP . \| xargs sed -i 's/SECB-WP/<PREFIX>-WP/g'` handles it; the point is to know it is eighteen, not one (trial finding 1) |
+| Work-package ID prefix | **One field, then a prose sweep.** Set `project.work_package_prefix` in `config/delegation_envelope.json` — the Authority Gate and its tests both read it, so **no enforcement script or test needs an edit** (`SECB-WP-FWK-036`). Then know what remains: **13 files still require an edit**, down from 18 at trial (20 still contain the string; 7 of those are provenance citations no new project should touch), and 11 of the 13 are prose — `AGENTS.md`, eight governance documents, two templates. The twelfth is `.github/ISSUE_TEMPLATE/work-package.yml`, which is irreducible because GitHub issue forms are static YAML with no interpolation. `grep -rl SECB-WP . \| xargs sed -i 's/SECB-WP/<PREFIX>/g'` still sweeps the prose; the point is that the *mechanical* surface is now one field and the prose surface is not (trial finding 1, re-measured 2026-08-11) |
 | `auto_paths` and `constitutional_paths` | An unclassified path escalates — safe, but you will notice quickly |
 | Whether a second identity exists | **Determines whether stage 9 is reachable at all.** One identity cannot satisfy an independence requirement; if your project must reach production, resolve this at bootstrap, not at stage 9 |
 
