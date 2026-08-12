@@ -33,10 +33,10 @@ not a control.
 ## Count
 
 ```text
-observations n = 24        (governance verdicts on merged PR heads, as of 3b61307)
+observations n = 29        (governance verdicts on merged PR heads, as of e43fca8)
 downgrades   d = 0
-95% upper bound on the downgrade rate = 13.80%   (Wilson, the instrument)
-                             for reference       = 12.50%   (3/n, the approximation)
+95% upper bound on the downgrade rate = 11.70%   (Wilson, the instrument)
+                             for reference       = 10.34%   (3/n, the approximation)
 ```
 
 **The instrument is now the Wilson upper bound, not `3/n`** (`SECB-WP-FWK-040`).
@@ -48,7 +48,7 @@ upper = z² / (n + z²)        z = 1.96,  z² = 3.8416
 
 | n | `3/n` | Wilson |
 |---:|---:|---:|
-| 24 (today) | 12.50% | **13.80%** |
+| 29 (today) | 10.34% | **11.70%** |
 | 30 | 10.00% | 11.35% |
 | 35 | 8.57% | **9.89%** |
 | 60 | 5.00% | 6.02% |
@@ -74,7 +74,7 @@ done | wc -l
 
 | n | Wilson upper bound | Milestone |
 |---:|---:|---|
-| 24 | **13.80%** | today |
+| 29 | **11.70%** | today |
 | 30 | 11.35% | the `A1 → A2` rung as written — **does not reach 10%** |
 | 35 | 9.89% | the smallest n that reaches ≤10% under Wilson |
 | 60 | 6.02% | — |
@@ -125,6 +125,7 @@ One row per recount, never an edit of a prior row.
 |---|---|---:|---:|---:|---|---|---|
 | 2026-08-11 | `035b66d`…pre-#67 | 23 | 0 | 13.0% | `3/n` | `SECB-WP-FWK-035` | First ledger entry; supersedes all announced values |
 | 2026-08-11 | `3b61307` | 24 | 0 | **13.80%** | **Wilson** | `SECB-WP-FWK-040` | Instrument corrected; `n` includes PR #67, which the prior row could not count |
+| 2026-08-12 | `e43fca8` | 29 | 0 | **11.70%** | Wilson | `SECB-WP-FWK-050` | Five merges landed (#73 #71 #75 #77 #90). Counted with three retries per call — a first pass without them reported n=28 |
 
 ## Remaining follow-up
 
