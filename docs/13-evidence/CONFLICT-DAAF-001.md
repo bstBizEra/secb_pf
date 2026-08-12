@@ -3,11 +3,15 @@
 Work package: `SECB-WP-FWK-057` · Issue: #112 · Recorded: 2026-08-13
 Protocol: [`SPECIFICATION_CONFLICT_PROTOCOL.md`](../00-governance/SPECIFICATION_CONFLICT_PROTOCOL.md)
 Type: **`SC-05` Authority conflict** · Impact: **`C4` — Authority or safety**
-Status: **`SPEC_OWNER_REQUIRED`**
+Status: **`RESOLVED` — pending ratification.** Operator disposition given 2026-08-13;
+**effective on the merge of PR #113, not on this text**
 
-> **This record creates no rule and resolves nothing.** `C4` is *constitutional
-> authority only*, and the executor is the party whose authority the proposal would
-> widen. Recording it is the whole of what may be done here.
+> **Resolved by the constitutional authority, not by the executor.** `C4` is
+> *constitutional authority only*, and the executor is the party whose authority the
+> proposal would have widened — so recording the conflict was the whole of what the
+> executor could do. The operator has now ruled; §9 carries the disposition. The
+> status is `RESOLVED` **pending ratification**: this document does not become
+> effective by asserting that it is, and the merge of PR #113 is the ratifying act.
 
 ## The two statements, verbatim
 
@@ -116,3 +120,59 @@ human regardless of how good the verification becomes. **A third answer, that so
 `D2` decisions are one and some the other, requires partitioning the class.**
 
 Recorded for decision. Not decided here.
+
+
+# 9. Disposition — operator, 2026-08-13
+
+**Statement A stands. Statement B is rejected.**
+
+> คง `D2+ = HUMAN_RATIFICATION_REQUIRED` ตาม `DECISION_AUTHORITY.md` เดิม — Agent
+> ballots เพิ่มความเชื่อมั่นต่อหลักฐาน แต่ไม่โอนความรับผิดชอบต่อผลลัพธ์จาก accountable
+> owner ไปยัง Agent.
+
+The question this record put — *is `D2` about evidence quality or ownership of
+consequence?* — is answered: **ownership.** Agent ballots raise confidence in the
+evidence; they do not transfer responsibility for the outcome from the accountable
+owner to an agent. Verifier count is not a source of accountability.
+
+**The third option is not taken.** `D2` is not partitioned into evidentiary and
+ownership halves. That option remains available to a future constitutional decision
+and is not foreclosed — but it is not adopted here, and no `D2` case becomes
+autonomously ratifiable.
+
+| | |
+|---|---|
+| `D2+` ratification | **Human. Unchanged** |
+| Agent autonomy ceiling for `D2+` | **`RATIFICATION_READY`** — full autonomy up to it, none through it |
+| Three-ballot auto-ratify | **`REJECT_AUTHORITY_CHANGE`** |
+| DAAF v2.0 as a framework | **`NOT_ADOPTED_AS_FRAMEWORK`** |
+| DAAF's evidence-side mechanisms | Accepted as control deltas — see `ANALYSIS-DAAF-V2.md` §6 |
+| `F3` posture, recorded | **`MULTI_ROLE_SINGLE_PRINCIPAL`** — three role labels on one principal is not a quorum and may never be recorded as one |
+
+## What the agent may do, and where it stops
+
+```text
+Agent drafts verdict → evidence verified → policy result determined
+  → RATIFICATION_READY  ←  the autonomy ceiling for D2+
+       ↓ human merges                    ↓ human rejects or amends
+    EFFECTIVE                          RETURNED
+```
+
+Autonomy is **not reduced** by this ruling: everything up to `RATIFICATION_READY`
+is the agent's, including drafting the verdict, verifying every claim and running
+the deterministic matrix. What is withheld is the final transition — and that was
+already withheld. The ruling declines to move it, rather than moving it back.
+
+## Why this closes without self-widening
+
+The executor recorded the conflict, refused to resolve it, and did not edit
+`DECISION_AUTHORITY.md` while the question was open. The rule that constrains the
+executor was changed by nobody — **which is the outcome, not a technicality.** A
+proposal to widen agent authority was assessed by the agent it would widen, and the
+only thing the agent did with it was write it down and hand it over.
+
+## Remaining scope of this record
+
+None. `CONFLICT-DAAF-001` closes on ratification. It creates no condition, blocks
+no stage, and its `blocking_scope` on `DAAF-WP-05` / `-06` is discharged by those
+work packages not being adopted.

@@ -2,7 +2,9 @@
 
 Work package: `SECB-WP-FWK-057` · Issue: #112 · Recorded: 2026-08-13
 Subject: **SecB Decision-Aware Bounded Autonomy Framework v2.0**, operator-supplied
-Status: **assessment — nothing adopted.** No `DAAF-WP` is implemented by this record
+Status: **`RATIFICATION_PENDING`** — carries the operator's disposition of 2026-08-13,
+which becomes effective on the merge of PR #113 and not before. No `DAAF-WP` is
+implemented by this record
 
 ---
 
@@ -40,7 +42,7 @@ own computation. DAAF pins `z = 1.9599639845` against the ledger's `1.96`; see `
 
 **Items 9.4–9.6 found a real defect, now fixed.** PR #111's record declared itself
 `ISSUED` while the pull request said *"nothing is issued until you merge."* Both
-could not be true. Corrected at `6f57d91`: `verdict_generated_at` separated from
+could not be true. Corrected by the amendment PR #111 carries (pre-squash `6f57d91`; that SHA will not survive the squash, so the pull request is the durable reference): `verdict_generated_at` separated from
 `ratified_at` / `effective_at`, status `RATIFICATION_PENDING`, stage 3's opening
 deferred to `effective_at`, and authority ceiling `ARCHITECTURE_APPROVED` recorded
 explicitly because **admission and authorized action are separate quantities.**
@@ -134,10 +136,24 @@ individually defensible, collectively a vocabulary and authority collision waiti
 to be installed. **The framework's throughput constraint is operator decisions,
 not proposals** — and adding a sixth would not help.
 
-### `F6` — `FPSA v1.0` already binds this, and is the right instrument
+### `F6` — the minimal-delta test fails; but I was wrong that `FPSA v1.0` *binds*
 
-FPSA's invariant: *"no proven gap, no minimal delta, no bounded authority, no
-rollback and retirement path — no framework expansion."*
+> **Corrected 2026-08-13.** The first version of this finding said FPSA *"already
+> binds this proposal, and is the right instrument."* **FPSA is not adopted in
+> SecB.** It exists only as `docs/17-references/ANALYSIS-FPSA-V1.md` — an intake
+> assessment. There is no `docs/00-governance/FPSA-*.md`, and the operator's
+> framework-disposition register confirms `FPSA-v1.0: NOT_ADOPTED`. Its taxonomy is
+> used here as an analytical vocabulary (as `FPSA-03` is in the envelope's
+> `classification_notes`), which is not the same as being in force.
+>
+> **This is the same defect class this session keeps finding** — asserting a
+> document is binding when it is not, exactly like the constitution's retracted
+> branch-protection claim and the envelope's *"#81 auto-merged"*. It was surfaced
+> by the operator's register, not by me. The test below is still worth applying;
+> it is applied as a **lens I chose**, carrying no authority of its own.
+
+FPSA's invariant, applied as a lens: *"no proven gap, no minimal delta, no bounded
+authority, no rollback and retirement path — no framework expansion."*
 
 - **Proven gap: PASSES.** #111 is the proof, and it is this repository's own.
 - **Minimal delta: FAILS as a whole.** Ten work packages, a semantic classifier, a
@@ -219,3 +235,257 @@ requires the `D2` ruling. Everything else waits on decisions or identities.
   favour" to a proven need, satisfying FPSA's gap test for `WP-03` on its own.
 - **Enabling branch protection** makes the `if:`-skip hazard live and promotes it
   from latent to urgent.
+
+---
+
+# 6. Operator disposition — 2026-08-13
+
+Recorded verbatim in effect, not paraphrased into agreement. **`RATIFICATION_PENDING`
+until PR #113 is merged.**
+
+> **คง `D2+ = HUMAN_RATIFICATION_REQUIRED` ตาม `DECISION_AUTHORITY.md` เดิม.** Agent
+> ballots เพิ่มความเชื่อมั่นต่อหลักฐาน แต่ไม่โอนความรับผิดชอบต่อผลลัพธ์จาก accountable
+> owner ไปยัง Agent.
+
+**DAAF v2.0 is `NOT_ADOPTED_AS_FRAMEWORK`. Its findings are not rejected** — they are
+decomposed into control deltas that change no authority.
+
+The two planes, kept apart:
+
+| Plane | Question | Answered by |
+|---|---|---|
+| Evidence assurance | Is the claim true? | Agent verifiers |
+| Consequence authority | Who answers if the decision is wrong? | Accountable human owner |
+
+`FACT_AUDITOR`, `POLICY_EVALUATOR` and `RISK_REVIEWER` may agree unanimously and
+still hold no budget ownership, no legal accountability and no organizational
+mandate. **Accountability follows role, context and capacity to act — not verifier
+count.**
+
+## Component disposition
+
+| DAAF component | Disposition |
+|---|---|
+| Semantic impact detection | `ACCEPT_INCREMENTALLY` |
+| Normative Surface Manifest | `ACCEPT_SHADOW_MODE` |
+| Claim compiler | `ACCEPT_AS_NEXT_ATOMIC_DELTA` |
+| `INV-04` append-only decisions | `ACCEPT_FORMALIZATION` |
+| `INV-05` digest-bound evidence | `ACCEPT_WITH_CORRECTION` |
+| Admission / action separation | `ACCEPT` |
+| Authority ceiling | `ACCEPT` |
+| **Three ballots auto-ratify `D2`** | **`REJECT_AUTHORITY_CHANGE`** |
+| Ten-work-package rollout | `REJECT_MINIMAL_DELTA` |
+| Mandatory signing | `DEFER_CAPABILITY_UNAVAILABLE` |
+| Ruleset / merge-queue enforcement | `DEFER_ADMIN_CAPABILITY` |
+| OPA introduction | `DEFER_NOT_MINIMUM_SUFFICIENT` |
+| DAAF as a sixth framework | `NOT_ADOPTED` |
+
+## `F1`–`F8` resolution register
+
+| Finding | Resolution |
+|---|---|
+| `F1` `D` namespace collision | **`D0–D4` stays "who decides"; the new classifier uses `NS0–NS3`.** The collision is resolved by giving the new concept a free prefix rather than rebinding an occupied one |
+| `F2` conflicts with `DECISION_AUTHORITY.md` | **Existing rule preserved** — `D2+` requires human ratification. `CONFLICT-DAAF-001` closes on this |
+| `F3` one principal | **No independent-quorum claim may be made.** Posture is `MULTI_ROLE_SINGLE_PRINCIPAL` — three role labels on one principal is not a quorum and must never be recorded as one |
+| `F4` signing / rulesets / queue | Current posture is **`EL1_DETECTIVE`**, not preventive enforcement. Say so rather than implying gates prevent |
+| `F5` five frameworks in intake | **No sixth framework.** A central disposition register is created |
+| `F6` minimal delta | **`WP-02` alone, in shadow mode** |
+| `F7` `1.96` vs exact z | **Keep `1.96` under a versioned formula ID.** Substituting the constant silently is an instrument change, even when displayed values are identical |
+| `F8` body bound to event | **Move authoritative budget into a version-controlled manifest** — the PR body is a mutable input outside the commit SHA |
+
+# 7. Corrected namespace — `NS0`–`NS3`
+
+Materiality is **not** re-expressed as `D0–D3`. `D` remains the authority tier.
+
+| Class | Normative surface |
+|---|---|
+| `NS0` | Non-normative formatting, or a generated projection |
+| `NS1` | Operational documentation changing no state and no authority |
+| `NS2` | Decision-bearing artifact — verdict, condition, or stage transition |
+| `NS3` | Governance constitution, authority matrix, classifier, gate, or policy mechanism |
+| `NS_REVIEW_REQUIRED` | The classifier cannot prove a class |
+
+```text
+NS classifier describes WHAT the artifact changes.
+DECISION_AUTHORITY decides WHO may ratify it.
+The classifier may never widen authority.
+```
+
+That third line is the load-bearing one. A classifier that could raise its own
+output into an authority grant would be the self-widening the whole disposition
+refuses; it may only ever route a decision to an authority that already exists.
+
+| Artifact | `NS` | Authority outcome |
+|---|---:|---|
+| Typo in a non-authoritative guide | `NS0` | Existing authority matrix |
+| Lifecycle status projection | `NS1` | Existing authority matrix |
+| A stage-2 verdict | `NS2` | `D2` — human ratification |
+| `DECISION_AUTHORITY.md` | `NS3` | Human constitutional approval |
+| The classifier's own source | `NS3` | **The classifier may not approve itself** |
+
+**`EXPECTED_CLASSIFICATION_ONLY`.** A stage-gate verdict under `docs/` *would*
+classify `NS2` by content, so a path-based `G0` could not have made it
+self-mergeable and the executor's restraint would not have had to be the control.
+
+**That is a prediction about a classifier that does not exist.** `WP-02` is
+authorized for `SHADOW_MODE` and is not built; `NS` classifies nothing today and
+blocks nothing. It begins *detecting* when `WP-02` enters shadow, and it never
+*prevents* a merge until `EL2_PREVENTIVE` — which needs branch protection this
+repository cannot enable. Stating it as an accomplished control would be the
+`ISSUED` defect relocated into the word "implemented".
+
+# 8. `WP-02` — authorized for `SHADOW_MODE` only
+
+Approved to implement with **no effect on any merge verdict or authority**.
+
+## Classifier invariants
+
+1. Path is **one signal** and may never lower a class the content establishes.
+2. Effective class is the **strictest** of manifest, artifact type and semantic effects.
+3. `docs/` is never a reason to downgrade to `NS0`.
+4. Unknown or contradictory input yields **`NS_REVIEW_REQUIRED`**, never a guess.
+5. Changing the classifier or the manifest schema is at least `NS3`.
+6. The classifier is evaluated at the **base-branch** version.
+7. A new classifier has **no authority over the PR that creates it**.
+8. Shadow output is an annotation and an artifact — **never a merge authorization**.
+
+Invariants 5–7 are SecB's existing dual-policy rule generalized: a policy may not
+approve its own introduction. That rule is already mechanized in
+`scripts/check_dual_policy.py`, which is why this part costs little.
+
+## Exit gate
+
+The #111 fixture must classify `NS2` · `DECISION_AUTHORITY.md` must classify `NS3` ·
+classifier source and CI gate must classify `NS3` · an ordinary formatting fixture
+must classify `NS0` · **no false downgrade anywhere in the golden corpus** · every
+`NS_REVIEW_REQUIRED` reaches a human · and **promotion from shadow to enforced is a
+separate human ratification**, never a consequence of the corpus passing.
+
+# 9. `WP-03` — claim compiler, as the *next* atomic delta
+
+Deliberately the PR after `WP-02`, to hold the minimal-delta line.
+
+## Formula contract — do not substitute the constant
+
+The ledger's `z = 1.96` is **kept**, under an explicit ID:
+
+```yaml
+formula:
+  id: wilson_upper_95_z1_96_v1
+  method: WILSON_SCORE
+  confidence_level: "0.95"
+  z: "1.96"
+  arithmetic: DECIMAL
+  threshold_comparison: RAW_UNROUNDED
+  display_rounding: { decimal_places: 2, mode: HALF_UP }
+```
+
+Moving to the exact quantile later means a **new** ID —
+`wilson_upper_95_normaldist_v2` — ratified as an instrument change on its own.
+Swapping `1.96` for `1.9599639845` under the existing ID would be an instrument
+substitution disguised as a precision improvement, **and the fact that every
+displayed value is identical at n=29–35 is exactly what makes it dangerous**: it
+would pass unnoticed, which is the property that lets an instrument drift.
+
+Threshold comparison uses the **raw** value, not the rounded one — the displayed
+`10.15%` and the predicate must never be evaluated from the same rounded string.
+
+## Claim record rules
+
+`n` derives from a ledger selection and is never typed in · no manual observation
+top-ups · prose cites a `claim_id` · **a material numeric assertion without a claim
+reference fails CI** · every claim binds the ledger digest, the formula ID and the
+implementation digest.
+
+Had this existed, all three fabricated figures found this week — `NFR-02`'s retired
+`3/n`, the envelope's *"#81 auto-merged"*, the stage-2 record's `n=33` — would have
+failed at the gate instead of at a reader's attention.
+
+# 10. Enforcement level — stop calling detection prevention
+
+| Level | Meaning |
+|---|---|
+| `EL0_DOCUMENTED` | Policy text only |
+| `EL1_DETECTIVE` | CI detects; cannot prevent merge or push |
+| `EL2_PREVENTIVE` | Branch protection / ruleset enforces required checks |
+| `EL3_ATTESTED` | Expected-source checks, signed evidence, merge reconciliation |
+
+```yaml
+enforcement_level: EL1_DETECTIVE
+branch_protection: UNAVAILABLE_403
+merge_queue: UNAVAILABLE
+signed_attestation: UNAVAILABLE
+human_merge_control: REQUIRED
+```
+
+**SecB is `EL1_DETECTIVE`.** The four gates detect; they prevent nothing, because
+nothing stops a merge. The `if: github.event_name == 'pull_request'` guards make
+this concrete — a skipped job can count as success — but the deeper reason is that
+`main` has no protection at all. The fix is a wrapper job that runs on every event
+and returns one of `PASS` / `FAIL` / `VALIDATED_NOT_APPLICABLE` /
+`UNSUPPORTED_EVENT_FAIL_CLOSED`, so **a gate never communicates "passed" by not
+running**. `.github/` is constitutional: separate work package.
+
+# 11. Merge order is a prerequisite relation, not a queue
+
+Green and `clean` do not order anything. Measured against the tracked files rather
+than assumed:
+
+| PR | Depends on | Why |
+|---|---|---|
+| #111 stage-2 verdict | — | Independent |
+| #113 this assessment | **#111** | It states #111's contradiction is fixed; that claim is only true on `main` once #111 is there |
+| #103 identifier registry | — | Touches only `config/identifier_taxonomy.json` |
+| #101 secret scan | — | Adds a new script; touches none of #105's tracked controls |
+| #105 control surface | — | Its digests cover 4 scripts + the envelope; **none of #101, #103, #111, #113 modifies any of them**, so its manifest survives any order |
+| #110 envelope correction | **#105** | It edits `config/delegation_envelope.json`, which #105 tracks by digest — it must bump the manifest in the same PR |
+
+So exactly two edges exist: **#111 → #113** and **#105 → #110**. Everything else is
+free. I checked this against the diffs rather than inferring it from PR numbers or
+age, which is what the disposition asked for.
+
+# 12. Size disclosure — precedence selects a verdict, it must not hide findings
+
+```yaml
+size_assessment:
+  changed_lines: 797
+  autonomous_merge_cap: 600
+  absolute_ceiling: 2000
+
+  autonomous_cap_result: EXCEEDED
+  absolute_ceiling_result: PASS
+
+  effect:
+    auto_merge_eligible: false
+    human_ratification_permitted: true
+
+  disposition: ABOVE_AUTONOMY_CAP_BELOW_ABSOLUTE_CEILING
+```
+
+**This is not a waiver of the absolute ceiling**, and it is not correct to write
+that the cap "was never evaluated" merely because `G1` decided the verdict first.
+The governing principle:
+
+> **Precedence selects the final verdict. It must never suppress a finding that
+> lost to precedence.**
+
+The current classifier short-circuits: it finds a governance path, returns
+`AGENT_BALLOT_REQUIRED`, and never evaluates size. The verdict is right and the
+evidence output is incomplete. A future atomic delta should make evaluation
+**exhaustive** — every applicable rule produces a finding, the verdict is the most
+restrictive consequence among them, and all findings survive into the output with
+a `dominant_reason` and `additional_reasons`. Recorded here rather than built:
+`scripts/classify_authority_delta.py` is a constitutional path and this is not
+that work package.
+
+Conditions under which this size is acceptable, all met: everything is decision
+record, intake register, taxonomy and the tests they require · **no `WP-02`
+implementation is mixed in** · `DECISION_AUTHORITY.md` is untouched · the count is
+below the absolute ceiling after rebase · and the human reviewer is told the
+number explicitly, which is this section.
+
+Separately, `config/delegation_envelope.json` names both limits `max_changed_lines`
+— one under `scope`, one under `absolute_ceilings`. The bare name does not say
+which is the delegation limit and which is repository-wide. Renaming them
+(`change_limits.autonomous_merge` / `change_limits.absolute.waivable: false`) is a
+later atomic delta on a constitutional path, not this one.
