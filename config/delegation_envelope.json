@@ -1,6 +1,10 @@
 {
   "envelope_id": "ENV-SECB-2026-001",
   "schema_version": 1,
+  "project": {
+    "work_package_prefix": "SECB-WP",
+    "prefix_rationale": "The Authority Gate builds its work-package pattern from this value instead of hard-coding it (SECB-WP-FWK-036, NFR-15). A project instantiated from this framework edits this string; before it existed, a new project's gate rejected every pull request until someone found the regex inside scripts/check_work_package_ref.py. Uppercase alphanumerics and hyphens only -- the gate refuses anything else rather than compiling a pattern that might match everything, which would fail open."
+  },
   "authority_source": "Operator (vily), Genesis Ratification by merge of SECB-WP-FWK-012 (issue #20)",
   "effective_from": "2026-08-10",
   "expires_at": "2026-11-08",
