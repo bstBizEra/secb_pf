@@ -33,10 +33,31 @@ not a control.
 ## Count
 
 ```text
-observations n = 23        (governance verdicts on merged PR heads, 2026-08-11)
+observations n = 24        (governance verdicts on merged PR heads, as of 3b61307)
 downgrades   d = 0
-95% upper bound on the downgrade rate = 3/n = 13.0%
+95% upper bound on the downgrade rate = 13.80%   (Wilson, the instrument)
+                             for reference       = 12.50%   (3/n, the approximation)
 ```
+
+**The instrument is now the Wilson upper bound, not `3/n`** (`SECB-WP-FWK-040`).
+For a zero numerator it has a closed form, and it is the conservative of the two:
+
+```text
+upper = z² / (n + z²)        z = 1.96,  z² = 3.8416
+```
+
+| n | `3/n` | Wilson |
+|---:|---:|---:|
+| 24 (today) | 12.50% | **13.80%** |
+| 30 | 10.00% | 11.35% |
+| 35 | 8.57% | **9.89%** |
+| 60 | 5.00% | 6.02% |
+
+The two agree at **n ≈ 13.7**, and above that `3/n` is the **optimistic** one. Every
+`K-09` figure this repository has published sat above that crossover, so every one
+of them understated the bound. `3/n` is retained as a reference column because the
+citation chain (Hanley & Lippman-Hand, Jovanovic & Levy, Tuyl) uses it — not
+because it is the number we rely on.
 
 Reproduce:
 
@@ -44,23 +65,38 @@ Reproduce:
 for sha in $(gh api "repos/bstBizEra/secb_pf/pulls?state=closed&per_page=100" \
               --jq '.[] | select(.merged_at != null) | .head.sha'); do
   gh api "repos/bstBizEra/secb_pf/commits/$sha/check-runs" \
-    --jq '.check_runs[].name' | grep -q Governance && echo "$sha"
+    --jq '.check_runs[].name' | grep -qi governance && echo "$sha"
 done | wc -l
+# 24 as of 3b61307. Then: python3 -c 'z2=1.96**2; print(z2/(24+z2))'  → 0.1380
 ```
 
 ## Bound as n grows
 
-| n | 95% upper bound | Milestone |
+| n | Wilson upper bound | Milestone |
 |---:|---:|---|
-| 23 | **13.0%** | today |
-| 30 | 10.0% | the `A1 → A2` ladder threshold |
-| 60 | 5.0% | — |
-| 300 | 1.0% | — |
+| 24 | **13.80%** | today |
+| 30 | 11.35% | the `A1 → A2` rung as written — **does not reach 10%** |
+| 35 | 9.89% | the smallest n that reaches ≤10% under Wilson |
+| 60 | 6.02% | — |
+| 300 | 1.26% | — |
 
-The bound is weak at this n **by the arithmetic, not by evasion.** At n=23 roughly
-one decision in eight could be a downgrade and this evidence would not detect it.
-That is the honest reading, and it is the reason the ladder's `A1 → A2` step sits
-at thirty rather than at a feeling of readiness.
+The bound is weak at this n **by the arithmetic, not by evasion.** At n=24 roughly
+one decision in seven could be a downgrade and this evidence would not detect it.
+
+**The rung and the instrument disagree.** `A1 → A2` requires *"≤10% at n=30"*, and
+`30` was chosen because `3/30` is exactly 10.0%. Under Wilson, n=30 gives 11.35%;
+reaching ≤10% needs
+
+```text
+n ≥ z²/0.10 − z² = 34.57  →  n ≥ 35
+```
+
+**This ledger records the disagreement and does not resolve it.** The ladder's
+`advance_conditions` live in `config/delegation_envelope.json`, and moving a
+promotion threshold on the authority surface is `G4` — the constitutional
+authority's, not the executor's. Raising 30 to 35 is the *stricter* direction, but
+"stricter" is not a licence to act; it is an argument to put in front of the
+authority.
 
 ## A single downgrade invalidates the bound
 
@@ -75,6 +111,8 @@ cause is understood — not to continue the tally from `d = 1`.
 |---|---|
 | 2026-08-10 | Announcements had reported n up to 37 and a bound of 8.1%. Those values were hand-incremented on an unstated rule and **over-stated confidence.** Superseded by this ledger and by the `K-09` row |
 | 2026-08-10 | The `K-09` row itself held `n=14` in one column and `n=16` in another. Corrected, and the observation unit defined for the first time |
+| 2026-08-11 | **The instrument was an approximation biased in the flattering direction.** `3/n` understates the Wilson bound for every n above ≈13.7, and every published `K-09` figure sat above that crossover. Wilson is now the instrument (`SECB-WP-FWK-040`) |
+| 2026-08-11 | `n` was recorded as **23** while the true count at the merge was **24**. Not a miscount: **a recount cannot count its own merge.** The figure was taken before PR #67 landed and was stale by one the moment it did. Values now carry an **as-of SHA** instead of a date |
 
 Recorded rather than quietly replaced, because a corrected metric whose correction
 is invisible teaches nobody.
@@ -83,9 +121,10 @@ is invisible teaches nobody.
 
 One row per recount, never an edit of a prior row.
 
-| Date | n | d | Bound | Recounted by | Note |
-|---|---:|---:|---:|---|---|
-| 2026-08-11 | 23 | 0 | 13.0% | `SECB-WP-FWK-035` | First ledger entry; supersedes all announced values |
+| Date | As of | n | d | Bound | Instrument | Recounted by | Note |
+|---|---|---:|---:|---:|---|---|---|
+| 2026-08-11 | `035b66d`…pre-#67 | 23 | 0 | 13.0% | `3/n` | `SECB-WP-FWK-035` | First ledger entry; supersedes all announced values |
+| 2026-08-11 | `3b61307` | 24 | 0 | **13.80%** | **Wilson** | `SECB-WP-FWK-040` | Instrument corrected; `n` includes PR #67, which the prior row could not count |
 
 ## Remaining follow-up
 
