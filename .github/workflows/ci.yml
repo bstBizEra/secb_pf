@@ -48,6 +48,17 @@ jobs:
           "docs/06-agent-orchestration/skill-router/SECB-WP-ENGLOOP-MVP-001 — Sandbox Evidence/test_router.py"
           tests/
 
+      # NFR-18: the sandbox router performs no external effect. Verified twice by
+      # hand -- at certification and at independent review -- and never since.
+      # SECB-WP-FWK-048 makes it a gate. ast-based, so a mention in a docstring is
+      # not a finding and a set.remove() is not a filesystem write, which the
+      # first version of the scanner got wrong (DEF-ENGLOOP-MVP-001).
+      - name: "Gate 6 - prohibited-call scan (NFR-18)"
+        run: |
+          python scripts/check_prohibited_calls.py \
+            "docs/06-agent-orchestration/skill-router/SECB-WP-ENGLOOP-MVP-001 — Sandbox Evidence" \
+            src
+
   authority-gate:
     name: "Gate 1 — Authority (No Ticket, No Work)"
     if: github.event_name == 'pull_request'
@@ -121,11 +132,49 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git diff --numstat "$BASE_SHA...$HEAD_SHA" > /tmp/pr.numstat
           git diff "$BASE_SHA...$HEAD_SHA" > /tmp/pr.diff
           set +e
-          single=$(DIFF_TEXT="$(cat /tmp/pr.diff)" \
+          # The diff goes by PATH, not by environment variable. Linux caps one
+          # env string at MAX_ARG_STRLEN = 131072 bytes, and a 160-line diff of
+          # long-line JSON exceeds it -- when it did, this step failed with
+          # E2BIG, the classifier never ran, the G5 prohibited-action scan never
+          # executed, and the summary below reported it as a routine
+          # escalation. SECB-WP-FWK-043.
+          # The cap applies to the change FAMILY, not to one diff: splitting a
+          # change across concurrent pull requests evaded it (FWK-046). The
+          # classifier is kept off the network by NFR-12, so CI computes the
+          # aggregate here -- the other open PRs by this actor against this base
+          # -- and passes it. Sequential splitting is NOT caught; see the
+          # script's docstring.
+          family=0
+          for n in $(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
+                       --base "${{ github.event.pull_request.base.ref }}" \
+                       --author "${{ github.event.pull_request.user.login }}" \
+                       --json number --jq '.[].number'); do
+            [ "$n" = "${{ github.event.pull_request.number }}" ] && continue
+            lines=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$n/files" --paginate \
+                      --jq '[.[] | .additions + .deletions] | add // 0')
+            family=$(( family + lines ))
+          done
+          echo "concurrent change family excluding this PR: $family lines"
+
+          # Was this verdict computed against the tree that will actually
+          # merge? Under squash merge the head goes onto whatever the base is at
+          # merge time, so a base that has moved means the verdict describes a
+          # different tree. Reports rather than blocks -- see the script for the
+          # measurement behind that. FWK-047, scenario BACP-05.
+          current_base=$(gh api \
+            "repos/$GITHUB_REPOSITORY/git/ref/heads/${{ github.event.pull_request.base.ref }}" \
+            --jq .object.sha 2>/dev/null || echo "")
+          base_out=$(python scripts/check_base_currency.py \
+            "$BASE_SHA" "${current_base:-unknown}" \
+            "${{ github.event.pull_request.base.ref }}" 2>&1)
+          base_code=$?
+
+          single=$(DIFF_PATH=/tmp/pr.diff FAMILY_LINES="$family" \
             python scripts/classify_authority_delta.py < /tmp/pr.numstat 2>&1)
           single_code=$?
           dual=$(BASE_REF="$BASE_SHA" \
@@ -141,13 +190,40 @@ jobs:
             echo "$single"
             echo '```'
             echo ""
+            echo "### Base currency"
+            echo ""
+            echo '```'
+            echo "$base_out"
+            echo '```'
+            echo ""
+            if [ "$base_code" -eq 1 ]; then
+              echo "The base moved after this verdict was computed. Not a"
+              echo "blocking condition -- with a queue of open pull requests"
+              echo "every merge staleifies the rest -- but re-run before merging"
+              echo "if the classification could plausibly differ."
+            elif [ "$base_code" -eq 2 ]; then
+              echo "**Base currency could not be determined.** Treat the verdict"
+              echo "as unbound to a base."
+            fi
+            echo ""
             echo "### Dual-policy evaluation"
             echo ""
             echo '```'
             echo "$dual"
             echo '```'
             echo ""
-            if [ "$single_code" -eq 0 ] && [ "$dual_code" -eq 0 ]; then
+            # 0 / 2 / 3 are the classifier's own verdicts. Anything else means
+            # it did not run -- a crash, a shell failure, a missing
+            # interpreter. That is INVALID GATE OUTPUT and must not be read as
+            # a verdict, least of all as the routine one: before FWK-043 an
+            # E2BIG failure landed in the else-branch and a prohibited change
+            # would have been announced as "normal".
+            if ! echo "$single_code $dual_code" | grep -Eq '^[023] [023]$'; then
+              echo "**INVALID GATE OUTPUT.** A gate did not run"
+              echo "(classifier exit \`$single_code\`, dual-policy exit \`$dual_code\`);"
+              echo "no verdict was produced, so none may be inferred. Treat as"
+              echo "unevaluated and fail closed: do not merge on this summary."
+            elif [ "$single_code" -eq 0 ] && [ "$dual_code" -eq 0 ]; then
               echo "The ratified delegation envelope covers this change; all gates must still be green."
             elif [ "$single_code" -eq 3 ] || [ "$dual_code" -eq 3 ]; then
               echo "**REJECTED** — prohibited under \`docs/00-governance/L0_ROOT_CONSTITUTION.md\`. Withdraw the change."
