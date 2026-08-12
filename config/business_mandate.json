@@ -118,10 +118,28 @@
       "pull_request_number",
       "head_sha",
       "mandate_digest",
-      "decision_id"
+      "decision_id",
+      "nonce",
+      "expires_at"
     ],
-    "defect_this_fixes": "The framework conflated the party who RATIFIES with the party who PRESSES MERGE. On that reading the agent had to refuse to merge PR #113 because merging would be self-ratification -- but merging is EXECUTION. Once a ratification receipt exists and is bound to an exact head, an agent executing the merge is not ratifying anything: it is carrying out a decision already made by the authority that holds it. The receipt is what separates them, and without one the conflation is real.",
-    "after_receipt_exists": "Refusing to execute without naming a stop condition is itself a framework defect, not caution."
+    "defect_this_fixes": "Two defects. First, the framework conflated the party who RATIFIES with the party who PRESSES MERGE, which is why the agent kept refusing to merge PR #113 -- merging is EXECUTION, and once a receipt is bound to an exact head an agent executing it ratifies nothing. Second, an ordinary issue comment does not prove WHICH COMMIT was ratified and leaves a race between reading the receipt and merging: a push between the two would merge a commit nobody ratified. A pull-request review binds commit_id in the same object GitHub generates, and expectedHeadOid closes the race by making the merge itself fail rather than proceed on a changed head.",
+    "after_receipt_exists": "Refusing to execute without naming a stop condition is itself a framework defect, not caution. MANDATE_MISSING is a TRANSIENT state, never a destination.",
+    "bootstrap_ratification_transport": "PULL_REQUEST_REVIEW_COMMENT",
+    "review_commit_id_must_equal": "CURRENT_PR_HEAD_OID",
+    "ratified_head_oid_format": "FULL_40_HEX",
+    "merge_precondition": "CURRENT_HEAD_OID_EQUALS_RATIFIED_HEAD_OID",
+    "merge_operation": "expectedHeadOid_REQUIRED",
+    "receipt_mutation_before_merge": "REVOKED",
+    "new_head_before_merge": "STALE",
+    "bootstrap_receipt_class": "CONSUMED_BOOTSTRAP_EXCEPTION",
+    "review_state_must_be": "COMMENT, never APPROVE -- the author cannot approve their own pull request, and business ratification is not engineering approval in any case. A review of type COMMENT carries review_id, user.id, submitted_at and commit_id in one GitHub-generated object, which an issue comment does not.",
+    "github_generated_fields_not_typed_by_human": [
+      "review_id",
+      "user.id",
+      "submitted_at",
+      "commit_id"
+    ],
+    "bootstrap_limitation": "This receipt is not yet fully tamper-resistant: it is read by the same principal that will act on it. WP-05 must consume ratification events through a webhook whose X-Hub-Signature-256 HMAC-SHA256 is verified, storing the raw delivery outside the builder trust domain."
   },
   "execution_semantics": {
     "principle": "MUST_PROCEED, not MAY_PROCEED",
@@ -141,7 +159,23 @@
       "BUSINESS_INTENT_CONFLICT"
     ],
     "no_other_stop_is_valid": "An agent may not halt merely because it is unconfident. A halt must carry one of the six codes above; anything else and the controller orders the work to continue. Uncertainty is a reason to INVESTIGATE_AND_VERIFY, which is work, not a reason to stop and wait, which is not.",
-    "why_this_matters_here": "Deference is not free. An agent that stops on unnamed unease pushes the decision back to the human the mandate exists to keep out of the loop -- and it looks like caution while doing it."
+    "why_this_matters_here": "Deference is not free. An agent that stops on unnamed unease pushes the decision back to the human the mandate exists to keep out of the loop -- and it looks like caution while doing it.",
+    "transition": [
+      "RATIFICATION_PENDING",
+      "RECEIPT_CAPTURED",
+      "HEAD_REVALIDATED",
+      "MERGE_EXECUTED",
+      "EFFECTIVE"
+    ],
+    "controller_obligations": {
+      "valid_receipt": "clear MANDATE_MISSING and re-evaluate EBTA immediately",
+      "ebta_pass": "MUST_EXECUTE",
+      "head_changed_after_ratification": "EVIDENCE_MISSING: HEAD_CHANGED_AFTER_RATIFICATION",
+      "receipt_mutated_or_review_dismissed": "MANDATE_MISSING: RECEIPT_REVOKED",
+      "executor_died": "the execution lease expires and the next release controller resumes idempotently",
+      "adversarial_veto_validity": "A veto counts only if it names a failed EBTA conjunct with an evidence_ref. An opinion, or 'not confident', is not a veto."
+    },
+    "must_proceed_clarified": "MUST_PROCEED does not mean 'merge everything'. It means: execute, repair, replan, or preserve safe state per a deterministic transition -- and never wait without a stop code."
   },
   "platform_profile": {
     "selected": "GITHUB_PUBLIC_FREE_ORG",

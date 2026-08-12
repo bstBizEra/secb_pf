@@ -5,8 +5,7 @@ Authority: operator disposition of 2026-08-13, `CONFLICT-SECB-AUTONOMY-001`
 Status: **`RATIFICATION_PENDING`** · `binding: false` until PR #113 merges
 Design baseline only — **nothing here is implemented**
 
-> **Read §9 before §5.** This document describes how autonomous material merges
-> become authorized. The platform cannot yet satisfy any of it, and a reader who
+> **Read §9 before §5.** The platform cannot yet satisfy any of this, and a reader who
 > stops at the EBTA conjunction will believe SecB has a control it does not have.
 
 ## 1. Three namespaces, kept apart
@@ -18,10 +17,9 @@ BM = which outcomes are delegated     (config/business_mandate.json)
 D  = historical decision classes      (D0-D4, meaning unchanged)
 ```
 
-`D0`–`D4` is **not reinterpreted.** Every existing `D2` citation keeps its meaning.
-Rebinding it would make every prior record ambiguous — the defect
-`config/identifier_taxonomy.json` exists to prevent, and the reason `NS` took a free
-prefix too.
+`D0`–`D4` is **not reinterpreted** — every `D2` citation keeps its meaning. Rebinding
+it would make every prior record ambiguous, the defect
+`config/identifier_taxonomy.json` exists to prevent and why `NS` took a free one.
 
 ## 2. Authorization routes
 
@@ -180,19 +178,14 @@ is that the *evidence* behind them was weaker than the green panel implied. Reco
 rather than quietly scoped to the future, because a risk disclosure that exempts the
 author's own past work is advocacy.
 
-## 10. Work packages
+## 10. Work packages and promotion
 
-`WP-02` NS classifier, shadow · `WP-03` claim compiler and formula registry ·
-`WP-04` EBTA schema and exhaustive policy evaluator · `WP-05` builder / verifier /
-release workload identities · `WP-06` rulesets, non-skippable checks, expected
-sources · `WP-07` autonomous merge canary · `WP-08` deployment, monitoring,
-automatic rollback · `WP-09` meta-governance epoch activation · `WP-10` continuous
-learning and governance garbage collection.
-
-One PR each. `WP-05` and `WP-06` are the gating pair — until they are effective,
-`AR2` autonomy is a design, not a capability.
-
-## 11. Promotion states, gated on evidence not elapsed time
+`WP-02` NS classifier (shadow) · `WP-03` claim compiler + formula registry · `WP-04`
+EBTA evaluator · `WP-05` workload identities · `WP-06` rulesets, non-skippable checks,
+expected sources · `WP-07` merge canary · `WP-08` deploy/monitor/rollback · `WP-09`
+meta-governance epochs · `WP-10` continuous learning. **One PR each; `WP-05` and
+`WP-06` are the gating pair** — until both are effective, `AR2` autonomy is a design,
+not a capability.
 
 ```text
 RATIFICATION_PENDING → AUTONOMY_MANDATE_EFFECTIVE → SHADOW_VERIFICATION
@@ -200,14 +193,11 @@ RATIFICATION_PENDING → AUTONOMY_MANDATE_EFFECTIVE → SHADOW_VERIFICATION
 → AUTONOMOUS_PRODUCTION → AUTONOMOUS_META_GOVERNANCE
 ```
 
-Each promotion requires: all golden fixtures pass · no false downgrade · no
-unresolved critical finding · EBTA replay reproduces · a rollback drill passes · no
-required check skipped · workload identities genuinely separate · main readback and
+Each promotion needs evidence, not elapsed time: golden fixtures pass · no false
+downgrade · no unresolved critical finding · EBTA replay reproduces · rollback drill
+passes · no required check skipped · identities genuinely separate · main readback and
 post-merge reconciliation pass · observed error bound below the mandate's risk
-tolerance.
-
-**No state promotes itself**, and no new control governs the pull request that
-creates it.
+tolerance. **No state promotes itself**, and no new control governs the PR creating it.
 
 # 12. Tamper resistance — a precondition, not a hardening pass
 
@@ -234,10 +224,9 @@ together:
 | Digest binding | Every link binds the previous one by digest |
 | **Fail-closed consumption** | A consumer **refuses** anything without a valid chain |
 
-The fourth is the one that survives a repository whose `main` cannot be protected.
-SecB cannot *prevent* a direct push — rulesets return 403. It can require that such
-a push is never **consumed**: no release receipt, no provenance, therefore no
-deployment. **Prevention is unavailable; refusal is not.**
+The fourth survives a repository whose `main` cannot be protected: SecB cannot
+*prevent* a direct push, but can require it is never **consumed** — no release
+receipt, no provenance, no deployment. **Prevention is unavailable; refusal is not.**
 
 ## Five principals
 
@@ -250,11 +239,9 @@ deployment. **Prevention is unavailable; refusal is not.**
 | Deployment controller | Consume only artifact digests carrying a release receipt | Rebuild from a branch · choose its own artifact |
 
 Separate GitHub Apps, least privilege, short-lived installation tokens; deployment
-credentials via short-lived OIDC rather than durable secrets.
-
-**Evidence a builder writes about itself is supporting evidence, never an
-authoritative certificate.** Provenance must be produced or attested by a trusted
-control plane, and steps the builder controls must not be able to alter it.
+credentials via short-lived OIDC, not durable secrets. **Evidence a builder writes
+about itself is supporting evidence, never an authoritative certificate** — provenance
+must come from a trusted control plane the builder's steps cannot alter.
 
 ## The chain the release controller verifies
 
@@ -284,10 +271,9 @@ when **all eight** fail correctly:
 7. One verifier or one evidence item missing → **fail closed**
 8. A receipt deleted or edited in-repository → **the external ledger still proves the original event**
 
-Test 8 is why the audit log must be **outside** the repository the agent can write.
-An append-only Merkle log with an independent monitor satisfies it; for private
-content, a private WORM ledger with only the Merkle root anchored externally does
-too.
+Test 8 is why the audit log must live **outside** the repository the agent can write:
+an append-only Merkle log with an independent monitor, or a private WORM ledger with
+only its root anchored externally.
 
 ## Platform profile — `GITHUB_PUBLIC_FREE_ORG`, no procurement
 
@@ -299,10 +285,9 @@ transparency log, unlimited standard-runner minutes — and **merge queue**, whi
 earlier text treated as paid-only. "Free" means no licence cost under standard
 runners and normal storage; it excludes external infrastructure and larger runners.
 
-**Merge queue on Free requires the repository to sit in an Organization.**
-`bstBizEra/secb_pf` is owned by a **User** account with **0 organizations**, so this
-is a real unmet prerequisite: creating a free Organization and transferring the
-repository. Branch protection and rulesets do not need it; merge queue does.
+**Merge queue on Free requires the repo to sit in an Organization.** `bstBizEra` is a
+**User** account with **0 organizations** — a real unmet prerequisite. Protection and
+rulesets do not need it; merge queue does.
 
 | Option | Licence | Confidentiality | Outcome |
 |---|---:|---|---|
@@ -311,11 +296,12 @@ repository. Branch protection and rulesets do not need it; merge queue does.
 | GitHub Private Free + external deploy gate | $0 | preserved | Release-resistant, merge stays `EL1` |
 | GitHub Team | paid | preserved | Easier, and **not necessary** |
 
-The Gitea row is a genuine fallback if disclosure is unacceptable: 1.25 supports
-protected branches, blocking direct and force push, enforcing protection on
-administrators, required status checks, protected file patterns and signed commits.
-Centralized required scoped workflows appear in 1.27.1 documentation, so a 1.25
-instance must not be assumed to have them until upgraded and tested.
+Gitea is a genuine fallback if disclosure is unacceptable: 1.25 has protected
+branches, blocked direct/force push, protection enforced on admins, required status
+checks, protected file patterns and signed commits. Scoped workflows appear only in
+1.27.1 docs — do not assume a 1.25 instance has them. And "free" covers the software
+only: host, backup, availability and keeping host-admin separate from the agent are
+real operating costs.
 
 ## Visibility is reversible; disclosure is not
 
@@ -326,10 +312,8 @@ public_forks_may_remain_public: true
 ```
 
 **A second correction to my own reasoning.** I wrote that going public "cannot be
-undone". The *visibility flip* is undoable — the *disclosure* is not, and the sharp
-edge is forks: a fork made while public stays public and is detached into its own
-network. So the decision is one-way in the only sense that matters, but for a
-different reason than I gave.
+undone". The *flip* is undoable; the *disclosure* is not. The sharp edge is forks: one
+taken while public stays public in its own detached network.
 
 ## The sequencing I had was circular
 
@@ -350,21 +334,28 @@ before the cutover it depends on. Corrected:
 Public happens **after `WP-06` is implemented and before it is effective** — not
 after `WP-06` entirely.
 
-## Controlled public cutover
+## Controlled cutover — the window between "public" and "protected" is the exposure
 
-The window between "public" and "protected" is the exposure this checklist closes:
-
-1. Prepare the ruleset payload, the Verifier App and the `WP-06` workflows **first**
-2. Suspend builder write credentials
-3. Re-scan git history, releases, issues, Actions artifacts and metadata
-4. Flip visibility
-5. **Immediately** activate the ruleset — require PR · require merge queue · block
-   direct push, force push and deletion · **no bypass actors** · required EBTA check
-   from the dedicated Verifier App only
-6. Enable `pull_request` **and `merge_group`** triggers
-7. Restore builder credentials, scoped to feature branches
-8. Run all eight negative tests
-9. Issue the cutover receipt, then make `WP-06` effective
+1. Ratify #113, agent merges with `expectedHeadOid`
+2. **Create a free Organization and transfer the repo while still private.** Transfer
+   preserves PRs, issues, webhooks, secrets and deploy keys; **Organization default
+   permissions begin applying only after** — so read them back
+3. Post-transfer readback: PRs/issues · current head · Actions secrets · webhooks ·
+   deploy keys · collaborators · Org default permissions
+4. Build `WP-02`–`WP-05` with separate Apps and credentials
+5. `WP-06` to `IMPLEMENTED_NOT_EFFECTIVE`; prepare the ruleset payload and workflows
+6. **Freeze release/deploy consumption**; suspend builder write credentials
+7. Audit history for secrets, PII, licensing and business data — **a pattern scan is
+   not sufficient**, because a fork taken while public stays public even if the
+   origin later returns to private
+8. Flip visibility to public
+9. **Immediately** activate the ruleset — require PR · require merge queue · block
+   direct, force push and deletion · **no bypass actors** · required check accepted
+   only from the Verifier App · enable `pull_request` **and `merge_group`** (without
+   `merge_group` the queue waits forever for a check that never arrives)
+10. Restore builder credentials scoped to feature branches; run the positive path and
+    all eight negative tests
+11. Issue the attested release receipt → `WP_06_EFFECTIVE` → unfreeze consumption
 
 ## Public changes who can open a pull request
 
@@ -378,41 +369,35 @@ pull_request_target_untrusted_checkout: PROHIBITED
 self_hosted_runner_for_untrusted_pr: PROHIBITED
 ```
 
-**The concrete hole this closes:** the budget gate reads its declaration from the
-pull-request body, so a stranger could declare `max_lines=99999` and pass. The gate
-compares declared against actual and never asks who was entitled to declare. That is
-survivable while the only authors are the operator and its agent, and it is not
-survivable in public — which is why `SIGNED_WAT_ONLY` is a cutover prerequisite
-rather than a later improvement.
+**The concrete hole:** the budget gate reads its declaration from the pull-request
+body and never asks who was entitled to declare it — a stranger declares
+`max_lines=99999` and passes. Survivable with two known authors; not in public. Hence
+`SIGNED_WAT_ONLY` as a cutover *prerequisite*. External PRs never enter privileged CI:
+an intake app screens the commit in an isolated runner and re-authors it onto an
+agent-owned branch with a signed WAT first.
 
-An external pull request does not enter privileged CI. An intake app clones the
-commit in an isolated runner, screens it, and re-authors it onto an agent-owned
-branch with a signed WAT before it reaches the main path.
+**Five principals means five credential sets that cannot impersonate each other**, not
+five humans. Builder App writes feature branches only · Verifier App reads code and
+emits checks, never writes code · Authority App issues signed WATs, never merges ·
+Release App enqueues and merges only · Deployment App consumes attested digests only.
 
-## Definition of done
-
-`TRUSTWORTHY_AUTONOMOUS_MERGE_ACHIEVED` may be declared only when:
+## Definition of done — `TRUSTWORTHY_AUTONOMOUS_MERGE_ACHIEVED`
 
 ```text
 no single credential can author + authorize + verify + release
-every release has a digest chain traceable back to the business mandate
+every release has a digest chain traceable to the business mandate
 a new policy cannot approve itself
 an unauthorized main commit cannot deploy
 evidence cannot be altered or deleted retroactively without detection
 every failure mode preserves safe state
 ```
 
-**None of this returns a human to the engineering loop.** The business owner still
-decides only mandate, budget, risk tolerance and outcome boundaries; the agentic
-team does all the engineering inside them. Tamper resistance is what makes that
-delegation *safe to give*, rather than merely given.
+**None of this returns a human to the engineering loop.** The owner still decides only
+mandate, budget, risk tolerance and outcome boundaries. Tamper resistance is what makes
+that delegation *safe to give* rather than merely given.
 
 ## Honest status
 
-```text
-ENGINEERING_EVIDENCE_READY
-BUSINESS_DELEGATION_READY
-TAMPER_RESISTANCE_NOT_YET_BOUND
-```
-
-The first two being ready is precisely what makes the third easy to forget.
+`ENGINEERING_EVIDENCE_READY` · `BUSINESS_DELEGATION_READY` ·
+**`TAMPER_RESISTANCE_NOT_YET_BOUND`** — reported together, because the first two being
+ready is precisely what makes the third easy to forget.
