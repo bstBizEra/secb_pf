@@ -156,10 +156,12 @@ first, then one verdict covering seven objectives.
 
 ## Close-out — appended 2026-08-12 (`SECB-WP-FWK-056`)
 
-**Discharged.** The verdict this packet exists to obtain was issued
-2026-08-12T16:36:07Z as `APPROVED_WITH_CONDITIONS`, 7/7 objectives and 7/7
-criteria, posture `OPEN_NON_BLOCKING`; stage 3 is now `OPEN`. Record:
-`STAGE_GATE_REQUIREMENTS_READY.md` at `ISSUED`.
+**Discharged.** The verdict this packet exists to obtain was stated by the operator
+and generated 2026-08-12T16:36:07Z as `APPROVED_WITH_CONDITIONS`, 7/7 objectives
+and 7/7 criteria, posture `OPEN_NON_BLOCKING`. It became **effective on the merge
+of PR #111**, which is also this packet's discharge event — stage 3's admission
+opens then, with authority ceiling `ARCHITECTURE_APPROVED`. Record:
+`STAGE_GATE_REQUIREMENTS_READY.md`.
 
 **Appended, not edited.** §1 still describes the record as
 `PREPARED_AWAITING_VERDICT` because that was true when the packet was compiled. A

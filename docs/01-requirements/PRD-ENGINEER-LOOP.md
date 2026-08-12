@@ -5,7 +5,8 @@ Status: Stage 1 **passed** (second pass). Gate `PRD_BASELINED` rendered
 `APPROVED_WITH_CONDITIONS` on 2026-08-10 — baseline disposition `APPROVED` on
 7/7 criteria, obligation posture `OPEN_NON_BLOCKING` for `C-3` and `C-4`
 (`STAGE_GATE_PRD_BASELINED_V1_1.md`; conditions tracked in
-`CONDITION_REGISTER.md`). **Stage 2 passed 2026-08-12** — `APPROVED_WITH_CONDITIONS`,
+`CONDITION_REGISTER.md`). **Stage 2 passed** — verdict generated 2026-08-12, effective
+on the merge that carried this line — `APPROVED_WITH_CONDITIONS`,
 7/7 objectives and 7/7 criteria, posture `OPEN_NON_BLOCKING`
 (`STAGE_GATE_REQUIREMENTS_READY.md` at `ISSUED`, `SECB-WP-FWK-056`); **stage 3 is
 `OPEN`** for architecture design only. `C-4` still blocks stage 5 and `C-3` still

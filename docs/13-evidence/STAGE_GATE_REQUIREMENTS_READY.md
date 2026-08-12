@@ -6,7 +6,14 @@ Template: `docs/16-templates/STAGE_GATE_RECORD_TEMPLATE.md` · Model:
 [`TWO_PLANE_DECISION_MODEL.md`](../00-governance/TWO_PLANE_DECISION_MODEL.md)
 Authorized as composite by ballot 002 (`APPROVE_OPTION_A`, 2026-08-10)
 
-> **ISSUED 2026-08-12 — `APPROVED_WITH_CONDITIONS`.** Stage 2's authority is the
+> **PROPOSED 2026-08-12 — `APPROVED_WITH_CONDITIONS`. Effective on merge, not
+> now.** An earlier revision of this banner said `ISSUED`, which contradicted its
+> own pull request — that PR said *"nothing is issued until you merge"* while the
+> record declared itself issued. Both cannot be true. The lifecycle is
+> `PROPOSED → RATIFIED → EFFECTIVE`, ratification **is** the merge, and a record
+> that collapses the three cannot say what was in force at any given time.
+>
+> Stage 2's authority is the
 > Product Owner and the Architecture Lead, both collapsed onto the operator under
 > `SINGLE_IDENTITY_SOD_ACCEPTED_RISK.md`, cited per that record's condition 1. The
 > operator issued the verdict in session; the executor filled this record, applied
@@ -34,8 +41,9 @@ Authorized as composite by ballot 002 (`APPROVE_OPTION_A`, 2026-08-10)
 | Conditions | Cited from `CONDITION_REGISTER.md`; this decision creates none |
 | Eligible approvers | Operator. No Architecture Review Board exists |
 | Votes / signatures | **Operator, in session, 2026-08-12** — instruction: *"Proceed the stage 2 verdict"*, given after the recommended verdict and its two-plane derivation were reported. Single signature; the Product Owner and Architecture Lead roles are collapsed onto the operator under `SINGLE_IDENTITY_SOD_ACCEPTED_RISK.md`, cited per that record's condition 1 |
-| Decision timestamp | **2026-08-12T16:36:07Z** |
-| Effective status | **`ISSUED` — verdict `APPROVED_WITH_CONDITIONS`** |
+| `verdict_generated_at` | **2026-08-12T16:36:07Z** — when the verdict was stated and this record compiled. **Not** the time it takes effect |
+| `ratified_at` · `effective_at` | **The merge of PR #111.** Stamped post-merge with the actual event time; until then both are null |
+| Effective status | **`RATIFICATION_PENDING`** — verdict `APPROVED_WITH_CONDITIONS`, **proposed and not yet effective** |
 | Expiry / revalidation | On any change to the PRD baseline, a `P1` requirement, or an accepted conflict disposition |
 
 ## Per-objective evaluation
@@ -130,7 +138,27 @@ ballot_quorum_met_or_not_required                        -> not required (NOT_AC
 every_required_objective_passed                          -> yes, 7/7
 no_open_condition.blocking_scope covers Stage 3          -> yes: C-3→stage 6, C-4→stage 5
 no_required_condition.is_overdue                         -> yes: due stages 6 and 5, neither entered
-=> Stage 3 = OPEN   (all five conjuncts hold as of 2026-08-12T16:36:07Z)
+=> Stage 3 = OPEN   on this record becoming EFFECTIVE (= the merge of PR #111)
+```
+
+**Conjunct 1 is satisfied by a verdict that is `PROPOSED`, so the consequence is
+also pending.** Stage 3 does not open at `verdict_generated_at`; it opens at
+`effective_at`. Writing it as already open would have made the record assert a
+state change that had not happened — the same class of error as the `n=33` figure
+corrected below, one field further along.
+
+**Authority ceiling once effective: `ARCHITECTURE_APPROVED`.** Stage admission and
+authorized action are separate quantities, and `OPEN` states only the first.
+
+```text
+stage_3.admission        = OPEN (on effectivity)
+authority_ceiling        = ARCHITECTURE_APPROVED
+authorized_actions       = ARCHITECTURE_DESIGN, ARCHITECTURE_REVIEW,
+                           TRANSITION_TO_ARCHITECTURE_APPROVED
+stage_5.entry            = DENIED by C-4
+stage_6.entry            = DENIED by C-3
+production               = NOT_AUTHORIZED
+next_stage_auto_open     = false
 ```
 
 Stage 3 does not open because this document says so. It opens because five
