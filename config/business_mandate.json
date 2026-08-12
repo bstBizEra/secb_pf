@@ -100,5 +100,62 @@
     "business_delegation": "READY",
     "tamper_resistance": "NOT_YET_BOUND",
     "note": "All three must be reported together. The first two being ready is what makes the third easy to forget."
+  },
+  "ratification_model": {
+    "business_ratifier": "OP-Vily",
+    "ratification_subject": [
+      "BUSINESS_INTENT",
+      "AUTONOMY_SCOPE",
+      "RISK_TOLERANCE",
+      "BUDGET_BOUNDARY",
+      "PUBLIC_VISIBILITY"
+    ],
+    "engineering_review_required_from_business_owner": false,
+    "merge_executor_may_be_agent": true,
+    "merge_executor_has_no_ratification_authority": true,
+    "ratification_receipt_must_bind": [
+      "repository_id",
+      "pull_request_number",
+      "head_sha",
+      "mandate_digest",
+      "decision_id"
+    ],
+    "defect_this_fixes": "The framework conflated the party who RATIFIES with the party who PRESSES MERGE. On that reading the agent had to refuse to merge PR #113 because merging would be self-ratification -- but merging is EXECUTION. Once a ratification receipt exists and is bound to an exact head, an agent executing the merge is not ratifying anything: it is carrying out a decision already made by the authority that holds it. The receipt is what separates them, and without one the conflation is real.",
+    "after_receipt_exists": "Refusing to execute without naming a stop condition is itself a framework defect, not caution."
+  },
+  "execution_semantics": {
+    "principle": "MUST_PROCEED, not MAY_PROCEED",
+    "rules": {
+      "IN_MANDATE and EBTA_PASS": "MUST_EXECUTE",
+      "IN_MANDATE and EVIDENCE_INCOMPLETE": "MUST_REPAIR_AND_REEVALUATE",
+      "IN_MANDATE and TECHNICAL_FAILURE": "MUST_REPLAN_WITHIN_BUDGET",
+      "OUTSIDE_MANDATE": "PRESERVE_SAFE_STATE_AND_REQUEST_BUSINESS_DECISION",
+      "LOSS_LIMIT_BREACHED": "AUTO_ROLLBACK_AND_REPORT"
+    },
+    "denial_codes": [
+      "MANDATE_MISSING",
+      "EVIDENCE_MISSING",
+      "BUDGET_EXHAUSTED",
+      "LOSS_LIMIT_BREACHED",
+      "INFRASTRUCTURE_UNAVAILABLE",
+      "BUSINESS_INTENT_CONFLICT"
+    ],
+    "no_other_stop_is_valid": "An agent may not halt merely because it is unconfident. A halt must carry one of the six codes above; anything else and the controller orders the work to continue. Uncertainty is a reason to INVESTIGATE_AND_VERIFY, which is work, not a reason to stop and wait, which is not.",
+    "why_this_matters_here": "Deference is not free. An agent that stops on unnamed unease pushes the decision back to the human the mandate exists to keep out of the loop -- and it looks like caution while doing it."
+  },
+  "platform_profile": {
+    "selected": "GITHUB_PUBLIC_FREE_ORG",
+    "procurement_required": false,
+    "merge_queue": "AVAILABLE_IF_REPOSITORY_IN_ORGANIZATION",
+    "organization_prerequisite": "UNMET -- bstBizEra is a User account with 0 organizations; a free Organization must be created and the repository transferred. Branch protection and rulesets do not require it; merge queue does.",
+    "protected_merge": "AVAILABLE_AFTER_PUBLIC_CUTOVER",
+    "artifact_attestation": "PUBLIC_SIGSTORE_TRANSPARENCY_LOG",
+    "cutover_event": "WP_06_IMPLEMENTED_NOT_EFFECTIVE",
+    "autonomy_activation_event": "WP_06_EFFECTIVE_AND_TAMPER_RESISTANCE_VERIFIED"
+  },
+  "visibility_statement": {
+    "can_return_to_private": true,
+    "confidentiality_can_be_restored": false,
+    "public_forks_may_remain_public": true
   }
 }

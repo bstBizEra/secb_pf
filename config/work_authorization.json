@@ -13,7 +13,7 @@
     "why_a_pre_authorized_maximum": "1400 is a ceiling authorized BEFORE the work, not a number copied from the result. The actual measurement is recorded separately below. Setting the limit equal to the actual figure every time is not a budget control -- it is back-dating the outcome and calling it a limit, and it also creates a fixed point, because a disclosure written inside the diff it measures changes the number it reports. That happened twice on this pull request before the pre-authorized form removed it.",
     "measurement": {
       "actual_files": 9,
-      "actual_changed_lines": 1540,
+      "actual_changed_lines": 1681,
       "measured_at_head": "48c1cb798d421ed5f8802cfaab3d296f89ae045c",
       "note": "Measured after `git add`. An earlier count of 855 was taken before staging, and `git diff --numstat` cannot see untracked files -- the same blind spot that makes a green test run taken before staging prove nothing about what was pushed."
     },

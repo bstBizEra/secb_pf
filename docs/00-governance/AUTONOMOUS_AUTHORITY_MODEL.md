@@ -289,21 +289,105 @@ An append-only Merkle log with an independent monitor satisfies it; for private
 content, a private WORM ledger with only the Merkle root anchored externally does
 too.
 
-## Plan constraint, and the business choice it forces
+## Platform profile — `GITHUB_PUBLIC_FREE_ORG`, no procurement
 
-Protected branches and rulesets on a **private** repository require a paid GitHub
-plan; native private artifact attestations require Enterprise Cloud. This is a
-purchasing decision, not an engineering one:
+**Corrected 2026-08-13.** The earlier version of this section recommended paying for
+GitHub Team and got two facts wrong. Every control tamper resistance needs is
+available on **public** GitHub Free: branch protection, rulesets, required checks,
+expected-App source, auto-merge, artifact attestations with the **public** Sigstore
+transparency log, unlimited standard-runner minutes — and **merge queue**, which the
+earlier text treated as paid-only. "Free" means no licence cost under standard
+runners and normal storage; it excludes external infrastructure and larger runners.
 
-1. **Recommended — GitHub Team** for protected merge, plus an external signer and
-   transparency ledger.
-2. **Enterprise Cloud** if native private attestations are wanted, still with
-   external immutable receipts.
-3. **No upgrade** — keep the repository at `EL1_DETECTIVE` and move the
-   authoritative release and deployment gate *outside* GitHub.
+**Merge queue on Free requires the repository to sit in an Organization.**
+`bstBizEra/secb_pf` is owned by a **User** account with **0 organizations**, so this
+is a real unmet prerequisite: creating a free Organization and transferring the
+repository. Branch protection and rulesets do not need it; merge queue does.
 
-Option 3 can make the **product** tamper-resistant while the GitHub merge path is
-not, and in that case **the merge path must not be described as tamper-resistant.**
+| Option | Licence | Confidentiality | Outcome |
+|---|---:|---|---|
+| **`GITHUB_PUBLIC_FREE_ORG`** | $0 | disclosed | **Selected** for SecB PF |
+| Gitea self-hosted | $0 | preserved | Viable interim merge authority |
+| GitHub Private Free + external deploy gate | $0 | preserved | Release-resistant, merge stays `EL1` |
+| GitHub Team | paid | preserved | Easier, and **not necessary** |
+
+The Gitea row is a genuine fallback if disclosure is unacceptable: 1.25 supports
+protected branches, blocking direct and force push, enforcing protection on
+administrators, required status checks, protected file patterns and signed commits.
+Centralized required scoped workflows appear in 1.27.1 documentation, so a 1.25
+instance must not be assumed to have them until upgraded and tested.
+
+## Visibility is reversible; disclosure is not
+
+```yaml
+can_return_to_private: true
+confidentiality_can_be_restored: false
+public_forks_may_remain_public: true
+```
+
+**A second correction to my own reasoning.** I wrote that going public "cannot be
+undone". The *visibility flip* is undoable — the *disclosure* is not, and the sharp
+edge is forks: a fork made while public stays public and is detached into its own
+network. So the decision is one-way in the only sense that matters, but for a
+different reason than I gave.
+
+## The sequencing I had was circular
+
+I recommended *"close `WP-06`, then go public."* **That cannot be done.** The
+enforcement `WP-06` delivers — rulesets, merge queue, expected-source checks — is
+unavailable until the repository is public, so `WP-06` cannot become effective
+before the cutover it depends on. Corrected:
+
+```text
+#113 ratified → WP-02 → WP-03 → WP-04 → WP-05
+  → WP-06 IMPLEMENTED_NOT_EFFECTIVE
+    → controlled public cutover
+      → enable ruleset + merge queue + expected-source
+        → run the eight negative tests
+          → WP-06 EFFECTIVE → TAMPER_RESISTANCE_VERIFIED → AUTONOMOUS_MERGE_ENABLED
+```
+
+Public happens **after `WP-06` is implemented and before it is effective** — not
+after `WP-06` entirely.
+
+## Controlled public cutover
+
+The window between "public" and "protected" is the exposure this checklist closes:
+
+1. Prepare the ruleset payload, the Verifier App and the `WP-06` workflows **first**
+2. Suspend builder write credentials
+3. Re-scan git history, releases, issues, Actions artifacts and metadata
+4. Flip visibility
+5. **Immediately** activate the ruleset — require PR · require merge queue · block
+   direct push, force push and deletion · **no bypass actors** · required EBTA check
+   from the dedicated Verifier App only
+6. Enable `pull_request` **and `merge_group`** triggers
+7. Restore builder credentials, scoped to feature branches
+8. Run all eight negative tests
+9. Issue the cutover receipt, then make `WP-06` effective
+
+## Public changes who can open a pull request
+
+```yaml
+budget_authority_source: SIGNED_WAT_ONLY
+pr_body_budget_is_authoritative: false
+external_pr_mode: QUARANTINE_AND_REAUTHOR
+fork_pr_secrets: DENY
+fork_pr_write_token: DENY
+pull_request_target_untrusted_checkout: PROHIBITED
+self_hosted_runner_for_untrusted_pr: PROHIBITED
+```
+
+**The concrete hole this closes:** the budget gate reads its declaration from the
+pull-request body, so a stranger could declare `max_lines=99999` and pass. The gate
+compares declared against actual and never asks who was entitled to declare. That is
+survivable while the only authors are the operator and its agent, and it is not
+survivable in public — which is why `SIGNED_WAT_ONLY` is a cutover prerequisite
+rather than a later improvement.
+
+An external pull request does not enter privileged CI. An intake app clones the
+commit in an isolated runner, screens it, and re-authors it onto an agent-owned
+branch with a signed WAT before it reaches the main path.
 
 ## Definition of done
 
