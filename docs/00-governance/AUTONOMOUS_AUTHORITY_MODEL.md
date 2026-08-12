@@ -208,3 +208,127 @@ tolerance.
 
 **No state promotes itself**, and no new control governs the pull request that
 creates it.
+
+# 12. Tamper resistance — a precondition, not a hardening pass
+
+**Raised from follow-up work to exit condition** by the operator, 2026-08-13. §9's
+`autonomous_merge_trustworthy: false` was previously something `WP-06` would improve;
+it is now something `WP-06` must **close** before any autonomous material merge.
+
+## The principle
+
+> **Do not try to make the agent unable to modify the repository. Make an
+> unauthorized modification unable to become a valid merge, release or deployment.**
+
+The agent holds write access by construction — it is the thing doing the work. So
+the control cannot live at the *write*; it must live at the **consumption**.
+
+**A signature is not enough.** Signing proves authorship and integrity, which makes
+forgery *detectable* — `tamper-evident`. `tamper-resistant` needs four properties
+together:
+
+| | |
+|---|---|
+| Principal separation | No credential can author, authorize, verify and release |
+| External enforcement | The enforcing layer is outside the trust domain it enforces |
+| Digest binding | Every link binds the previous one by digest |
+| **Fail-closed consumption** | A consumer **refuses** anything without a valid chain |
+
+The fourth is the one that survives a repository whose `main` cannot be protected.
+SecB cannot *prevent* a direct push — rulesets return 403. It can require that such
+a push is never **consumed**: no release receipt, no provenance, therefore no
+deployment. **Prevention is unavailable; refusal is not.**
+
+## Five principals
+
+| Principal | May | May **not** |
+|---|---|---|
+| Builder | Create branches, PRs, artifact candidates | Issue a WAT · write verification results · merge · deploy |
+| Verifier app | Read an exact SHA, test, emit **signed** evidence | Modify source · issue authority · merge |
+| Authority controller | Issue single-use WATs from the standing mandate | Write code · judge test results · merge |
+| Release controller | Evaluate EBTA, enter the merge queue | Create evidence · change policy |
+| Deployment controller | Consume only artifact digests carrying a release receipt | Rebuild from a branch · choose its own artifact |
+
+Separate GitHub Apps, least privilege, short-lived installation tokens; deployment
+credentials via short-lived OIDC rather than durable secrets.
+
+**Evidence a builder writes about itself is supporting evidence, never an
+authoritative certificate.** Provenance must be produced or attested by a trusted
+control plane, and steps the builder controls must not be able to alter it.
+
+## The chain the release controller verifies
+
+```text
+business_mandate_digest
+  → signed single-use WAT
+    → base_sha + head_sha + policy_digest
+      → signed test / security / adversarial evidence
+        → deterministic EBTA certificate
+          → artifact_digest + provenance
+            → merge / release / deployment receipt
+```
+
+Each link binds the previous by digest. A break anywhere fails closed.
+
+## `WP-06` exit gate — eight negative tests
+
+A green positive path proves nothing about resistance. `WP-06` is `EFFECTIVE` only
+when **all eight** fail correctly:
+
+1. Builder forges a status under an expected check's name → **merge refused**
+2. PR body edited after the run → **stale evidence refused**
+3. A WAT replayed against a new head → **refused**
+4. A policy change bundled with work that policy approves → **judged by the old policy; the new one is not yet effective**
+5. Direct push to `main` → **no release, no deployment**
+6. Artifact modified after build → **digest mismatch**
+7. One verifier or one evidence item missing → **fail closed**
+8. A receipt deleted or edited in-repository → **the external ledger still proves the original event**
+
+Test 8 is why the audit log must be **outside** the repository the agent can write.
+An append-only Merkle log with an independent monitor satisfies it; for private
+content, a private WORM ledger with only the Merkle root anchored externally does
+too.
+
+## Plan constraint, and the business choice it forces
+
+Protected branches and rulesets on a **private** repository require a paid GitHub
+plan; native private artifact attestations require Enterprise Cloud. This is a
+purchasing decision, not an engineering one:
+
+1. **Recommended — GitHub Team** for protected merge, plus an external signer and
+   transparency ledger.
+2. **Enterprise Cloud** if native private attestations are wanted, still with
+   external immutable receipts.
+3. **No upgrade** — keep the repository at `EL1_DETECTIVE` and move the
+   authoritative release and deployment gate *outside* GitHub.
+
+Option 3 can make the **product** tamper-resistant while the GitHub merge path is
+not, and in that case **the merge path must not be described as tamper-resistant.**
+
+## Definition of done
+
+`TRUSTWORTHY_AUTONOMOUS_MERGE_ACHIEVED` may be declared only when:
+
+```text
+no single credential can author + authorize + verify + release
+every release has a digest chain traceable back to the business mandate
+a new policy cannot approve itself
+an unauthorized main commit cannot deploy
+evidence cannot be altered or deleted retroactively without detection
+every failure mode preserves safe state
+```
+
+**None of this returns a human to the engineering loop.** The business owner still
+decides only mandate, budget, risk tolerance and outcome boundaries; the agentic
+team does all the engineering inside them. Tamper resistance is what makes that
+delegation *safe to give*, rather than merely given.
+
+## Honest status
+
+```text
+ENGINEERING_EVIDENCE_READY
+BUSINESS_DELEGATION_READY
+TAMPER_RESISTANCE_NOT_YET_BOUND
+```
+
+The first two being ready is precisely what makes the third easy to forget.

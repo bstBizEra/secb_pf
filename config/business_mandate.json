@@ -65,7 +65,40 @@
   "exercisability": {
     "state": "NOT_EXERCISABLE",
     "reason": "The mandate delegates engineering authority; the platform cannot yet enforce the conditions under which that authority is safe to exercise. See AUTONOMOUS_AUTHORITY_MODEL.md section 9: no branch protection, three gates skip on push, skipped counts as success, one principal, no expected-source required checks, no release controller separate from the builder.",
-    "becomes_exercisable_when": "WP-04 through WP-06 are effective and the promotion evidence in AUTONOMOUS_AUTHORITY_MODEL.md section 11 is satisfied. Ratifying the mandate changes the MODEL, not the CAPABILITY.",
+    "becomes_exercisable_when": "WP-04 through WP-06 are effective AND the eight tamper-resistance negative tests pass. Tamper resistance is a PRECONDITION for autonomous merge, not a later hardening pass -- raised from follow-up work to exit condition by the operator on 2026-08-13.",
     "meanwhile": "The existing A1 envelope continues to govern: G0 auto-merge inside auto_paths, everything else escalates. A green 4/4 is not an EBTA certificate and no agent may treat it as one."
+  },
+  "tamper_resistance": {
+    "required_before_autonomous_merge": true,
+    "principle": "Do not try to make the agent unable to modify the repository. Make an unauthorized modification unable to become a valid merge, release or deployment. The agent has write access by construction -- it is the thing doing the work -- so the control cannot live at the write, it must live at the consumption.",
+    "signing_alone_is_insufficient": "A signature proves who wrote something and that it has not changed since. That is TAMPER-EVIDENT: it makes forgery detectable after the fact. TAMPER-RESISTANT requires four properties together -- principal separation, enforcement from outside the trust domain being enforced, digest binding across the whole chain, and a fail-closed consumption gate that refuses anything lacking a valid chain. SecB has none of the four.",
+    "trust_root": "OUTSIDE_AGENT_WRITABLE_REPOSITORY",
+    "single_principal_authorization": "BOOTSTRAP_ONLY",
+    "required_principal_separation": [
+      "BUILDER",
+      "VERIFIER",
+      "AUTHORITY_CONTROLLER",
+      "RELEASE_CONTROLLER"
+    ],
+    "release_requires": [
+      "SIGNED_SINGLE_USE_WAT",
+      "DIGEST_BOUND_EBTA",
+      "CONTROL_PLANE_PROVENANCE",
+      "EXPECTED_EVIDENCE_SOURCE",
+      "NON_REPLAYABLE_RECEIPT",
+      "EXTERNAL_APPEND_ONLY_AUDIT"
+    ],
+    "unauthorized_main_change": "MUST_NOT_RELEASE_OR_DEPLOY",
+    "unauthorized_main_change_note": "This is the load-bearing clause for a repository whose main branch cannot be protected. A direct push to main cannot be PREVENTED here (rulesets return 403), so the requirement is that it cannot be CONSUMED: no release receipt, no provenance, therefore no deployment. Prevention is unavailable; refusal is not.",
+    "policy_change_activation": "NEXT_POLICY_EPOCH",
+    "failure_mode": "PRESERVE_SAFE_STATE",
+    "verified_by": "The eight negative tests in AUTONOMOUS_AUTHORITY_MODEL.md section 12. All eight must pass before WP-06 is EFFECTIVE; a passing positive path proves nothing about resistance."
+  },
+  "bootstrap_corridor_exit": "WP_06_EFFECTIVE_AND_TAMPER_RESISTANCE_VERIFIED",
+  "status_vocabulary": {
+    "engineering_evidence": "READY",
+    "business_delegation": "READY",
+    "tamper_resistance": "NOT_YET_BOUND",
+    "note": "All three must be reported together. The first two being ready is what makes the third easy to forget."
   }
 }
