@@ -1,0 +1,112 @@
+{
+  "manifest_id": "CSM-SECB-001",
+  "schema_version": 1,
+  "work_package": "SECB-WP-FWK-052",
+  "generated_from_commit": "2250469",
+  "purpose": "Make control-surface staleness computable for a project instantiated from this framework. Before this manifest existed, a downstream project could not answer the question 'has a control I copied been fixed since I copied it?' -- not because the answer was unmanaged, but because it was not expressible. The first real instantiation was measured carrying a fixed defect for that reason; see docs/13-evidence/INSTANTIATION_FIELD_REPORT.md.",
+  "what_this_is_not": {
+    "normative_surface_manifest": "This is NOT the NormativeSurfaceManifest deferred in config/delegation_envelope.json -> scope.classification_notes.deferred. That one would classify a path's AUTHORITY (constitutional / governing / operational / factual / unknown) to refine G-class assignment. This one classifies a control's PORTABILITY, to answer a downstream's staleness question. The two must not be merged: authority governs who may merge a change here, portability governs whether a change transfers there. SECB-WP-FWK-052 does not satisfy the deferred manifest's trigger and does not claim to.",
+    "a_scaffolding_generator": "This manifest records digests. It does not copy files, rewrite identifiers, or generate a project. The runbook's refusal to ship a generator at low n still stands."
+  },
+  "portability_classes": {
+    "verbatim": "The downstream copies the bytes and does not edit them. A digest mismatch against this manifest therefore MEANS the downstream is stale, and the upstream change should be re-applied.",
+    "configure": "The downstream copies the shape and edits declared fields. A digest mismatch means nothing about staleness -- the downstream is SUPPOSED to differ. Staleness for these controls is a schema question, not a digest question, and this manifest does not answer it.",
+    "adapt": "The downstream must rewrite the file before first use. A digest is recorded for reference only; comparing it to a downstream copy is meaningless.",
+    "do_not_copy": "Project-specific. Listed so the omission is a decision rather than an oversight."
+  },
+  "staleness_is_computable_only_for": "verbatim",
+  "controls": [
+    {
+      "path": "scripts/classify_authority_delta.py",
+      "sha256": "920b99df28b85957cbbf37b9f9dd0aca9ce72367f44b4caa4dac6d6d0141dc66",
+      "bytes": 14096,
+      "owning_work_package": "SECB-WP-FWK-048",
+      "last_changed_commit": "2250469",
+      "portability_class": "verbatim",
+      "claimed_transferable_by": "docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md",
+      "field_observation": "Edited on instantiation: 63 lines changed against the commit it was copied from, 31 of them mentioning a renamed ladder token. The class is 'verbatim' as an intent, and the field falsifies the intent -- the G0-G5 ladder tokens are hard-coded in code and prose, so a host project that already uses those letters must rename them. Recorded rather than reclassified: reclassifying it to 'adapt' would describe the defect as a design, and then nobody would fix it. Tracked as finding 1 of the field report.",
+      "staleness_consequence": "This control decides authority class. A downstream running a stale copy is making merge decisions with superseded logic. Concretely, the copy taken at 035b66d passes the diff body through an environment variable, which Linux truncates at MAX_ARG_STRLEN = 131072 bytes -- exit 126, the classifier does not run, and the REJECTED verdict becomes unreachable. Fixed here by SECB-WP-FWK-047/048 via DIFF_PATH."
+    },
+    {
+      "path": "scripts/check_work_package_ref.py",
+      "sha256": "7c52eca458aad0a24fefc1cb2cb959cd0223b517874f39d4600c823f35292e04",
+      "bytes": 4538,
+      "owning_work_package": "SECB-WP-FWK-036",
+      "last_changed_commit": "728d45d",
+      "portability_class": "verbatim",
+      "claimed_transferable_by": "docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md",
+      "field_observation": "Edited on instantiation: 32 lines, 8 mentioning a renamed ladder token. Most of that edit was the hard-coded work-package prefix, which NFR-15 / SECB-WP-FWK-036 has since turned into configuration -- so a downstream instantiating today pays less than the measured cost. This is the one control where the framework has already reduced the instantiation edit, and it is the smallest of the four edits, not the largest.",
+      "staleness_consequence": "A stale copy hard-codes its prefix in a regex. The gate still works; instantiating a further project from the stale copy pays the NFR-15 cost again."
+    },
+    {
+      "path": "scripts/check_budget.py",
+      "sha256": "b89c49a8fc508017561d6fa1756d114fcbb0eecefd19acd6e1a3caa4c53e03cf",
+      "bytes": 3244,
+      "owning_work_package": "SECB-WP-FWK-004",
+      "last_changed_commit": "118c819",
+      "portability_class": "verbatim",
+      "claimed_transferable_by": "docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md",
+      "field_observation": "Edited on instantiation: 24 lines, only 2 mentioning a renamed ladder token -- so 22 lines of edit this manifest cannot attribute to the identifier problem. Unattributed edit is not the same as no defect; it is an unmeasured one. Not investigated in this work package.",
+      "staleness_consequence": "Unchanged upstream since it was written. A downstream copy is not stale today."
+    },
+    {
+      "path": "scripts/check_dual_policy.py",
+      "sha256": "a5820d63c8f7588efc0ee4c600546ea1a522ea0534987b044dfae8edf721da5c",
+      "bytes": 4719,
+      "owning_work_package": "SECB-WP-FWK-012",
+      "last_changed_commit": "035b66d",
+      "portability_class": "verbatim",
+      "claimed_transferable_by": "docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md",
+      "field_observation": "Edited on instantiation: 11 lines, 4 mentioning a renamed ladder token. The smallest instantiation cost of the four, and the only control that both transferred nearly intact and has not drifted since.",
+      "staleness_consequence": "Unchanged upstream since the genesis commit. A downstream copy is not stale today."
+    },
+    {
+      "path": "config/delegation_envelope.json",
+      "sha256": "a3f624e4dc66c7079124237f0f4c58657222b25472f1546a720c47b0a6b3371d",
+      "bytes": 5360,
+      "owning_work_package": "SECB-WP-FWK-044",
+      "last_changed_commit": "2250469",
+      "portability_class": "configure",
+      "claimed_transferable_by": "docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md",
+      "field_observation": "The instantiation edited envelope_id, authority_source, every tier token and the scope paths -- as it should. Its digest is recorded so that a downstream can see the SHAPE has changed upstream, but a mismatch here is never evidence of staleness. This entry exists to keep the manifest from crying wolf: an undifferentiated digest list would flag every instantiated envelope as stale on day one, and a guard that always fires is a guard nobody reads.",
+      "staleness_consequence": "None derivable from the digest. Schema-level drift detection for configure-class controls is not built and has no trigger yet."
+    }
+  ],
+  "declared_exclusions": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "portability_class": "adapt",
+      "reason": "Highest-churn file in the repository, and PR #101 modifies it while green and awaiting the operator. Adding a digest for it in this work package would redden a pull request that is not mine to redden. The runbook already tells a downstream this file must be rewritten before first use, so its portability class is 'adapt' and a digest would be reference-only in any case.",
+      "trigger_to_cover": "The pull-request queue is empty, so that adding the digest cannot break an in-flight branch.",
+      "why_declared": "An undeclared exclusion is indistinguishable from an oversight. The test asserts this declaration exists, so a later decision to cover the file is a deliberate edit rather than a discovery."
+    },
+    {
+      "path": "scripts/check_prohibited_calls.py",
+      "portability_class": "verbatim",
+      "reason": "Gate 6, landed 2250469. Not yet observed in any instantiation, so there is no field measurement to record, and its inclusion would be a prediction rather than an observation.",
+      "trigger_to_cover": "Same as ci.yml -- an empty queue; or the first instantiation that copies it.",
+      "why_declared": "Same reason."
+    },
+    {
+      "path": "scripts/check_base_currency.py",
+      "portability_class": "verbatim",
+      "reason": "SECB-WP-FWK-047. Reports rather than blocks by design; same absence of field data as check_prohibited_calls.py.",
+      "trigger_to_cover": "Same as above.",
+      "why_declared": "Same reason."
+    },
+    {
+      "path": "scripts/check_committed_secrets.py",
+      "portability_class": "verbatim",
+      "reason": "Does not exist on main yet -- it is the deliverable of PR #101, which is green and awaiting operator authorization. A digest cannot be computed for a file that has not landed, and guessing one would be a fabricated measurement.",
+      "trigger_to_cover": "PR #101 merges.",
+      "why_declared": "Same reason."
+    }
+  ],
+  "known_limits": [
+    "No auto-discovery. This manifest does not scan for controls it has not been told about. A new enforcement script is invisible to it until a human adds an entry, and the runbook's 'no path is unclassified' remains a human rule. Building discovery was refused as over-engineering at this n, not overlooked.",
+    "Digests describe THIS repository, not any downstream. Nothing here reaches into an instantiated project or verifies what it actually runs. A downstream learns it is stale by comparing its own copy against this file; that comparison is manual and this work package does not automate it.",
+    "Staleness is computable for verbatim-class controls only, and the field shows all four verbatim controls were in fact edited on instantiation -- so in practice a downstream comparing digests will see a mismatch that mixes upstream drift with its own renames. Separating those two is exactly the measurement method recorded in the field report; it is not yet a tool.",
+    "One instantiation. Every field_observation in this file has n=1. None of them are laws."
+  ],
+  "field_instantiations": "Two, differing in kind: a greenfield trial (recorded in docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md) and one retrofit into a live repository on 2026-08-10, which produced every field_observation above. Both are catalogued in docs/13-evidence/INSTANTIATION_FIELD_REPORT.md and are cited as OBSERVATIONS of what instantiation costs, never as authority for a decision here -- see SECB-WP-FWK-051 for why that distinction is enforced."
+}

@@ -17,7 +17,53 @@ it has done is the defect this framework keeps finding.
 `git ls-files` classifies into four kinds. **No path is unclassified** — if you
 add one, classify it.
 
+### Two kinds of instantiation — and this runbook was written from one of them
+
+**Greenfield** — an empty repository. That is the trial cited at the top, and
+every step below is derived from it.
+
+**Retrofit** — porting the machinery into a repository that already exists, with
+its own history, its own identifier prefixes and its own test runner. One has
+happened, on 2026-08-10, and it is measured in
+[`docs/13-evidence/INSTANTIATION_FIELD_REPORT.md`](../13-evidence/INSTANTIATION_FIELD_REPORT.md).
+**A retrofit pays a cost a greenfield trial structurally cannot reveal:** an
+empty repository has nothing to collide with, so no trial could ever discover
+that this framework's `G0–G5`, `L0–L3` and `A0–A4` ladder tokens collide with
+letters a live project may already be using. The retrofit had to rename all four
+ladders before the machinery would fit.
+
+If you are retrofitting, read the field report before step 1. Three things it
+found that this runbook does not otherwise tell you:
+
+- **Budget for identifier renames.** 130 lines were edited across the four
+  enforcement scripts below, 45 of them mentioning a ladder token. `NFR-15`
+  made the work-package *prefix* configuration; the ladders are still hard-coded
+  in both code and prose.
+- **Preflight your CI environment before the first real pull request.** First
+  contact surfaced three environment gaps at once — an absent Python dependency,
+  a shallow clone that silently broke a `git blame`-based check, and a check that
+  reported "cannot run" because no database was available. Every one of them
+  *looked* like a governance failure and was not. This is step 3's lesson
+  applied to the environment rather than the gates.
+- **Do not assume `pytest`.** The enforcement scripts are stdlib-only and are
+  invoked as subprocesses, so they transfer to any runner. Their *tests* are
+  `pytest`; the retrofit ran `unittest discover` and had to port them. Copy the
+  tests either way — an uncopied test is an unproven gate.
+
 ### Reusable as-is — the framework
+
+> **Corrected 2026-08-12 (`SECB-WP-FWK-052`).** "As-is" states an intent, and the
+> field falsified it: all four enforcement scripts below were edited on the one
+> retrofit that has happened — 130 lines. The heading is kept, with this
+> correction attached, rather than softened to "mostly reusable": a vague heading
+> would hide a defect that ought to be fixed instead of described. Per-control
+> measured edit cost and current digests live in
+> [`config/control_surface.json`](../../config/control_surface.json).
+> **Check that manifest before you copy a control** — it is the only way to tell
+> whether what you are about to copy has been fixed since an earlier project
+> copied it. It was written because it had not been: a project instantiated two
+> days before a classifier fix was still running the pre-fix logic, and nothing
+> in this runbook could have told it so.
 
 | Path | Why it transfers |
 |---|---|
@@ -39,6 +85,7 @@ add one, classify it.
 | `config/delegation_envelope.json` | `envelope_id`, `authority_source`, `effective_from`, `expires_at`, `current_tier` (**start at `A0` or `A1`, never higher**), `scope.auto_paths`, `max_changed_lines`, `absolute_ceilings`. The ladder conditions are reusable. **Delete the `scope.constitutional_paths` entry for the sealed-evidence directory** — you never copy it, so the entry protects nothing (trial finding 4) |
 | `.github/workflows/ci.yml` | **Must be edited before the first run.** Its test step hard-codes SecB's sealed-evidence test path, which is on the do-not-copy list. Left unchanged, `pytest` exits 4 and the Test gate is **red on arrival, before any product code exists** — trial finding 2. Replace that step with `python -m pytest -p no:cacheprovider -q tests/` |
 | `tests/test_classify_authority_delta.py` | Prune the two assertions that reference the sealed-evidence path — they cannot hold once its envelope entry is removed (trial finding 3) |
+| `config/control_surface.json` | Keep **your own** copy describing your controls: your digests, your owning work-package IDs, your measured edit costs. Do **not** just inherit SecB's digests — they describe SecB's tree, and a manifest that describes someone else's files answers your staleness question wrongly and confidently. Keep SecB's version too, unedited, somewhere you can diff against: that is the upstream reference this file exists to be (`SECB-WP-FWK-052`) |
 | `README.md` | Your project |
 | `docs/INDEX.md` | Keep the directory map; replace every "governed baseline" claim with what you actually have — **an INDEX that overstates is the first defect this repo ever found** |
 | `docs/01-requirements/PRD-*.md` | Your product. Use `docs/16-templates/PRODUCT_DEFINITION_TEMPLATE.md` |
@@ -140,9 +187,18 @@ release candidate waiting has built something it cannot ship.
 
 ## What this runbook does not give you
 
-- **No scaffolding script.** One project has been bootstrapped, by hand. A
-  generator built from n=1 would encode this project's accidents. Write it when
-  the third project repeats the second.
+- **No scaffolding script.** Two projects have now been instantiated by hand —
+  and they differed *in kind* (greenfield trial, then retrofit), which is an
+  argument for keeping this refusal rather than relaxing it. A generator built on
+  two samples that share almost no failure modes would encode both sets of
+  accidents. The trigger stands unchanged: **write it when the third project
+  repeats the second.**
+- **No propagation tooling.** `config/control_surface.json` makes control-surface
+  staleness *computable*; a human still does the comparison. Nothing here reaches
+  into an instantiated repository or checks what it is actually running — so a
+  downstream running a superseded control is discoverable, not detected. Building
+  the comparison tool at this `n` would encode one instantiation's accidents,
+  which is the same reasoning as the paragraph above.
 - **No templates for stages 3–14.** Three templates ship
   (`docs/16-templates/`). Add one when a stage actually blocks on it.
 - **No external trust anchor.** The verifier runs inside the repository it
