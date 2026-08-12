@@ -59,6 +59,18 @@ jobs:
             "docs/06-agent-orchestration/skill-router/SECB-WP-ENGLOOP-MVP-001 — Sandbox Evidence" \
             src
 
+      # NFR-17: no credential or secret is committed. Verified by "repository
+      # scan" -- by hand, the third such NFR after NFR-04 and NFR-18.
+      # SECB-WP-FWK-049 makes it a gate. Two rules: known credential shapes
+      # anywhere, and secret-named assignments with a real-looking value.
+      # Requiring both name AND value is what keeps it usable -- six SHA-256
+      # digests live in the tracked tree and every one is an evidence anchor.
+      - name: "Gate 6 - committed-secret scan (NFR-17)"
+        run: |
+          python scripts/check_committed_secrets.py \
+            AGENTS.md README.md docs config scripts src tests .github
+
+
   authority-gate:
     name: "Gate 1 — Authority (No Ticket, No Work)"
     if: github.event_name == 'pull_request'
