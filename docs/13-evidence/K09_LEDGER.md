@@ -33,11 +33,38 @@ not a control.
 ## Count
 
 ```text
-observations n = 29        (governance verdicts on merged PR heads, as of e43fca8)
+observations n = 34        (governance verdicts on merged PR heads, as of ae89b4f)
 downgrades   d = 0
-95% upper bound on the downgrade rate = 11.70%   (Wilson, the instrument)
-                             for reference       = 10.34%   (3/n, the approximation)
+95% upper bound on the downgrade rate = 10.15%   (Wilson, the instrument)
+                             for reference       =  8.82%   (3/n, the approximation)
 ```
+
+**One observation short of the target.** n=35 is the smallest sample reaching ≤10%
+under Wilson (9.89%). This is **not** a tier advance: `A2`'s advance conditions are
+"`A1` conditions met, security review pass, defect-escape threshold held", and a
+sample size satisfies none of them. It means only that `K-09`'s own ≤10% target
+comes within reach at the next governance verdict on a merged head.
+
+### `d = 0` is verified, and once it was luck
+
+Each of the five observations added at `ae89b4f` was checked rather than assumed
+(`SECB-WP-FWK-054`). Four are unremarkable: #100 and #107 were `docs/`-only and
+rendered `AUTO_APPROVED`; #69 and #96 touched `scripts/` and `.github/` and
+rendered `CONSTITUTIONAL_REQUIRED`. A human reviewing those diffs would have
+required the same authority in each.
+
+**#81 is a near-miss and is recorded as one.** Its final verdict was
+`AGENT_BALLOT_REQUIRED — 859 lines exceeds the envelope cap 600`, so it escalated
+and a human merged it — no downgrade occurred. But it escalated **on the line cap,
+not on the path**: `config/` was still an `auto_path` then, so the path
+classification inside that verdict was `G0`, and the pull request had opened at
+`AUTO_APPROVED — G0, 487/600`. A smaller work package would have auto-merged a
+governance-implementation artifact. `SECB-WP-FWK-044` has since moved `config/`
+out of `auto_paths` so the path classification stands on its own merits.
+
+So `d = 0` holds — but in 1 of 34 observations it holds because an unrelated
+control fired. **A confidence metric that hides its near-misses manufactures the
+false confidence this ledger was opened to end.**
 
 **The instrument is now the Wilson upper bound, not `3/n`** (`SECB-WP-FWK-040`).
 For a zero numerator it has a closed form, and it is the conservative of the two:
@@ -74,9 +101,10 @@ done | wc -l
 
 | n | Wilson upper bound | Milestone |
 |---:|---:|---|
-| 29 | **11.70%** | today |
+| 29 | 11.70% | the `e43fca8` row |
 | 30 | 11.35% | the `A1 → A2` rung as written — **does not reach 10%** |
-| 35 | 9.89% | the smallest n that reaches ≤10% under Wilson |
+| 34 | **10.15%** | today (`ae89b4f`) |
+| 35 | 9.89% | the smallest n that reaches ≤10% under Wilson — **one observation away** |
 | 60 | 6.02% | — |
 | 300 | 1.26% | — |
 
@@ -126,6 +154,7 @@ One row per recount, never an edit of a prior row.
 | 2026-08-11 | `035b66d`…pre-#67 | 23 | 0 | 13.0% | `3/n` | `SECB-WP-FWK-035` | First ledger entry; supersedes all announced values |
 | 2026-08-11 | `3b61307` | 24 | 0 | **13.80%** | **Wilson** | `SECB-WP-FWK-040` | Instrument corrected; `n` includes PR #67, which the prior row could not count |
 | 2026-08-12 | `e43fca8` | 29 | 0 | **11.70%** | Wilson | `SECB-WP-FWK-050` | Five merges landed (#73 #71 #75 #77 #90). Counted with three retries per call — a first pass without them reported n=28 |
+| 2026-08-12 | `ae89b4f` | 34 | 0 | **10.15%** | Wilson | `SECB-WP-FWK-054` | Five merges landed (#100 #69 #81 #96 #107); 42 merged PRs, 0 heads unresolved after 3 retries. `d=0` verified per-observation, not carried: #81 escalated on the **line cap** while its path classification was still `G0`, so it is recorded above as a near-miss rather than counted as a downgrade. One observation short of the ≤10% target |
 
 ## Remaining follow-up
 
