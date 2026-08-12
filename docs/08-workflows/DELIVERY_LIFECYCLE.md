@@ -165,16 +165,23 @@ runs many times inside stages 6–8, once per work package.
 statement about the *specification of the loop*, not about any product's
 position on this map.
 
-## Where SecB stands today (2026-08-10)
+## Where SecB stands today (2026-08-12)
 
 Recorded with citations so present position is a fact rather than an
 impression.
 
+> Updated 2026-08-12 (`SECB-WP-FWK-056`): stage 2 passed and stage 3 opened. **Two
+> rows moved and nothing else did** — every statement below about stages 5, 6, 9
+> and 12, and the traceability exception that follows this table, is unchanged by
+> that verdict. A stage opening is the smallest event this table records; it is not
+> progress toward production, and the rows that say production is unreachable still
+> say it.
+
 | Item | Position | Evidence |
 |---|---|---|
 | SecB framework | **Stage 1 PASSED (2nd pass)** — PRD v1.1.0 baselined; `APPROVED_WITH_CONDITIONS`, 7/7 criteria, obligation posture `OPEN_NON_BLOCKING` | `STAGE_GATE_PRD_BASELINED_V1_1.md`; `C-3`/`C-4` tracked in `CONDITION_REGISTER.md`, blocking stages 6 and 5 — neither blocks stage 2 or 3 |
-| Stage 2 | **`AUTHORIZED_FOR_COMPOSITE_VERDICT`** — one verdict across seven objectives, per ballot 002 | Artifacts complete; `STAGE_GATE_REQUIREMENTS_READY.md` needs updating to seven objectives before the verdict (`SECB-WP-FWK-031`+) |
-| Stage 3 | **`PENDING_STAGE_2_PASS`** — opens on a passing composite verdict with no condition blocking it, not because a document says "open" | Entry map in `STAGE_GATE_REQUIREMENTS_READY.md` |
+| Stage 2 | **PASSED — `APPROVED_WITH_CONDITIONS`**. Verdict stated by the operator, `verdict_generated_at` 2026-08-12T16:36:07Z, **effective on the merge that carried this row**. 7/7 objectives, 7/7 criteria, obligation posture `OPEN_NON_BLOCKING` | `STAGE_GATE_REQUIREMENTS_READY.md`; composite form authorized by ballot 002; `SECB-WP-FWK-056` |
+| Stage 3 | **admission `OPEN` · authority ceiling `ARCHITECTURE_APPROVED`** — five conjuncts hold; it opened because they hold, not because this row says so. **Admission and authorized action are separate quantities** and `OPEN` states only the first: stage 5 entry `DENIED` by `C-4`, stage 6 entry `DENIED` by `C-3`, `next_stage_auto_open = false` | Guard and ceiling in `STAGE_GATE_REQUIREMENTS_READY.md` §"Transition guard for stage 3" |
 | Stages 3–5 for the router | Design documentation exists; no recorded gate verdicts | `ENGINEER_LOOP.md` v1.5.0, `SECURITY_THREAT_MODEL.md` — but no `ARCHITECTURE_APPROVED`, `SOLUTION_DESIGN_APPROVED` or `SECURITY_DESIGN_APPROVED` decision record exists |
 | Stage 6 | **No `IMPLEMENTATION_AUTHORIZED` record** for the router; the FWK work packages authorize framework work only | issues #2–#22 |
 | Stage 7–8, router MVP slice | Code plus verified tests, sandbox-certified | `SANDBOX_TESTED` under `REV-SECB-ENGLOOP-MVP-001-20260810` (`SECB-WP-FWK-009`, `663984a`); router v1.5.1 (`SECB-WP-FWK-010`, `de31bb3`) |

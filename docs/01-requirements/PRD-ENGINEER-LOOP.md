@@ -5,8 +5,12 @@ Status: Stage 1 **passed** (second pass). Gate `PRD_BASELINED` rendered
 `APPROVED_WITH_CONDITIONS` on 2026-08-10 — baseline disposition `APPROVED` on
 7/7 criteria, obligation posture `OPEN_NON_BLOCKING` for `C-3` and `C-4`
 (`STAGE_GATE_PRD_BASELINED_V1_1.md`; conditions tracked in
-`CONDITION_REGISTER.md`). Stage 2 is `AUTHORIZED_FOR_COMPOSITE_VERDICT`; stage 3
-is `PENDING_STAGE_2_PASS`.
+`CONDITION_REGISTER.md`). **Stage 2 passed** — verdict generated 2026-08-12, effective
+on the merge that carried this line — `APPROVED_WITH_CONDITIONS`,
+7/7 objectives and 7/7 criteria, posture `OPEN_NON_BLOCKING`
+(`STAGE_GATE_REQUIREMENTS_READY.md` at `ISSUED`, `SECB-WP-FWK-056`); **stage 3 is
+`OPEN`** for architecture design only. `C-4` still blocks stage 5 and `C-3` still
+blocks stage 6, so nothing past design is authorized.
 Work Package: `SECB-WP-FWK-008` (issue #12); baseline preparation `SECB-WP-FWK-014` (issue #24)
 Template: `docs/16-templates/PRODUCT_DEFINITION_TEMPLATE.md` (`SECB-WP-FWK-007`)
 Product selection authority: operator decision, session 2026-08-10
