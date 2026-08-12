@@ -6,9 +6,16 @@ Template: `docs/16-templates/STAGE_GATE_RECORD_TEMPLATE.md` · Model:
 [`TWO_PLANE_DECISION_MODEL.md`](../00-governance/TWO_PLANE_DECISION_MODEL.md)
 Authorized as composite by ballot 002 (`APPROVE_OPTION_A`, 2026-08-10)
 
-> **Prepared, not issued.** Stage 2's authority is the Product Owner and the
-> Architecture Lead, both collapsed onto the operator under
-> `SINGLE_IDENTITY_SOD_ACCEPTED_RISK.md`, cited per that record's condition 1.
+> **ISSUED 2026-08-12 — `APPROVED_WITH_CONDITIONS`.** Stage 2's authority is the
+> Product Owner and the Architecture Lead, both collapsed onto the operator under
+> `SINGLE_IDENTITY_SOD_ACCEPTED_RISK.md`, cited per that record's condition 1. The
+> operator issued the verdict in session; the executor filled this record, applied
+> the transition guard and recorded the consequence. **The executor did not decide
+> it, and did not merge it** — see *How this was issued* at the foot of the record.
+>
+> The banner it replaces read *"Prepared, not issued."* Kept as a sentence rather
+> than deleted, because a decision record that erases its own pre-decision state
+> cannot show that the two were ever separate.
 >
 > First record written **under** the two-plane policy rather than corrected into
 > it. `GATE-001` is respected by construction: **no criterion row is the verdict.**
@@ -26,9 +33,9 @@ Authorized as composite by ballot 002 (`APPROVE_OPTION_A`, 2026-08-10)
 | Risk assessment | `R-06` reduced (KPI measurability improved to 8 measurable). No High risk unique to this gate |
 | Conditions | Cited from `CONDITION_REGISTER.md`; this decision creates none |
 | Eligible approvers | Operator. No Architecture Review Board exists |
-| Votes / signatures | **None. Unissued.** |
-| Decision timestamp | — |
-| Effective status | `PREPARED_AWAITING_VERDICT` |
+| Votes / signatures | **Operator, in session, 2026-08-12** — instruction: *"Proceed the stage 2 verdict"*, given after the recommended verdict and its two-plane derivation were reported. Single signature; the Product Owner and Architecture Lead roles are collapsed onto the operator under `SINGLE_IDENTITY_SOD_ACCEPTED_RISK.md`, cited per that record's condition 1 |
+| Decision timestamp | **2026-08-12T16:36:07Z** |
+| Effective status | **`ISSUED` — verdict `APPROVED_WITH_CONDITIONS`** |
 | Expiry / revalidation | On any change to the PRD baseline, a `P1` requirement, or an accepted conflict disposition |
 
 ## Per-objective evaluation
@@ -118,16 +125,25 @@ outcome available**, which is the point of having one.
 Each conjunct with the value used:
 
 ```text
-StageN_verdict ∈ {APPROVED, APPROVED_WITH_CONDITIONS}   -> pending this decision
+StageN_verdict ∈ {APPROVED, APPROVED_WITH_CONDITIONS}   -> SATISFIED: APPROVED_WITH_CONDITIONS
 ballot_quorum_met_or_not_required                        -> not required (NOT_ACTIVE)
 every_required_objective_passed                          -> yes, 7/7
 no_open_condition.blocking_scope covers Stage 3          -> yes: C-3→stage 6, C-4→stage 5
 no_required_condition.is_overdue                         -> yes: due stages 6 and 5, neither entered
-=> Stage 3 = OPEN on issue of a passing verdict
+=> Stage 3 = OPEN   (all five conjuncts hold as of 2026-08-12T16:36:07Z)
 ```
 
-Stage 3 does not open because this document says so. It opens because four
-conjuncts hold and the fifth is this decision.
+Stage 3 does not open because this document says so. It opens because five
+conjuncts hold — four of which held before the decision, and the fifth is the
+decision. Recorded in `DELIVERY_LIFECYCLE.md` §"Where SecB stands today".
+
+**What opening stage 3 does and does not mean.** It authorizes *architecture
+design work* toward `ARCHITECTURE_APPROVED`. It does not confer any stage-3
+verdict, and it does not touch the two conditions: `C-4` still blocks stage 5 and
+`C-3` still blocks stage 6, so the path beyond design remains shut. Nor does it
+alter the traceability exception recorded in `DELIVERY_LIFECYCLE.md` §1 — the
+router slice still holds artifacts at stages 7–8 with no recorded verdicts at
+stages 3–6, and that break is not closed by this decision.
 
 ## Carried conditions
 
@@ -146,14 +162,66 @@ blocks a stage.
 ## Findings carried, unchanged
 
 1. **`FR-17`'s acceptance method is descriptive, not executable.** Nothing checks
-   that 30 clean merges precede tier `A2` (`TX-02`). `K-09`'s bound has since
-   crossed below 10% at n=33, which makes the unchecked precondition *closer to
-   mattering*, not less relevant.
+   that 30 clean merges precede tier `A2` (`TX-02`). The finding stands unchanged;
+   **its supporting figure was false and is corrected here** (`SECB-WP-FWK-056`).
+
+   > This finding previously read *"`K-09`'s bound has since crossed below 10% at
+   > n=33"*. Wrong three ways, all in the flattering direction. **`n=33` appears in
+   > no row of `K09_LEDGER.md`** — the recorded series is 23, 24, 29, 34 — so it was
+   > hand-incremented, the exact practice that ledger was opened to abolish.
+   > **9.09% is the retired `3/n` approximation**; the live instrument since
+   > `SECB-WP-FWK-040` is the Wilson upper bound, which at n=33 gives 10.43%. And
+   > **the bound has never crossed below 10%** — the authoritative row is **n=34,
+   > d=0, 10.15%** (`SECB-WP-FWK-054`, at `ae89b4f`), and n=35 is the first sample
+   > reaching ≤10%, at 9.89%.
+   >
+   > Corrected **before** issue, not after: a verdict must not adopt a claim its own
+   > evidence base contradicts. The finding's substance is untouched — `FR-17` is
+   > still unchecked, and an approaching threshold still makes that matter more.
+   > Only the number was false.
+
+   As corrected: `K-09` stands at **10.15% at n=34**, so the ≤10% level `FR-17`'s
+   precondition is written against has **not** been reached. The unchecked
+   precondition is therefore **not yet load-bearing — and one observation from
+   becoming so.**
 2. **`GC-03` is vacuously satisfied.** No business rules exist to document, so the
    criterion cannot fail. Defensible, and not evidence of work.
 
-## To issue this verdict
+## How this was issued
 
-State the verdict and the date — in session or on issue #60. The executor then
-fills this record, applies the transition guard, and opens stage 3 with the entry
-map already recorded here.
+The procedure this section previously prescribed, and what was actually done
+against it — kept in this order so the two can be compared.
+
+| Prescribed | Performed |
+|---|---|
+| The authority states the verdict and the date, in session or on issue #60 | Operator, in session, 2026-08-12: *"Proceed the stage 2 verdict"* — after the recommended verdict, the seven-objective assessment and the two-plane derivation had been reported |
+| The executor fills this record | Done: votes, timestamp, effective status, banner |
+| The executor applies the transition guard | Done: fifth conjunct satisfied, Stage 3 `OPEN` |
+| The executor opens stage 3 | Done in `DELIVERY_LIFECYCLE.md`. **No stage-3 gate record is created** — a stage-3 record is prepared at that stage's *exit*, and creating one now would be an empty artifact implying work not done |
+
+### Why the verdict is not the executor's choice
+
+The two-plane matrix leaves **exactly one** outcome available on this evidence:
+`baseline_disposition = APPROVED` with `obligation_posture = OPEN_NON_BLOCKING`
+renders `APPROVED_WITH_CONDITIONS`, and the three alternatives are excluded by
+construction — `APPROVED` needs posture `CLEAR`,
+`HELD_FOR_CONDITION_CLOSURE` needs a condition whose `blocking_scope` covers
+stage 3, `DECISION_INCOMPLETE` needs an uncontrolled condition. None holds. So
+"proceed" resolves to one verdict rather than to a choice among several, which is
+the property the matrix exists to provide.
+
+### Why the executor did not merge it
+
+`docs/` is an envelope `auto_path`, so the pull request carrying this record
+classified `AUTO_APPROVED — G0` and the executor was *mechanically* permitted to
+self-merge it. **It did not.** A stage-gate verdict is a `D2 MATERIAL` decision
+(`PACKET-002`), and the classifier measures **paths, not significance** — it
+cannot see that this file is a decision rather than documentation. Merging it was
+left to the operator, so that the act of issuing and the act of recording stayed
+in different hands to the extent one identity allows.
+
+**This is a recorded limit of the classifier, not a complaint about it.** Any
+future record whose significance exceeds its path's `G`-class carries the same
+hazard, and the mitigation is the same: the executor declines an autonomy it
+holds. That mitigation is a habit, not a control — a real control would require
+the classifier to see significance, which it cannot.

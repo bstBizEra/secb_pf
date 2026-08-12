@@ -153,3 +153,28 @@ first, then one verdict covering seven objectives.
 > You are approving the project outcome, cost, schedule impact and residual risk.
 > You are not certifying the source code. Technical feasibility is covered by the
 > attached assurance evidence.
+
+## Close-out — appended 2026-08-12 (`SECB-WP-FWK-056`)
+
+**Discharged.** The verdict this packet exists to obtain was issued
+2026-08-12T16:36:07Z as `APPROVED_WITH_CONDITIONS`, 7/7 objectives and 7/7
+criteria, posture `OPEN_NON_BLOCKING`; stage 3 is now `OPEN`. Record:
+`STAGE_GATE_REQUIREMENTS_READY.md` at `ISSUED`.
+
+**Appended, not edited.** §1 still describes the record as
+`PREPARED_AWAITING_VERDICT` because that was true when the packet was compiled. A
+decision packet that rewrites its own premises to match the outcome stops being
+evidence of what was actually asked.
+
+§10's stop condition was checked before issue and did not trigger: no unmet
+condition was marked met. `C-3` and `C-4` remain `OPEN` and are carried, not
+closed — which is what `APPROVED_WITH_CONDITIONS` means and why `APPROVED` was
+unavailable.
+
+**§9's worst credible consequence is now the live risk, not a hypothetical.** It
+named the path where the ladder reaches tier `A2` while `FR-17`'s precondition is
+never verified. That precondition is written against `K-09` ≤10%, and `K-09` now
+stands at **10.15% at n=34** — one observation short. Option C was not chosen and
+this verdict does not advance any tier, so the defect has not occurred; the gap
+between "the number arrives" and "anything checks it" is simply no longer distant.
+`TX-02` owns it.
