@@ -3,8 +3,11 @@
 Work package: `SECB-WP-FWK-057` · Issue: #112 · Recorded: 2026-08-13
 Protocol: [`SPECIFICATION_CONFLICT_PROTOCOL.md`](../00-governance/SPECIFICATION_CONFLICT_PROTOCOL.md)
 Type: **`SC-05` Authority conflict** · Impact: **`C4` — Authority or safety**
-Status: **`RESOLVED` — pending ratification.** Operator disposition given 2026-08-13;
-**effective on the merge of PR #113, not on this text**
+Status: **`SUPERSEDED_BEFORE_RATIFICATION`.** The §9 disposition below was reversed
+by the operator on 2026-08-13, on this same pull request, **before either became
+effective** — see [`CONFLICT-SECB-AUTONOMY-001`](CONFLICT-SECB-AUTONOMY-001.md).
+§9 is retained unedited: a conflict record that deletes the disposition it carried
+cannot show what was actually decided and then reconsidered
 
 > **Resolved by the constitutional authority, not by the executor.** `C4` is
 > *constitutional authority only*, and the executor is the party whose authority the
@@ -122,7 +125,19 @@ human regardless of how good the verification becomes. **A third answer, that so
 Recorded for decision. Not decided here.
 
 
-# 9. Disposition — operator, 2026-08-13
+# 9. Disposition — operator, 2026-08-13 · **SUPERSEDED, NEVER EFFECTIVE**
+
+> **Reversed the same day by `CONFLICT-SECB-AUTONOMY-001`.** The text below stands
+> as written. It never governed anything, so this is an amendment to a proposal
+> rather than the retraction of a rule — a distinction that exists only because
+> `SECB-WP-FWK-056` separated `PROPOSED` from `EFFECTIVE` the day before.
+>
+> **What survived the reversal:** three agent ballots alone still do not authorize a
+> merge. **What was rejected:** the blanket conclusion that `D2+` must therefore
+> reach a human. The reasoning in §"The unaddressed reason" was sound about
+> *ownership* and wrong to treat owning a consequence and reviewing the engineering
+> as the same act — an owner can accept consequence once, in advance, over a bounded
+> domain. That is a standing mandate.
 
 **Statement A stands. Statement B is rejected.**
 

@@ -25,7 +25,7 @@ delta measured against the framework's own expansion invariant (`F6`).
 |---|---|
 | Diagnosis | **Accepted.** Confirmed independently, before the proposal |
 | Evidence-side mechanisms (claims, digests, formula identity, semantic classification) | **Recommended.** These are the part that closes the proven gap |
-| `D2` autonomous ratification | **Conflicts** with `DECISION_AUTHORITY.md` — see `CONFLICT-DAAF-001` |
+| `D2` autonomous ratification | **Rejected as proposed** (three ballots alone), but the blanket human-ratification alternative was **also rejected** — reversed 2026-08-13, see `CONFLICT-SECB-AUTONOMY-001`. Replacement is **EBTA** inside a standing business mandate |
 | `D0–D3` naming | **Blocked** on an operator ruling; would be a third `D` meaning |
 | Ten-work-package programme as a whole | **Fails minimal-delta** under `FPSA v1.0` |
 | Signing, rulesets, merge queue | **Blocked** by capabilities this repository does not have |
@@ -238,7 +238,19 @@ requires the `D2` ruling. Everything else waits on decisions or identities.
 
 ---
 
-# 6. Operator disposition — 2026-08-13
+# 6. Operator disposition — 2026-08-13, **first version, superseded same day**
+
+> **Amended.** §6 below recorded the disposition *"`D2+` stays
+> `HUMAN_RATIFICATION_REQUIRED`."* The operator reversed it hours later on the same
+> unratified pull request: a blanket human-ratification rule contradicts the
+> mission, because it routes engineering judgement to a party holding no engineering
+> competence. Retained unedited — see `CONFLICT-SECB-AUTONOMY-001` for the
+> replacement, and `AUTONOMOUS_AUTHORITY_MODEL.md` for `AR0`–`AR4` and EBTA.
+>
+> **Unchanged by the reversal:** three agent ballots alone still do not authorize a
+> merge, DAAF stays `NOT_ADOPTED_AS_FRAMEWORK`, and every other finding here stands.
+
+## 6.0 First disposition (superseded, never effective)
 
 Recorded verbatim in effect, not paraphrased into agreement. **`RATIFICATION_PENDING`
 until PR #113 is merged.**
@@ -448,7 +460,7 @@ age, which is what the disposition asked for.
 
 ```yaml
 size_assessment:
-  changed_lines: 797
+  changed_lines: 1273
   autonomous_merge_cap: 600
   absolute_ceiling: 2000
 
@@ -477,6 +489,24 @@ restrictive consequence among them, and all findings survive into the output wit
 a `dominant_reason` and `additional_reasons`. Recorded here rather than built:
 `scripts/classify_authority_delta.py` is a constitutional path and this is not
 that work package.
+
+> **Recount after the 2026-08-13 amendment.** The figure was 797 before the
+> mission-alignment reversal added `CONFLICT-SECB-AUTONOMY-001`,
+> `AUTONOMOUS_AUTHORITY_MODEL.md`, `config/business_mandate.json` and the `AR`
+> registration. It is now **1262**, still below the absolute ceiling of 2000, which
+> no tier may waive. Restated rather than left at 797, because a size disclosure
+> carrying a stale number is worse than none: it looks like diligence.
+>
+> **And the first recount was also wrong.** It said 855, computed before the new
+> files were staged, so `git diff --numstat` could not see them — untracked files
+> are invisible to it, which is the same blind spot that makes a green run taken
+> before `git add` prove nothing about what was pushed. Measured after staging:
+> **1273**. Twice now the number inside the honesty section has been the number that
+> needed correcting — and the third correction is structural: **this disclosure is
+> inside the diff it measures, so it is a fixed point.** Adding the sentence you are
+> reading changed the count it reports. 1273 is the converged value: a same-length
+> edit of the digits leaves the total unchanged, which is why the figure can be
+> stated at all.
 
 Conditions under which this size is acceptable, all met: everything is decision
 record, intake register, taxonomy and the tests they require · **no `WP-02`

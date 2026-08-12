@@ -42,7 +42,16 @@ effective_event: PR_113_MERGED
 | `ADEC-v1.0` | `NOT_ADOPTED` | — |
 | `RAAF-v0.1` | `NOT_ADOPTED` | — |
 | `FPSA-v1.0` | `NOT_ADOPTED` | — |
-| `DAAF-v2.0` | `NOT_ADOPTED_AS_FRAMEWORK` | `NORMATIVE_SURFACE_CLASSIFICATION` · `CLAIM_VERIFICATION` · `APPEND_ONLY_DECISIONS` · `AUTHORITY_CEILING` |
+| `DAAF-v2.0` | `NOT_ADOPTED_AS_FRAMEWORK` | `NORMATIVE_SURFACE_CLASSIFICATION` · `CLAIM_VERIFICATION` · `APPEND_ONLY_DECISIONS` · `AUTHORITY_CEILING` · `DIGEST_BOUND_EVIDENCE` |
+
+**Extracted ≠ adopted, and extraction does not promote the source.** `DAAF-v2.0`
+stays `NOT_ADOPTED_AS_FRAMEWORK` however many of its controls are eventually built.
+The authority model that replaced its `D2` proposal —
+[`AUTONOMOUS_AUTHORITY_MODEL.md`](AUTONOMOUS_AUTHORITY_MODEL.md), `AR0`–`AR4` and
+EBTA — is a SecB decision under `CONFLICT-SECB-AUTONOMY-001`, **not** an adoption of
+DAAF §4. DAAF proposed three ballots as sufficient; that specific proposal was
+rejected, and EBTA's conjunction of machine-checkable proofs is a different
+mechanism reached for a different reason.
 
 **`NOT_ADOPTED` is not a rejection of the findings.** Each proposal's analysis
 remains in `docs/17-references/` and its measurements stand. What is withheld is

@@ -1,0 +1,71 @@
+{
+  "schema_version": "secb.dev/business-mandate/v1",
+  "lifecycle": {
+    "state": "PROPOSED_ON_PR_HEAD",
+    "binding": false,
+    "effective_event": "PR_113_MERGED",
+    "note": "A mandate delegates authority. It is not binding because this file says so -- it is binding when the authority that holds the authority lands it on main. Recorded explicitly because SECB-WP-FWK-056 shipped a record that declared itself ISSUED while its own pull request said nothing was issued until merge."
+  },
+  "mandate": {
+    "id": "BM-SECB-AUTONOMY-001",
+    "owner": "OP-Vily",
+    "owner_role": "BUSINESS_INTENT_OWNER",
+    "not_owner_role": "The owner is NOT an engineering approver. They do not decide architecture correctness, security design correctness, test sufficiency, code quality, merge readiness, deployment mechanics, or incident remediation. Routing an engineering judgement to a party without engineering competence produces a rubber stamp and calls it a control.",
+    "objective": [
+      "BUILD_AND_OPERATE_SECB_FRAMEWORK",
+      "MAXIMIZE_ENGINEERING_AUTONOMY",
+      "MAINTAIN_EVIDENCE_AND_RECOVERABILITY"
+    ],
+    "business_success": {
+      "kpis": [
+        "delivery_lead_time",
+        "escaped_defect_rate",
+        "recovery_time",
+        "evidence_completeness",
+        "autonomous_completion_rate"
+      ],
+      "kpi_note": "Mapping these onto the existing K-nn series in KPI_BASELINE.md is deferred to WP-04. Inventing the mapping here would create a second KPI vocabulary, and this repository already carries eight verdict vocabularies it must keep apart."
+    },
+    "authorized_domains": [
+      "architecture",
+      "implementation",
+      "testing",
+      "security_engineering",
+      "documentation",
+      "ci_cd",
+      "controlled_deployment",
+      "rollback",
+      "technical_governance"
+    ],
+    "constraints": {
+      "production_changes_require": [
+        "verified_release_certificate",
+        "canary_or_staged_rollout",
+        "rollback_proof",
+        "observability_ready"
+      ],
+      "production_note": "None of these four exist yet. Stage 9 is structurally blocked and production is NOT_AUTHORIZED, so this clause constrains a capability the repository does not have. It is written now so that acquiring the capability does not also require negotiating the constraint.",
+      "prohibited": [
+        "unbounded_spend",
+        "raw_credential_exposure",
+        "irreversible_data_destruction",
+        "undeclared_external_commitment",
+        "silent_authority_expansion"
+      ],
+      "prohibited_note": "These are refused, never weighed. A prohibited action is not a cost to be traded against a benefit."
+    },
+    "default_resolution": {
+      "technical_uncertainty": "INVESTIGATE_AND_VERIFY",
+      "failed_gate": "REPAIR_OR_ROLLBACK",
+      "business_ambiguity": "PRESERVE_CURRENT_SAFE_STATE",
+      "budget_exhausted": "STOP_NEW_WORK_AND_PRESERVE_STATE",
+      "note": "These exist so that an agent meeting an unanswered question has a defined move that is not 'ask a human'. Business ambiguity is the one case that still halts -- and it halts by preserving state, not by escalating a technical question."
+    }
+  },
+  "exercisability": {
+    "state": "NOT_EXERCISABLE",
+    "reason": "The mandate delegates engineering authority; the platform cannot yet enforce the conditions under which that authority is safe to exercise. See AUTONOMOUS_AUTHORITY_MODEL.md section 9: no branch protection, three gates skip on push, skipped counts as success, one principal, no expected-source required checks, no release controller separate from the builder.",
+    "becomes_exercisable_when": "WP-04 through WP-06 are effective and the promotion evidence in AUTONOMOUS_AUTHORITY_MODEL.md section 11 is satisfied. Ratifying the mandate changes the MODEL, not the CAPABILITY.",
+    "meanwhile": "The existing A1 envelope continues to govern: G0 auto-merge inside auto_paths, everything else escalates. A green 4/4 is not an EBTA certificate and no agent may treat it as one."
+  }
+}
