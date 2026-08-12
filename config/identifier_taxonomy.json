@@ -1,7 +1,7 @@
 {
   "$comment": "Identifier taxonomy registry for SecB_PF (SECB-WP-FWK-041, corrected under the operator's research verdict of 2026-08-11). Adopted from BACP v1.1 TaxonomyModel section 6: identifier ladders are versioned DATA, not assumptions spread across prose. THIS FILE IS A FACTUAL LEDGER. It preserves provenance-backed recorded assertions and an immutable-by-git-history baseline of the collision debt observed at as_of_commit. It does NOT prevent new collision debt from arising in the governed system, it does NOT issue allow/deny verdicts, and it does NOT originate a prohibition, threshold or authority. Any normative effect is performed by an external authorized policy and enforcement mechanism.",
   "taxonomy_id": "TAX-SECB-2026-001",
-  "taxonomy_version": "1.2.0",
+  "taxonomy_version": "1.3.0",
   "as_of_commit": "3b61307",
   "recorded_by": "SECB-WP-FWK-041",
   "ladders": [
@@ -287,11 +287,12 @@
         "E0-E4 = expansion classes (proposed by FPSA v1.0, NOT adopted)"
       ],
       "distinguisher": "none if adopted",
-      "evidenced_by": "SECB-WP-FWK-039; bOPEN resolved the same collision by writing 'expansion class E-n' set-qualified at every use",
+      "evidenced_by": "SECB-WP-FWK-039, measured in this repository: E0-E4 is bound to evidence levels at docs/00-governance/DECISION_AUTHORITY.md:91-105, where E4 is recorded as none and is the reason production is unreachable. Any second claimant collides with that.",
       "observed_status": "SECOND_CLAIMANT_NOT_ADOPTED",
       "second_claimant_adopted": false,
-      "recommendation_advisory": "Advisory, not a rule: if expansion classes are adopted, either set-qualify them at every use per bOPEN's ratified precedent, or bind them to a free prefix. This registry records that E is taken; it does not forbid anything.",
-      "superseded_disposition_v1_0_0": "BLOCKED -- expansion classes may not enter SecB as bare E-n. Either set-qualify per bOPEN's ratified precedent, or take a free prefix."
+      "recommendation_advisory": "Advisory, not a rule: if expansion classes are adopted, either set-qualify them at every use -- 'expansion class E-n' -- or bind them to a free prefix. This registry records that E is taken; it does not forbid anything.",
+      "superseded_disposition_v1_0_0": "BLOCKED -- expansion classes may not enter SecB as bare E-n. Either set-qualify, or take a free prefix.",
+      "provenance_correction_1_3_0": "v1.0.0 through v1.2.0 cited \"bOPEN's ratified precedent\" here, in evidenced_by and in the recommendation. bOPEN is example data, not an authority whose rulings bind or inform this repository, so the citation was a provenance claim that does not resolve -- the defect NFR-10 exists to prevent, in the artifact built to prevent identifier drift. The finding was never dependent on it: the collision was measured here. Corrected by SECB-WP-FWK-051."
     },
     {
       "prefix": "L",
@@ -335,7 +336,8 @@
     "The guard on this file asserts that a NEW prefix is not bound twice without a collision record, and that every recorded collision carries meanings, evidence, an observational status and an advisory recommendation. That is integrity validation of this file, not governance of the repository.",
     "This registry does NOT enact a rule. The naming rule recommended by SECB-WP-FWK-039 -- a single-letter prefix, once bound, is never rebound -- remains ungranted; a rule binding agent behaviour belongs to the constitutional authority.",
     "Corrected in v1.1.0 under the operator's research verdict: v1.0.0's `disposition` field carried verdict-shaped prohibitions (\"may not enter SecB\") and a test enforced them, which made the registry originate a prohibition while claiming it originated none. The prohibitions are now advisory recommendations and the superseded wording is retained per-collision rather than deleted.",
-    "Corrected in v1.2.0 under the operator's research verdict: v1.0.0's enumeration was incomplete by 9 prefixes and its absence claim named no boundary. An observation_boundary is now declared, the 9 are registered, prefix containment is recorded as a distinct collision kind, and the permitted absence claim is OBSERVED_CLEAR_WITHIN_BOUNDARY rather than anything global."
+    "Corrected in v1.2.0 under the operator's research verdict: v1.0.0's enumeration was incomplete by 9 prefixes and its absence claim named no boundary. An observation_boundary is now declared, the 9 are registered, prefix containment is recorded as a distinct collision kind, and the permitted absence claim is OBSERVED_CLEAR_WITHIN_BOUNDARY rather than anything global.",
+    "Corrected in v1.3.0: three citations of an external project's 'ratified precedent' removed. A registry that cites what a third party cannot open is asserting, not evidencing -- and this one exists to stop exactly that class of drift."
   ],
   "record_class": "provenance-backed recorded assertion",
   "scope_and_limits": {
