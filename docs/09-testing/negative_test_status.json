@@ -261,6 +261,24 @@
         "valid independent receipt -> authority conjunct PASS"
       ],
       "enforcement_proof": "tests/test_ratification_enforcement.py (does not exist yet -- WP-04)"
+    },
+    {
+      "id": "AMS-03",
+      "title": "No producer generates an artifact-version receipt",
+      "status": "GAP_REPRODUCED",
+      "declared_by": "SECB-WP-FWK-063",
+      "condition": "C-AMS-03",
+      "gap": "The version-coherence gate's conjunct metadata_version_matches_generated_receipt cannot be satisfied: the schema secb.artifact-version-receipt/v1 has no producer and no consumer. Five of six conjuncts are enforced; this one is declared.",
+      "why_not_faked": "Hand-writing a receipt file and asserting the conjunct holds would reproduce, inside the gate written to catch it, the defect AUTO_MERGE_STANDARD.md 7 records: receipt schema exists != receipt is required != enforcement cannot be bypassed. Of the six conjuncts this was the cheapest to fake, which is why it is the one stated as absent.",
+      "named_fix": "A producer that emits a receipt at the point a version is recorded, and a gate that refuses a version claim without one. Neither exists; neither is in scope here.",
+      "flip_requires": [
+        "a script or workflow emits an artifact-version receipt",
+        "the receipt binds artifact_id, version, blob_sha, content_digest and head_sha",
+        "a gate refuses a version claim whose receipt is absent or does not bind the head",
+        "the 13 status table moves this conjunct from UNSATISFIABLE_NOW to ENFORCED"
+      ],
+      "enforcement_proof": "test_receipt_conjunct_is_declared_unsatisfiable_and_nothing_pretends_otherwise scans scripts/ and .github/ for any reference to the receipt schema. It asserts the absence of a PRODUCER, not the absence of a file -- the AMS-02 correction applied forward.",
+      "blocked_by": "No condition. Nothing prevents building the producer; it is simply not this work package."
     }
   ],
   "artifact_classification": {

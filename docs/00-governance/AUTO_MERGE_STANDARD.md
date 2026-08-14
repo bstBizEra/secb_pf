@@ -2,7 +2,8 @@
 
 ```yaml
 standard_id: SECB-AMS-001
-version: 0.2.0
+version: 0.3.0
+review_revision: 3
 lifecycle_state: PROPOSED
 binding: false
 effective_event: null
@@ -390,7 +391,60 @@ SUPERSEDED → binding = false ∧ successor reference complete
 No other `lifecycle_state` is valid. A parser that accepts an unknown state, or a
 `binding: true` with no receipt, is not checking the thing that matters.
 
-## 13. What this standard does not do
+## 13. Version coherence — a valid version is not a true one
+
+Review found this document at `86a1f30` declaring `version: 0.2.0` while the work
+package and the pull request called it `0.3.0`. The parser accepted it, because it
+checked the version was **well-formed**, never that it was **the artifact's**:
+
+```text
+Version field exists
+  ≠ version is syntactically valid
+  ≠ version identifies the artifact being reviewed
+```
+
+Same shape as the two defects above: the check tested the form of the claim rather
+than the claim.
+
+**Disposition: this artifact is `0.3.0`.** §11 and §12 are new normative content and
+`merge_effect` is new metadata, so under `semantic_change_requires_version_change` the
+version had to move. `review_revision` is now a **separate** field — fusing a semantic
+artifact version with a review-iteration count is what let a third revision keep a
+second revision's version.
+
+### The violation is in this branch's own history
+
+| Commit | Declared | `sha256` (16) | |
+|---|---|---|---|
+| `7dfb74c` | *no version field* | `e0246361417f13c4` | The metadata block did not exist yet — **not** a `0.1.0`, and none is invented |
+| `c171e17` | `0.2.0` | `23db3720871a8499` | |
+| `86a1f30` | `0.2.0` | `df04991c8ee90d15` | **Two digests, one version** — conjunct 6 violated in the record |
+
+### The gate
+
+```text
+VERSION_COHERENT =
+    metadata_version_is_semver
+  ∧ metadata_version_matches_manifest
+  ∧ metadata_version_matches_generated_receipt
+  ∧ version_transition_is_monotonic
+  ∧ semantic_change_requires_version_change
+  ∧ no_two_active_blobs_claim_same_version_with_different_digest
+```
+
+| Conjunct | Status | Instrument |
+|---|---|---|
+| `metadata_version_is_semver` | **ENFORCED** | `parse_metadata` rejects non-semver |
+| `metadata_version_matches_manifest` | **ENFORCED** | `config/artifact_versions.json` is the independent surface — a test comparing the metadata to itself proves nothing |
+| `metadata_version_matches_generated_receipt` | **UNSATISFIABLE_NOW** | **Nothing generates receipts.** Hand-writing one and calling the conjunct satisfied is §7's defect verbatim — a schema is not a control. Declared, scenario `AMS-03` |
+| `version_transition_is_monotonic` | **ENFORCED** | Manifest history is strictly increasing |
+| `semantic_change_requires_version_change` | **PARTIAL** | The recorded digest must match the bytes, so *any* content change without a manifest update fails. It cannot distinguish a typo from a normative change — stated because the conjunct's name promises more than the instrument delivers |
+| `no_two_active_blobs_...` | **ENFORCED** | No `(artifact_id, version)` pair carries two digests across current entries and history |
+
+Five of six enforced, one declared unsatisfiable with its reason. **The receipt conjunct
+is the one that would have been easiest to fake.**
+
+## 14. What this standard does not do
 
 - **It does not implement anything.** `required_authority` needs the semantic
   classifier (`WP-02`); the eligibility conjunction needs the EBTA evaluator

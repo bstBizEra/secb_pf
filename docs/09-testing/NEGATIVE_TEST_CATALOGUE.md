@@ -112,12 +112,14 @@ the demonstration rather than a synthetic case.
 
 | ID | Scenario | Status | Demonstrated by | Named fix |
 |---|---|---|---|---|
-| `AMS-01` | A decision-bearing artifact under an `auto_path` receives `G0` because of its path | `GAP_REPRODUCED` | **PR #111** — a `D2 MATERIAL` stage-gate verdict rendered `AUTO_APPROVED — G0` | `WP-02` semantic classifier: `effective_class = max(path, materiality, state, authority, condition)` |
+| `AMS-01` | A decision-bearing artifact under an `auto_path` receives `G0` because of its path | `GAP_REPRODUCED` | **PR #111** — a `D2 MATERIAL` stage-gate verdict rendered `AUTO_APPROVED — G0` | `WP-02` semantic classifier: `required_authority = join(path, materiality, state, authority, condition)` — a lattice join, and no output class is promised until the mapping `semantic_effect → authority_requirement` exists |
 | `AMS-02` | An authoritative record is made effective by self-merge with no head-bound ratification receipt | `GAP_REPRODUCED` | **PR #120** — stamped stage 2 `EFFECTIVE` and recorded `C-5`/`C-6`/`C-7`, self-merged | `WP-04` EBTA eligibility conjunction; the receipt's independence field needs `WP-05` |
+| `AMS-03` | The version-coherence gate's receipt conjunct has no producer, so a version claim cannot be receipt-bound | `GAP_REPRODUCED` | **This branch** — `c171e17` and `86a1f30` both declare `0.2.0` with different digests; the parser accepted it because it checked the version's form, not its truth | A producer emitting `secb.artifact-version-receipt/v1`, and a gate refusing a version claim without one. Five of six conjuncts are enforced; this one is declared |
 
 **Neither scenario can be closed by adding a file.** Each carries `flip_requires`:
 
 - **`AMS-01`** needs `required_authority = join(authority_for(path), authority_for(semantic_effect), …)` actually computed — a **lattice join of authority requirements**, not a numeric `max` over incommensurable classification domains, which is what the first draft wrote.
+- **`AMS-03`** is the cheapest conjunct to fake and therefore the one declared absent. A hand-written receipt would satisfy the gate's text while satisfying nothing — the defect `AUTO_MERGE_STANDARD.md` §7 records. Its enforcement proof scans for a *producer*, not for a file.
 - **`AMS-02`** needs six enforcement behaviours proven: missing receipt → `DENY` · wrong actor → `DENY` · `COMMENT` instead of `APPROVE` → `DENY` · receipt/head mismatch → `DENY` · new push → previous receipt `STALE` · valid independent receipt → authority conjunct `PASS`.
 
 ```text
