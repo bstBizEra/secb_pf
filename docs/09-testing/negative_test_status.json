@@ -277,8 +277,26 @@
         "a gate refuses a version claim whose receipt is absent or does not bind the head",
         "the 13 status table moves this conjunct from UNSATISFIABLE_NOW to ENFORCED"
       ],
-      "enforcement_proof": "test_receipt_conjunct_is_declared_unsatisfiable_and_nothing_pretends_otherwise scans scripts/ and .github/ for any reference to the receipt schema. It asserts the absence of a PRODUCER, not the absence of a file -- the AMS-02 correction applied forward.",
-      "blocked_by": "No condition. Nothing prevents building the producer; it is simply not this work package."
+      "enforcement_proof": "test_no_receipt_schema_reference_found_within_the_stated_boundary performs a SUBSTRING SCAN over the boundary above. Corrected under C-AMS-05: the earlier wording claimed it scanned for a PRODUCER rather than a file. It does neither -- it scans text, and it errs in both directions. A comment mentioning the schema would count as a producer, and a producer naming its output generically would be invisible. The claim is now the observation.",
+      "blocked_by": "No condition. Nothing prevents building the producer; it is simply not this work package.",
+      "observation": "NO_RECEIPT_SCHEMA_REFERENCE_FOUND",
+      "boundary": [
+        "scripts/*.py",
+        ".github/**/*.yml"
+      ],
+      "not_proven": [
+        "no_producer_exists",
+        "no_generic_producer_exists",
+        "no_external_producer_exists"
+      ],
+      "behavioural_contract_to_flip": [
+        "invoke the producer",
+        "receive a structured receipt",
+        "validate it against secb.artifact-version-receipt/v1",
+        "verify the artifact, version, blob and head bindings",
+        "tamper exactly one binding",
+        "the producer or the consuming gate REJECTS it"
+      ]
     }
   ],
   "artifact_classification": {

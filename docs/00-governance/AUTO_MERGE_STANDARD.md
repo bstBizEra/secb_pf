@@ -2,8 +2,8 @@
 
 ```yaml
 standard_id: SECB-AMS-001
-version: 0.3.0
-review_revision: 3
+version: 0.3.1
+review_revision: 5
 lifecycle_state: PROPOSED
 binding: false
 effective_event: null
@@ -436,13 +436,58 @@ VERSION_COHERENT =
 |---|---|---|
 | `metadata_version_is_semver` | **ENFORCED** | `parse_metadata` rejects non-semver |
 | `metadata_version_matches_manifest` | **ENFORCED** | `config/artifact_versions.json` is the independent surface — a test comparing the metadata to itself proves nothing |
-| `metadata_version_matches_generated_receipt` | **UNSATISFIABLE_NOW** | **Nothing generates receipts.** Hand-writing one and calling the conjunct satisfied is §7's defect verbatim — a schema is not a control. Declared, scenario `AMS-03` |
+| `metadata_version_matches_generated_receipt` | **UNSATISFIABLE_NOW** | **No receipt-schema reference found in `scripts/*.py` and `.github/**/*.yml`.** That is a text scan over a stated boundary and nothing more — it does not prove no producer exists. Declared, scenario `AMS-03` |
 | `version_transition_is_monotonic` | **ENFORCED** | Manifest history is strictly increasing |
 | `semantic_change_requires_version_change` | **PARTIAL** | The recorded digest must match the bytes, so *any* content change without a manifest update fails. It cannot distinguish a typo from a normative change — stated because the conjunct's name promises more than the instrument delivers |
 | `no_two_active_blobs_...` | **ENFORCED** | No `(artifact_id, version)` pair carries two digests across current entries and history |
 
 Five of six enforced, one declared unsatisfiable with its reason. **The receipt conjunct
 is the one that would have been easiest to fake.**
+
+### The revision ledger's own invariant
+
+```text
+current_review_revision > max(historical_review_revisions)
+```
+
+**Strictly greater, not equal to the last entry.** The first version of this gate
+asserted `current == history[-1]`, which permitted the current entry to repeat a
+historical revision — and it did: `86a1f30` and `00e3dae` both declared
+`review_revision: 3` while the test's own name said *strictly increasing*. The name
+described the intent; the assertion described something weaker.
+
+Nor is `review_revision != version` evidence of anything: `3` and `0.3.0` differ by
+token shape whatever the values are, so the check passed without testing uniqueness or
+forward motion. Both are now asserted directly.
+
+### What the receipt scan proves, and what it does not
+
+```yaml
+observation: NO_RECEIPT_SCHEMA_REFERENCE_FOUND
+boundary: [scripts/*.py, .github/**/*.yml]
+not_proven:
+  - no_producer_exists
+  - no_generic_producer_exists      # one whose output is not named by this token
+  - no_external_producer_exists     # anything outside the boundary above
+```
+
+A substring scan is wrong in **both** directions: a comment mentioning the schema
+counts as a producer, and a real producer that names its output generically is
+invisible to it. The earlier wording — *"scans for a producer, not for a file"* — was
+stronger than the mechanism under it, which is the same substitution this document
+exists to name. The claim is now the observation, and the boundary is stated so a
+reader can see past its edge.
+
+When a producer exists, the conjunct flips on **behaviour**:
+
+```text
+invoke producer → receive structured receipt → validate schema
+→ verify artifact/version/blob/head bindings
+→ tamper one binding → producer or consuming gate REJECTS it
+```
+
+Until that sequence runs, the conjunct stays `UNSATISFIABLE_NOW` — not `ENFORCED`, and
+not quietly dropped.
 
 ## 14. What this standard does not do
 
