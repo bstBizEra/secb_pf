@@ -34,26 +34,42 @@ not a control.
 
 ```text
 observations n = 40        (governance verdicts on merged PR heads, as of f1b2516)
-downgrades   d = UNDER_REVIEW   (2 candidates, see below)
-95% upper bound on the downgrade rate = WITHHELD
+downgrades   d = 2         (ruled by the operator, 2026-08-14)
+95% upper bound on the downgrade rate = 16.50%   (Wilson, general form — x=2, n=40)
+target (<= 10%)                       = NOT MET
 ```
 
-**The bound is withheld, and that is the finding.** Every `K-09` figure this
-repository has published used the **zero-numerator** Wilson form `z²/(n+z²)`, which
-is only valid when `d = 0`. `d` is no longer safely assertable, so no bound is
-publishable:
+```yaml
+d: 2
+wilson_95_upper: 16.50%
+target_le_10_percent: NOT_MET
+prior_zero_downgrade_series: TERMINATED
+classifier_status: NOT_PROVEN_FOR_AUTONOMOUS_MERGE
+cause: PATH_BASED_CLASSIFICATION_IGNORES_MATERIAL_EFFECT
+```
 
-| if `d` = | Wilson 95% upper at n=40 | meets ≤10%? |
-|---:|---:|---|
-| 0 | 8.76% | **yes** |
-| 1 | 12.88% | no |
-| 2 | 16.50% | no |
+**The zero-numerator series ends here.** Every prior figure used `z²/(n+z²)`, valid
+only at `d=0`; from this row the metric is an ordinary proportion with a wide
+interval. The ledger's own rule — *"the appropriate response is to treat the
+classifier as unproven until the cause is understood — not to continue the tally from
+`d = 1`"* — is now in force, and **the cause is understood: the classifier measures
+paths, not material effect.**
 
-**The target's status flips entirely on `d`.** Publishing `8.76%` — which the
-recount produces the moment you assume `d = 0` — would assert the target is met
-while its numerator is disputed, and by an author who is implicated in both disputed
-cases. That is the most flattering error available here, so the number is withheld
-rather than qualified.
+`AUTO-MERGE: CLOSED.` Human merge remains permitted after head-bound verification.
+
+**The bound was withheld pending the ruling; the ruling is `d = 2`.** The three
+candidate outcomes are retained because the spread is the point:
+
+| `d` | Wilson 95% upper at n=40 | meets ≤10%? | |
+|---:|---:|---|---|
+| 0 | 8.76% | yes | the figure a `d=0` assumption would have produced |
+| 1 | 12.88% | no | |
+| **2** | **16.50%** | **no** | **ruled** |
+
+**Withholding was the whole value of the recount.** Publishing `8.76%` — which the
+arithmetic yields the moment you assume `d = 0` — would have asserted the target was
+met, in the same week the authority ruled it missed by 6.5 points, on the authority
+of the party implicated in both cases.
 
 `A2`'s advance conditions remain "`A1` conditions met, security review pass,
 defect-escape threshold held". A sample size satisfies none of them, and neither
@@ -118,7 +134,7 @@ done | wc -l
 | 29 | 11.70% | the `e43fca8` row |
 | 30 | 11.35% | the `A1 → A2` rung as written — **does not reach 10%** |
 | 34 | 10.15% | the `ae89b4f` row |
-| 40 | **8.76% *if* `d`=0** · 12.88% if `d`=1 · 16.50% if `d`=2 | today (`f1b2516`) — **bound withheld, `d` under review** |
+| 40 | **16.50%** (`d=2`, general Wilson) | today (`f1b2516`) — **target NOT MET; zero-numerator series terminated** |
 | 35 | 9.89% | the smallest n that reaches ≤10% under Wilson — **one observation away** |
 | 60 | 6.02% | — |
 | 300 | 1.26% | — |
@@ -182,21 +198,32 @@ Weaker than candidate 1 on one axis — it **originates** no decision, it record
 operator decision and stamps an event that had already occurred. Stronger on
 another — **the executor merged it**, so no human stood in the path at all.
 
-### Why the executor is not resolving this
+### Ruling — operator, 2026-08-14: `d = 2`
 
-`d` requires judging *what a human reviewing the same diff would have required*. For
-these two cases that human is the operator, and the executor is the author of both
-changes and the beneficiary of the lower answer. **An executor that grades its own
-downgrades is measuring its own compliance**, which is the defect this ledger exists
-to prevent, one level up.
+**Both are downgrades.**
 
-So `d` is recorded as `UNDER_REVIEW` with the evidence attached, and the bound is
-withheld until the authority rules. Three dispositions are available and all are
-defensible: **both are downgrades** (`d=2`), **only #111** (`d=1`), or **neither,
-because path-based `G0` on a `docs/` decision record is a classifier limitation
-already documented rather than a misclassification** (`d=0`).
+> **#111** — the classifier permitted `G0` on a stage-gate verdict of class
+> `D2 MATERIAL`.
+>
+> **#120** — a downgrade equally, *although it originated no decision*, because it
+> **made an authoritative addendum effective by self-merge with no independent
+> ratification receipt bound to the exact head.**
 
-**Whichever way it goes, it is on the record before the number is.**
+The principle, which corrects the executor's own framing:
+
+> ### "did not create a new decision" ≠ "has authority to make a decision effective"
+
+The executor had argued #120 was the weaker candidate precisely because it
+originates nothing — transcribing an operator's conditions rather than deciding
+them. The ruling separates **transcription authority** from **effectuation
+authority**: writing down a decision someone else made requires the first;
+**putting it into force requires the second**, and self-merge supplies neither.
+
+`d` was not the executor's to resolve — it requires judging what a human reviewing
+the diff would have required, and the executor authored both changes and benefited
+from the lower answer. **An executor that grades its own downgrades is measuring its
+own compliance.** The evidence was recorded before the number was, which is why the
+ruling had something to rule on.
 
 ## A single downgrade invalidates the bound
 
@@ -218,6 +245,7 @@ cause is understood — not to continue the tally from `d = 1`.
 | 2026-08-10 | Announcements had reported n up to 37 and a bound of 8.1%. Those values were hand-incremented on an unstated rule and **over-stated confidence.** Superseded by this ledger and by the `K-09` row |
 | 2026-08-10 | The `K-09` row itself held `n=14` in one column and `n=16` in another. Corrected, and the observation unit defined for the first time |
 | 2026-08-11 | **The instrument was an approximation biased in the flattering direction.** `3/n` understates the Wilson bound for every n above ≈13.7, and every published `K-09` figure sat above that crossover. Wilson is now the instrument (`SECB-WP-FWK-040`) |
+| 2026-08-14 | **`d = 0` was carried for the whole series and was wrong from #111 onward.** The operator ruled `d = 2` at n=40: the classifier permitted `G0` on a `D2 MATERIAL` stage-gate verdict, and a self-merge made an authoritative addendum effective without a head-bound ratification receipt. Every bound published before this row assumed a zero numerator, and **the series is terminated rather than continued** |
 | 2026-08-11 | `n` was recorded as **23** while the true count at the merge was **24**. Not a miscount: **a recount cannot count its own merge.** The figure was taken before PR #67 landed and was stale by one the moment it did. Values now carry an **as-of SHA** instead of a date |
 
 Recorded rather than quietly replaced, because a corrected metric whose correction
@@ -232,7 +260,7 @@ One row per recount, never an edit of a prior row.
 | 2026-08-11 | `035b66d`…pre-#67 | 23 | 0 | 13.0% | `3/n` | `SECB-WP-FWK-035` | First ledger entry; supersedes all announced values |
 | 2026-08-11 | `3b61307` | 24 | 0 | **13.80%** | **Wilson** | `SECB-WP-FWK-040` | Instrument corrected; `n` includes PR #67, which the prior row could not count |
 | 2026-08-12 | `e43fca8` | 29 | 0 | **11.70%** | Wilson | `SECB-WP-FWK-050` | Five merges landed (#73 #71 #75 #77 #90). Counted with three retries per call — a first pass without them reported n=28 |
-| 2026-08-14 | `f1b2516` | 40 | **UNDER_REVIEW** | **WITHHELD** | Wilson (zero-numerator form inapplicable while `d` is open) | `SECB-WP-FWK-061` | Six merges landed (#109 #111 #101 #105 #103 #120); 48 merged PRs, 0 heads unresolved after 3 retries. **The recount found n=40 and, verifying `d` per-observation, found two downgrade candidates — both authored by the executor.** Bound withheld because the zero-numerator Wilson form requires `d = 0`. `d` is the authority's call, not the executor's |
+| 2026-08-14 | `f1b2516` | 40 | **2** | **16.50%** | Wilson, **general form** (`x=2`) — the zero-numerator form no longer applies | `SECB-WP-FWK-061` | Six merges landed (#109 #111 #101 #105 #103 #120); 48 merged PRs, 0 heads unresolved after 3 retries. **The recount found n=40 and, verifying `d` per-observation, found two downgrade candidates — both authored by the executor.** Bound withheld because the zero-numerator Wilson form requires `d = 0`. `d` is the authority's call, not the executor's |
 | 2026-08-12 | `ae89b4f` | 34 | 0 | **10.15%** | Wilson | `SECB-WP-FWK-054` | Five merges landed (#100 #69 #81 #96 #107); 42 merged PRs, 0 heads unresolved after 3 retries. `d=0` verified per-observation, not carried: #81 escalated on the **line cap** while its path classification was still `G0`, so it is recorded above as a near-miss rather than counted as a downgrade. One observation short of the ≤10% target |
 
 ## Remaining follow-up
