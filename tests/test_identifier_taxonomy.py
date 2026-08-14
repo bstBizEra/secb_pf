@@ -230,7 +230,24 @@ def test_every_declared_prefix_inside_the_boundary_is_registered():
 def test_the_recorded_enumeration_count_matches_what_the_observer_sees():
     # A recorded count that drifts from reality is the defect this whole work
     # package is about: an assertion nothing re-derives.
-    recorded = load()["observation_boundary"]["enumeration_result_at_1_2_0"]
+    #
+    # The block checked is the one for the CURRENT taxonomy_version, not a pinned
+    # `..._at_1_2_0` (ported here from SECB-WP-FWK-057 because this branch adds a
+    # prefix and the pinned form would compare the observer against a *historical*
+    # statement about 1.2.0). Pinning cost two things: every recount needed a test
+    # edit, and until someone made it the guard kept checking a superseded block
+    # while the live enumeration went unverified -- a guard aimed at history. Older
+    # blocks stay frozen, as extend-only requires; only the current one is asserted.
+    registry = load()
+    version = registry["taxonomy_version"]
+    key = f"enumeration_result_at_{version.replace('.', '_')}"
+    boundary = registry["observation_boundary"]
+    assert key in boundary, (
+        f"taxonomy_version is {version} but observation_boundary has no {key!r}. "
+        "Every version bump records its own enumeration; present keys: "
+        f"{sorted(k for k in boundary if k.startswith('enumeration_result_at_'))}"
+    )
+    recorded = boundary[key]
     observed = observe_declared_prefixes()
     assert recorded["declaration_shaped_prefixes_found"] == len(observed), (
         f"registry records {recorded['declaration_shaped_prefixes_found']} "

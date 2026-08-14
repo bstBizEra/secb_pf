@@ -1,7 +1,7 @@
 {
   "$comment": "Machine-readable status for the scenarios in NEGATIVE_TEST_CATALOGUE.md (SECB-WP-FWK-042, corrected under the operator's review of 2026-08-11 §P1). This file exists to fix a defect in the first version: two tests asserted a HOLE as current behaviour, so closing the hole would have turned CI red. Tests now compare observed behaviour against the status DECLARED here, so a fix requires flipping the status and CI stays meaningful either way. Statuses are observations; remediation obligations are recorded, not enforced -- enforcement is external, per FR-08.",
   "schema_version": "1.0.0",
-  "as_of_commit": "3b61307",
+  "as_of_commit": "pending — draft PR, SECB-WP-FWK-063",
   "recorded_by": "SECB-WP-FWK-042",
   "status_vocabulary": {
     "COVERED": "a control blocks the scenario, and a named test proves it",
@@ -41,7 +41,17 @@
         "what": "BACP covered was published as 2 and is 1. SECB-WP-FWK-042 counted BACP-17's TWO TESTS as two scenarios, so the published figures were 40.0% of applicable and 11.1% of target where the truth is 25.0% and 5.6% -- wrong in the flattering direction. Found by test_the_catalogue_agrees_with_the_machine_readable_status, written in this work package for a different drift and catching this one on its first run.",
         "also": "dormant was 13 and is 14: BACP-18 was omitted from the count."
       }
-    ]
+    ],
+    "AMS": {
+      "target": 2,
+      "covered": 0,
+      "gap": 2,
+      "dormant": 0,
+      "applicable": 2,
+      "covered_over_applicable_pct": 0.0,
+      "covered_over_target_pct": 0.0,
+      "note": "Both scenarios are GAP_REPRODUCED and both were demonstrated by a real merge rather than a fixture written in advance -- #111 and #120. Coverage is 0 of 2 and saying so is the point: the standard that names these defects was written after they shipped, and the classifier that would catch them is not built."
+    }
   },
   "scenarios": [
     {
@@ -215,6 +225,27 @@
       "status": "GAP_UNCHARACTERIZED",
       "observed": "Each half is judged alone because the family is computed over OPEN pull requests only. Closing it needs a lookback over merged work, and a window wide enough to matter would fold most of this repository into one family -- the RAAF profile suggests 30 days, which would make the cap unreachable. Recorded rather than claimed, per SECB-WP-FWK-046",
       "successor_of": "FPSA-02"
+    },
+    {
+      "id": "AMS-01",
+      "title": "A decision-bearing artifact under an auto_path receives G0 because of its path",
+      "status": "GAP_REPRODUCED",
+      "observed": "SECB-WP-FWK-063: the classifier grades by path, so a stage-gate verdict living under docs/ returns AUTO_APPROVED - G0. Demonstrated live on PR #111, whose diff was a D2 MATERIAL verdict and whose rendered verdict was G0 auto-merge. Ruled a downgrade by the operator 2026-08-14; K-09 d=2.",
+      "characterization_fixture": "tests/test_auto_merge_standard.py::test_gap_decision_record_under_docs_still_grades_g0",
+      "not_a_conformance_requirement": "The fixture asserts the CURRENT behaviour against a declared status. When WP-02's semantic classifier lands, effective_class = max(...) raises this to NS2 and the declared status flips to CONTROL_FIXED. The fixture must not redden CI on the fix.",
+      "named_fix": "WP-02 semantic classifier (issues #114, #118) — effect outranks file path",
+      "source_proposal": "operator Auto-Merge Standard ruling, 2026-08-14"
+    },
+    {
+      "id": "AMS-02",
+      "title": "An authoritative record is made effective by self-merge with no head-bound ratification receipt",
+      "status": "GAP_REPRODUCED",
+      "observed": "SECB-WP-FWK-063: nothing in the merge path requires a ratification receipt bound to the exact head, so an executor can make an authoritative record operative by self-merging it. Demonstrated live on PR #120, which stamped stage 2 EFFECTIVE and recorded C-5/C-6/C-7. Ruled a downgrade on the principle that transcription authority is not effectuation authority.",
+      "characterization_fixture": "tests/test_auto_merge_standard.py::test_gap_no_receipt_is_required_to_effectuate",
+      "not_a_conformance_requirement": "Asserts that the repository currently carries no ratification-receipt artifact and no gate demanding one. Flips to CONTROL_FIXED when WP-04's EBTA evaluator enforces the eligibility conjunction.",
+      "named_fix": "WP-04 EBTA evaluator (eligibility conjunction) + WP-05 identity separation for the receipt's independence field",
+      "blocked_by": "C-7 - the receipt schema requires actor.github_user_id independent of the executor and decision: APPROVE, and GitHub refuses an approving review from a PR's own author. Unobtainable under one account.",
+      "source_proposal": "operator Auto-Merge Standard ruling, 2026-08-14"
     }
   ],
   "artifact_classification": {
