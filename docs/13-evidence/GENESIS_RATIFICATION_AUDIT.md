@@ -25,7 +25,12 @@ Every row is measured with the command shown. Two gates are recorded
 | `G-09` | Ephemeral CI signing key classified `TEST_ONLY` | **N/A** | No signing exists anywhere in SecB. The envelope is explicitly `UNSIGNED` |
 | `G-10` | Authorized human ratification recorded | **PASS, with a caveat** | `merged_by` = `bstBizEra`, timestamp recorded, and the operator's instruction is quoted in the WP. The caveat: `bstBizEra` is the **shared account both the operator and the agent use**, so the actor field does not by itself distinguish which party merged. The instruction quote is what carries the attribution |
 
-**Six pass (two weakly), two N/A, two unverifiable, one false as written.**
+> **Corrected 2026-08-13 (`SECB-WP-FWK-060`).** The sentence above read *"Six pass
+> (two weakly), two N/A, two unverifiable, one false as written."* That is **eleven
+> results from ten gates**: `G-02` was counted twice — graded `FALSE AS WRITTEN` in
+> the table *and* silently included in the six passes as its squash-aware
+> replacement. **A defect finding and the result under its replacement rule are not
+> two gates.** Two ledgers below, rows never merged, each summing to ten.
 
 ## `G-02` is incompatible with squash-merge, and here is the fix
 
@@ -101,3 +106,156 @@ Adopt the squash-aware `G-02` and the `genesis_ratification` record shape as the
 form for any future ratification — SecB's own, and any project instantiated from
 it. Record `G-07`/`G-08` as unverifiable rather than omitting them, so a reader
 can tell a control that is absent from one that is merely unmentioned.
+
+
+---
+
+# Corrections — `SECB-WP-FWK-060`
+
+## Two ledgers, never merged
+
+| Ledger | Result | Applicable | Satisfied |
+|---|---|---:|---|
+| `original_gate_results` | 5 PASS · 1 FALSE · 2 UNVERIFIABLE · 2 N/A = **10** | 8 | **5 = 62.5%** |
+| `effective_predicate_results` | 6 PASS · 2 UNVERIFIABLE · 2 N/A = **10** | 8 | **6 = 75%** |
+
+**62.5% is the audited state; 75% is the state after remediation.** Reporting only
+the second describes a repair as though it were a finding.
+
+```yaml
+g02_false_negative:
+  false_negative_count: 1
+  eligible_squash_cases: 1
+  observed_rate: 1/1
+  sample_size: 1
+  generalization_prohibited: true
+```
+
+`100%` without its denominator converts one field observation into a claim about
+squash merges in general. One eligible case, one failure — enough to replace the
+rule, **not** enough to state a rate.
+
+## `G-02S` is renamed and confined
+
+`G-02S` → **`G-02S-HISTORICAL_SQUASH_EQUIVALENCE`**. It grades the Genesis and
+**governs nothing forward.** Letting a predicate derived inside an audit become the
+rule for every future merge would be policy created by measurement rather than
+ratified. The forward control is **`TR-01`** (issue #118), which is
+merge-method-parametric and carries two conjuncts this one lacks: *which subject CI
+tested*, and *whether the tested base is the base that shipped*.
+
+## The Genesis transition, proven by recomputation
+
+```yaml
+observed_result_parent_sha:        de31bb35b7b5a26cde6448197cb54fd67823c39c
+reconstructed_execution_base_sha:  de31bb35b7b5a26cde6448197cb54fd67823c39c
+source_head_sha:                   668ac492429e61763471eef94406177c6263eaed
+expected_transition_tree:          bab3c70e5e5a398c7a4e697e24bf118235e4c1d5
+actual_result_tree:                bab3c70e5e5a398c7a4e697e24bf118235e4c1d5
+transition_recomputation:          PASS
+expected_tree_algorithm:
+  id: git_merge_squash_write_tree_v1
+  git_version: 2.34.1
+  strategy: ort
+  hooks: disabled
+  global_config: disabled
+```
+
+Recomputed from the execution base and the source head with real merge semantics —
+stronger than comparing two *recorded* trees, because it would have caught a drift
+silently absorbed into the squash.
+
+**`de31bb3` is NOT an "approved base".** It is the parent of the result commit.
+Nothing here shows CI tested against it, and nothing shows an authority approved it.
+`approved_base_sha` is a field about authority; `result_parent_sha` is about
+execution, and using the first name for the second manufactures an approval.
+
+```yaml
+tested_base_sha: UNKNOWN
+tested_base_equals_execution_base: NOT_RECONSTRUCTABLE_RETROACTIVELY
+B: UNKNOWN     # not FAIL — FAIL would assert the bases differed
+```
+
+`TR-01 = NOT_APPLICABLE_RETROACTIVELY`. It requires evidence captured **at merge
+time**, and no recomputation substitutes for a record never written. `B` is exactly
+the conjunct that cannot be recovered afterwards.
+
+## `G-07` / `G-08` — grade unchanged, reason corrected
+
+The original text called these *"permanently unverifiable on this plan."* Both halves
+were wrong. **Not permanent:** GitHub's own response names two remedies — upgrade, or
+**make the repository public**, which is the selected `GITHUB_PUBLIC_FREE_ORG`
+profile. **And the root cause is stated, not proven:** a bare `403` would establish
+nothing, since that endpoint documents `200`/`404`/`500`; what raises it above
+inference is the response **body**, which is GitHub's own text.
+
+```text
+HTTP_403_OBSERVED → PROVIDER_STATED_CAUSE → DOCUMENTED_REMEDY_CONFIRMED
+→ CONFIGURED → NEGATIVE_TESTED → OPERATIONALLY_CONFIRMED
+```
+
+```yaml
+root_cause: STATED_BY_API_RESPONSE_BODY
+documented_remedy: CONFIRMED
+operational_verification: PENDING
+grade: UNVERIFIABLE          # unchanged
+```
+
+**A change from `403` to `200` does not close these gates.** Configuration is not
+enforcement; only negative tests proving a bad push or merge is *rejected* can.
+
+## Ratification record — the full shape
+
+The audit warned a squash proof expires once the source head is garbage-collected,
+then recorded three fields. The complete shape, so no future ratification can be
+recorded incompletely:
+
+```yaml
+ratification_record:
+  ratification_id:
+  pr_number:
+  merge_method: SQUASH
+  approved_base_sha:            # authority — may be UNKNOWN, never inferred
+  source_head_sha:
+  source_head_tree_sha:         # mandatory: the proof expires without it
+  tested_subject_kind:          # SOURCE_HEAD | SYNTHETIC_MERGE | MERGE_GROUP
+  tested_subject_sha:
+  tested_base_sha:
+  required_check_run_ids: []
+  result_sha:
+  result_tree_sha:
+  result_parent_sha:
+  decision_authority:           # four identity dimensions, per G-10's caveat
+  execution_actor:
+  credential_subject:
+  initiating_principal:
+  merged_at:
+  policy_version:
+  evidence_digest:
+```
+
+`source_head_tree_sha` and `result_tree_sha` are **separate fields** — equal for the
+Genesis, not equal by definition.
+
+## Evidence preservation — the proof is already expiring
+
+```
+git merge-base --is-ancestor 668ac49 origin/main  →  NOT reachable
+```
+
+**`668ac49` is unreachable from `main`.** It survives only in one working clone, so
+**a fresh clone cannot verify SecB's Genesis today.** Preserved locally:
+
+```yaml
+evidence_state: LOCAL_QUARANTINED     # step 2 of 7, see EP-01 (#119)
+local_tag: evidence/genesis-source-668ac49
+bundle_bytes: 167705
+bundle_sha256: 112e73521834a4726b5b55ef2dd7dbc1158660522be45e39e87f12c566b4d262
+bundle_verify: "The bundle records a complete history."
+remote_reachability: PENDING
+external_non_equivocation: PENDING
+```
+
+Not committed to this repository: without an external append-only store a bundle
+held here is tamper-**evident** only, since the same principal can rewrite both the
+bundle and the digest describing it. **The repository is not the archive.**

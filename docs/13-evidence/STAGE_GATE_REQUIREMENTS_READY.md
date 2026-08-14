@@ -6,8 +6,10 @@ Template: `docs/16-templates/STAGE_GATE_RECORD_TEMPLATE.md` · Model:
 [`TWO_PLANE_DECISION_MODEL.md`](../00-governance/TWO_PLANE_DECISION_MODEL.md)
 Authorized as composite by ballot 002 (`APPROVE_OPTION_A`, 2026-08-10)
 
-> **PROPOSED 2026-08-12 — `APPROVED_WITH_CONDITIONS`. Effective on merge, not
-> now.** An earlier revision of this banner said `ISSUED`, which contradicted its
+> **EFFECTIVE 2026-08-12T17:33:16Z — `APPROVED_WITH_CONDITIONS`**, ratified by the
+> merge of PR #111 as `c94e4da`. It was `PROPOSED` from 16:36:07Z until then, and
+> **that hour is the whole point**: the record carried a state it did not yet have
+> the authority to claim, and said so. An earlier revision of this banner said `ISSUED`, which contradicted its
 > own pull request — that PR said *"nothing is issued until you merge"* while the
 > record declared itself issued. Both cannot be true. The lifecycle is
 > `PROPOSED → RATIFIED → EFFECTIVE`, ratification **is** the merge, and a record
@@ -42,8 +44,8 @@ Authorized as composite by ballot 002 (`APPROVE_OPTION_A`, 2026-08-10)
 | Eligible approvers | Operator. No Architecture Review Board exists |
 | Votes / signatures | **Operator, in session, 2026-08-12** — instruction: *"Proceed the stage 2 verdict"*, given after the recommended verdict and its two-plane derivation were reported. Single signature; the Product Owner and Architecture Lead roles are collapsed onto the operator under `SINGLE_IDENTITY_SOD_ACCEPTED_RISK.md`, cited per that record's condition 1 |
 | `verdict_generated_at` | **2026-08-12T16:36:07Z** — when the verdict was stated and this record compiled. **Not** the time it takes effect |
-| `ratified_at` · `effective_at` | **The merge of PR #111.** Stamped post-merge with the actual event time; until then both are null |
-| Effective status | **`RATIFICATION_PENDING`** — verdict `APPROVED_WITH_CONDITIONS`, **proposed and not yet effective** |
+| `ratified_at` · `effective_at` | **2026-08-12T17:33:16Z** — the merge of PR #111 as `c94e4da`, by `bstBizEra`. Stamped post-merge as this row instructed (`SECB-WP-FWK-060`) |
+| Effective status | **`EFFECTIVE`** — verdict `APPROVED_WITH_CONDITIONS`, ratified by merge. Held `RATIFICATION_PENDING` from 2026-08-12T16:36:07Z until the merge |
 | Expiry / revalidation | On any change to the PRD baseline, a `P1` requirement, or an accepted conflict disposition |
 
 ## Per-objective evaluation
@@ -138,7 +140,27 @@ ballot_quorum_met_or_not_required                        -> not required (NOT_AC
 every_required_objective_passed                          -> yes, 7/7
 no_open_condition.blocking_scope covers Stage 3          -> yes: C-3→stage 6, C-4→stage 5
 no_required_condition.is_overdue                         -> yes: due stages 6 and 5, neither entered
-=> Stage 3 = OPEN   on this record becoming EFFECTIVE (= the merge of PR #111)
+=> Stage 3 = OPEN   as of 2026-08-12T17:33:16Z (this record became EFFECTIVE at c94e4da)
+```
+
+**Post-merge stamp (`SECB-WP-FWK-060`).** This record sat on `main` reading
+`RATIFICATION_PENDING` for a day *after* its own ratifying event had occurred,
+because the row said "stamped post-merge" and nobody stamped it. **A record that
+cannot say it took effect is the mirror of one that claims it did too early** — the
+same defect, sign reversed. Recorded rather than quietly corrected, because the
+gap between an event and its record is the measurement `TR-01` exists to close.
+
+```yaml
+ratification_receipt:
+  source_pull_request: 111
+  merge_method: SQUASH
+  merge_commit_sha: c94e4da72ad04ec4d928f8268d96af20375cedad
+  resulting_tree_sha: 0df0c5e6052a544ddeee561b8020c417f4d44115
+  merged_at: "2026-08-12T17:33:16Z"
+  execution_actor: bstBizEra
+  decision_authority: Operator (in session, 2026-08-12)
+  attribution_limit: HUMAN_VS_AGENT_UNRESOLVABLE   # shared account; see G-10
+  stamped_by: SECB-WP-FWK-060
 ```
 
 **Conjunct 1 is satisfied by a verdict that is `PROPOSED`, so the consequence is
