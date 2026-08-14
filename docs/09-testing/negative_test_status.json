@@ -50,7 +50,7 @@
       "applicable": 2,
       "covered_over_applicable_pct": 0.0,
       "covered_over_target_pct": 0.0,
-      "note": "Both scenarios are GAP_REPRODUCED and both were demonstrated by a real merge rather than a fixture written in advance -- #111 and #120. Coverage is 0 of 2 and saying so is the point: the standard that names these defects was written after they shipped, and the classifier that would catch them is not built."
+      "note": "Both scenarios are GAP_REPRODUCED and both were demonstrated by a real merge rather than a fixture written in advance -- #111 and #120. Coverage is 0 of 2 and saying so is the point: the standard naming these defects was written after they shipped. Each scenario carries flip_requires, so neither can be closed by adding a file: AMS-01 needs the lattice join computed, AMS-02 needs six enforcement behaviours proven."
     }
   },
   "scenarios": [
@@ -233,19 +233,32 @@
       "observed": "SECB-WP-FWK-063: the classifier grades by path, so a stage-gate verdict living under docs/ returns AUTO_APPROVED - G0. Demonstrated live on PR #111, whose diff was a D2 MATERIAL verdict and whose rendered verdict was G0 auto-merge. Ruled a downgrade by the operator 2026-08-14; K-09 d=2.",
       "characterization_fixture": "tests/test_auto_merge_standard.py::test_gap_decision_record_under_docs_still_grades_g0",
       "not_a_conformance_requirement": "The fixture asserts the CURRENT behaviour against a declared status. When WP-02's semantic classifier lands, effective_class = max(...) raises this to NS2 and the declared status flips to CONTROL_FIXED. The fixture must not redden CI on the fix.",
-      "named_fix": "WP-02 semantic classifier (issues #114, #118) — effect outranks file path",
-      "source_proposal": "operator Auto-Merge Standard ruling, 2026-08-14"
+      "named_fix": "WP-02 semantic classifier -- required_authority as a LATTICE JOIN of authority requirements, not a numeric max over incommensurable classification domains",
+      "source_proposal": "operator Auto-Merge Standard ruling, 2026-08-14",
+      "flip_requires": [
+        "required_authority = join(authority_for(path), authority_for(semantic_effect), ...) is computed",
+        "a decision-bearing artifact under an auto_path no longer satisfies G0"
+      ]
     },
     {
       "id": "AMS-02",
       "title": "An authoritative record is made effective by self-merge with no head-bound ratification receipt",
       "status": "GAP_REPRODUCED",
       "observed": "SECB-WP-FWK-063: nothing in the merge path requires a ratification receipt bound to the exact head, so an executor can make an authoritative record operative by self-merging it. Demonstrated live on PR #120, which stamped stage 2 EFFECTIVE and recorded C-5/C-6/C-7. Ruled a downgrade on the principle that transcription authority is not effectuation authority.",
-      "characterization_fixture": "tests/test_auto_merge_standard.py::test_gap_no_receipt_is_required_to_effectuate",
-      "not_a_conformance_requirement": "Asserts that the repository currently carries no ratification-receipt artifact and no gate demanding one. Flips to CONTROL_FIXED when WP-04's EBTA evaluator enforces the eligibility conjunction.",
+      "characterization_fixture": "tests/test_auto_merge_standard.py::test_gap_no_enforcement_consumes_a_receipt",
+      "not_a_conformance_requirement": "Asserts that NOTHING in the tree consumes a ratification receipt -- no script, no workflow, no gate. Corrected under review: the first version asserted that no receipt ARTIFACT existed, which would have let a filename flip the status. Receipt schema exists != receipt is required; receipt is required != enforcement cannot be bypassed.",
       "named_fix": "WP-04 EBTA evaluator (eligibility conjunction) + WP-05 identity separation for the receipt's independence field",
-      "blocked_by": "C-7 - the receipt schema requires actor.github_user_id independent of the executor and decision: APPROVE, and GitHub refuses an approving review from a PR's own author. Unobtainable under one account.",
-      "source_proposal": "operator Auto-Merge Standard ruling, 2026-08-14"
+      "blocked_by": "C-7 -- the receipt requires actor.github_user_id independent of the executor and decision: APPROVE, and GitHub refuses an approving review from a PR's own author. Unobtainable under one account, so PR #113 is STRUCTURALLY_BLOCKED rather than awaiting ratification.",
+      "source_proposal": "operator Auto-Merge Standard ruling, 2026-08-14",
+      "flip_requires": [
+        "missing receipt -> merge eligibility DENY",
+        "wrong actor -> DENY",
+        "COMMENT instead of APPROVE -> DENY",
+        "receipt/head mismatch -> DENY",
+        "new push -> previous receipt STALE",
+        "valid independent receipt -> authority conjunct PASS"
+      ],
+      "enforcement_proof": "tests/test_ratification_enforcement.py (does not exist yet -- WP-04)"
     }
   ],
   "artifact_classification": {

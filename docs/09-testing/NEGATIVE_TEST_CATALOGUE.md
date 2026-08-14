@@ -115,11 +115,26 @@ the demonstration rather than a synthetic case.
 | `AMS-01` | A decision-bearing artifact under an `auto_path` receives `G0` because of its path | `GAP_REPRODUCED` | **PR #111** — a `D2 MATERIAL` stage-gate verdict rendered `AUTO_APPROVED — G0` | `WP-02` semantic classifier: `effective_class = max(path, materiality, state, authority, condition)` |
 | `AMS-02` | An authoritative record is made effective by self-merge with no head-bound ratification receipt | `GAP_REPRODUCED` | **PR #120** — stamped stage 2 `EFFECTIVE` and recorded `C-5`/`C-6`/`C-7`, self-merged | `WP-04` EBTA eligibility conjunction; the receipt's independence field needs `WP-05` |
 
-**`AMS-02` is blocked on a capability, not on effort.** Its receipt schema requires
+**Neither scenario can be closed by adding a file.** Each carries `flip_requires`:
+
+- **`AMS-01`** needs `required_authority = join(authority_for(path), authority_for(semantic_effect), …)` actually computed — a **lattice join of authority requirements**, not a numeric `max` over incommensurable classification domains, which is what the first draft wrote.
+- **`AMS-02`** needs six enforcement behaviours proven: missing receipt → `DENY` · wrong actor → `DENY` · `COMMENT` instead of `APPROVE` → `DENY` · receipt/head mismatch → `DENY` · new push → previous receipt `STALE` · valid independent receipt → authority conjunct `PASS`.
+
+```text
+Receipt schema exists  ≠  receipt is required
+Receipt is required    ≠  enforcement cannot be bypassed
+```
+
+The first version of `AMS-02`'s fixture asserted that no receipt *artifact* existed,
+so **a filename could have flipped it** — reproducing "presence is not enforcement",
+the very defect class the standard exists to eliminate, inside the test for it. It now
+asserts that nothing in `scripts/` or `.github/` *consumes* a receipt.
+
+**`AMS-02` is blocked on a capability, not on effort.** The receipt requires
 `actor.github_user_id` independent of the executor **and** `decision: APPROVE`, and
 GitHub refuses an approving review from a pull request's own author. Under one shared
-account neither field can be filled — that is `C-7`, recorded so the gap does not read
-as neglect.
+account neither field can be filled — that is `C-7`, which makes **PR #113
+`STRUCTURALLY_BLOCKED` rather than awaiting ratification.**
 
 **Coverage for this group is 0 of 2, and stating it plainly is the point:** the
 standard naming these defects was written *after* they shipped, and the classifier
