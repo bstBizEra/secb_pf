@@ -48,24 +48,171 @@ def scenario(scenario_id: str) -> dict:
     raise AssertionError(f"{scenario_id} is not declared in negative_test_status.json")
 
 
-def standard_metadata() -> dict:
-    """Parse the first fenced block of the standard as `key: value` lines.
+VALID_LIFECYCLE_STATES = {"PROPOSED", "ACTIVE", "SUPERSEDED"}
 
-    Deliberately not a substring search over the document, and deliberately not
-    dependent on a YAML library the gates are not allowed to import. Only the
-    **first** fence is read, so a later example block cannot be mistaken for the
-    document's own status.
+
+def standard_metadata() -> dict:
+    """Parse the standard's canonical metadata block, strictly.
+
+    Not a substring search over the document, and not dependent on a YAML library
+    the gates are not allowed to import. Hardened under review, because a parser
+    that is merely *better* than grep still lets several things through:
+
+    * the fence must be the **first** one and must follow the title immediately, so
+      a later example block cannot be read as the document's status;
+    * **duplicate top-level keys are rejected** — last-wins would let a second
+      `binding:` silently override the first;
+    * `standard_id` and a semantic `version` are required, so an unversioned
+      document cannot claim a lifecycle.
+    """
+    return parse_metadata(STANDARD.read_text(encoding="utf-8"))
+
+
+def parse_metadata(text: str) -> dict:
+    """The parser proper, taking text so its guards can be exercised.
+
+    `standard_metadata()` reads the file; this takes a string. Split under review
+    for one reason: a parser that only ever sees a well-formed document has
+    untested rejection paths, and "the guard exists" is not "the guard fires" —
+    the precise substitution this standard was written to forbid.
+    """
+    lines = text.splitlines()
+
+    assert lines and lines[0].startswith("# "), "the standard must open with a title"
+    body_start = next(
+        (i for i, line in enumerate(lines[1:], start=1) if line.strip()), len(lines)
+    )
+    assert lines[body_start].strip() == "```yaml", (
+        "the metadata fence must immediately follow the title; found "
+        f"{lines[body_start]!r}. A fence further down could be an example block."
+    )
+
+    meta: dict[str, str] = {}
+    seen: set[str] = set()
+    for line in lines[body_start + 1:]:
+        if line.strip() == "```":
+            break
+        if line.startswith((" ", "\t")) or ":" not in line:
+            continue  # nested value or continuation, not a top-level field
+        key, _, value = line.partition(":")
+        key = key.strip()
+        assert key not in seen, (
+            f"duplicate top-level metadata key {key!r}: last-wins parsing would let a "
+            "second declaration silently override the first"
+        )
+        seen.add(key)
+        meta[key] = value.strip()
+
+    assert meta.get("standard_id"), "metadata must carry a standard_id"
+    assert re.fullmatch(r"\d+\.\d+\.\d+", meta.get("version", "")), (
+        f"version must be semantic, got {meta.get('version')!r}"
+    )
+    state = meta.get("lifecycle_state")
+    assert state in VALID_LIFECYCLE_STATES, (
+        f"unknown lifecycle_state {state!r}; valid: {sorted(VALID_LIFECYCLE_STATES)}"
+    )
+    if meta.get("binding") == "true":
+        assert meta.get("ratification_receipt", "null") != "null", (
+            "binding: true requires a ratification receipt"
+        )
+    if state == "PROPOSED":
+        assert meta.get("effective_event", "null") == "null", (
+            "a PROPOSED standard must not carry an effective event"
+        )
+    return meta
+
+
+# --- the parser's guards, proven to fire -------------------------------------
+
+GOOD = """# T
+
+```yaml
+standard_id: SECB-AMS-001
+version: 0.2.0
+lifecycle_state: PROPOSED
+binding: false
+effective_event: null
+ratification_receipt: null
+```
+"""
+
+
+def test_parser_accepts_the_canonical_shape():
+    """The baseline, so the rejections below are not vacuous."""
+    assert parse_metadata(GOOD)["standard_id"] == "SECB-AMS-001"
+
+
+@pytest.mark.parametrize(
+    "mutation,replacement,why",
+    [
+        ("binding: false", "binding: false\nbinding: true", "duplicate key overrides"),
+        ("version: 0.2.0", "version: 0.2", "non-semantic version"),
+        ("lifecycle_state: PROPOSED", "lifecycle_state: ISSUED", "unknown state"),
+        ("standard_id: SECB-AMS-001", "standard_id:", "empty standard_id"),
+        (
+            "binding: false",
+            "binding: true",
+            "binding without a receipt",
+        ),
+        (
+            "effective_event: null",
+            "effective_event: RATIFIED",
+            "PROPOSED with an effective event",
+        ),
+    ],
+)
+def test_parser_rejects_malformed_metadata(mutation, replacement, why):
+    with pytest.raises(AssertionError):
+        parse_metadata(GOOD.replace(mutation, replacement))
+    assert why  # the label is the point of the row
+
+
+def test_parser_rejects_a_fence_that_is_not_the_first_block():
+    """A prose paragraph before the fence means the block may be an example."""
+    displaced = GOOD.replace("# T\n", "# T\n\nSome prose about a past state.\n")
+    with pytest.raises(AssertionError, match="immediately follow the title"):
+        parse_metadata(displaced)
+
+
+def test_lifecycle_cross_field_invariants_hold():
+    """A state and its consequences must agree, in both directions."""
+    meta = standard_metadata()
+    state = meta["lifecycle_state"]
+    binding = meta["binding"]
+    effective = meta["effective_event"]
+    receipt = meta["ratification_receipt"]
+
+    if state == "PROPOSED":
+        assert binding == "false", "PROPOSED implies binding: false"
+        assert effective == "null", "a PROPOSED standard has no effective event"
+        assert receipt == "null", "a PROPOSED standard has no ratification receipt"
+    elif state == "ACTIVE":
+        assert binding == "true", "ACTIVE implies binding: true"
+        assert effective != "null", "ACTIVE requires an effective event"
+        assert receipt != "null", (
+            "ACTIVE requires a ratification receipt — binding: true with no receipt is "
+            "force asserted without authority, which is the defect this file records"
+        )
+    elif state == "SUPERSEDED":
+        assert binding == "false", "SUPERSEDED implies binding: false"
+        assert meta.get("supersedes", "null") != "null", (
+            "SUPERSEDED requires a successor reference, or the chain breaks"
+        )
+
+
+def test_merge_records_the_proposal_and_does_not_activate_it():
+    """`C-AMS-02`: landing and effectuation are separate transitions.
+
+    Merging the pull request that adds this file must not be readable as
+    ratification. The metadata says so as data rather than leaving it to prose.
     """
     text = STANDARD.read_text(encoding="utf-8")
-    match = re.search(r"```yaml\n(.*?)```", text, re.S)
-    assert match, "the standard must open with a fenced metadata block"
-    meta: dict[str, str] = {}
-    for line in match.group(1).splitlines():
-        if line.startswith((" ", "\t")) or ":" not in line:
-            continue  # continuation of a folded value, not a top-level field
-        key, _, value = line.partition(":")
-        meta[key.strip()] = value.strip()
-    return meta
+    assert "records_proposal: true" in text
+    assert "activates_standard: false" in text
+    assert "supplies_ratification: false" in text, (
+        "merge_effect must state all three, because a merge that could be read as "
+        "activation is exactly the ambiguity the review flagged"
+    )
 
 
 def run_classifier(numstat: str, diff_text: str = "") -> subprocess.CompletedProcess:

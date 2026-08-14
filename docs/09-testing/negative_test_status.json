@@ -232,13 +232,15 @@
       "status": "GAP_REPRODUCED",
       "observed": "SECB-WP-FWK-063: the classifier grades by path, so a stage-gate verdict living under docs/ returns AUTO_APPROVED - G0. Demonstrated live on PR #111, whose diff was a D2 MATERIAL verdict and whose rendered verdict was G0 auto-merge. Ruled a downgrade by the operator 2026-08-14; K-09 d=2.",
       "characterization_fixture": "tests/test_auto_merge_standard.py::test_gap_decision_record_under_docs_still_grades_g0",
-      "not_a_conformance_requirement": "The fixture asserts the CURRENT behaviour against a declared status. When WP-02's semantic classifier lands, effective_class = max(...) raises this to NS2 and the declared status flips to CONTROL_FIXED. The fixture must not redden CI on the fix.",
+      "not_a_conformance_requirement": "The fixture asserts current behaviour against a declared status. When WP-02 lands, required_authority is computed as the lattice JOIN of authority requirements. If the semantic-effect dimension requires authority above G0, the decision-bearing artifact must no longer satisfy G0. No particular output class is promised here: the mapping semantic_effect -> authority_requirement is not yet defined or tested, so naming an expected class would assert a mechanism that does not exist.",
       "named_fix": "WP-02 semantic classifier -- required_authority as a LATTICE JOIN of authority requirements, not a numeric max over incommensurable classification domains",
       "source_proposal": "operator Auto-Merge Standard ruling, 2026-08-14",
       "flip_requires": [
-        "required_authority = join(authority_for(path), authority_for(semantic_effect), ...) is computed",
+        "the mapping semantic_effect -> authority_requirement is defined and tested",
+        "required_authority is computed as a lattice join over all five dimensions",
         "a decision-bearing artifact under an auto_path no longer satisfies G0"
-      ]
+      ],
+      "outcome_class_not_asserted": "Corrected under review: an earlier version of this field said the fixture would raise the artifact 'to NS2'. That promised both a vocabulary and an outcome before the mapping exists. The requirement is that G0 no longer suffices -- which class it becomes is WP-02's to define."
     },
     {
       "id": "AMS-02",

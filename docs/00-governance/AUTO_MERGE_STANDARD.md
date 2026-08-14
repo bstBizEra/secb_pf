@@ -8,6 +8,10 @@ binding: false
 effective_event: null
 ratification_receipt: null
 supersedes: null
+merge_effect:
+  records_proposal: true
+  activates_standard: false
+  supplies_ratification: false
 work_package: SECB-WP-FWK-063
 authority: operator ruling of 2026-08-14 (the d=2 disposition and the Auto-Merge
   Standard Update issued with it), revised under the review verdict of the same day
@@ -21,8 +25,12 @@ authority: operator ruling of 2026-08-14 (the d=2 disposition and the Auto-Merge
 
 > **Why this document exists.** The rule it records was issued in session. Until it is
 > in the repository it is an instruction someone has to remember, and the point of the
-> ruling is that memory is not a control. **Its presence here is not force** —
-> `binding: false` until an authority with `G1` over `docs/00-governance/` lands it.
+> ruling is that memory is not a control. **Its presence here is not force.**
+>
+> **Merging the pull request that adds this file records a proposal. It does not
+> activate it.** See §12 — landing and effectuation are two transitions, and the
+> earlier phrasing *"binding: false until an authority lands it"* left them fused,
+> so a merge could have been read either way.
 
 ## The finding this standard answers
 
@@ -290,7 +298,99 @@ measured.** `AMS` demonstrated the whole chain: invisible in
 `negative_test_status.json`, declaration-shaped the moment it entered a catalogue
 table, registered at `1.3.1`.
 
-## 11. What this standard does not do
+### Applied to this document's own metadata
+
+`parser version` is a term in that equation, so a loose parser makes the meaning of
+this document's status loose. The gate reading the block at the top of this file
+rejects six things, each proven by a test that feeds it the malformation:
+
+| Rejected | Because |
+|---|---|
+| A fence that is not the first block after the title | A later block could be an example; the first version of the test searched prose for `PROPOSED`, which a historical passage would satisfy |
+| Duplicate top-level keys | Last-wins parsing lets a second `binding:` override the first silently |
+| A non-semantic `version` | An unversioned document cannot carry a lifecycle |
+| An unknown `lifecycle_state` | `ISSUED` was the original defect's word; a parser that accepts any state re-admits it |
+| `binding: true` with no receipt | Force asserted without authority |
+| `PROPOSED` with an effective event | The state and its consequence contradict |
+
+**Each rejection has a test that asserts it raises.** A validator whose failure paths
+are never exercised is the artifact-presence substitution one layer up.
+
+## 11. Three status dimensions, kept apart
+
+"Human merge permitted" was one phrase carrying four facts that currently disagree:
+
+```yaml
+merge_policy:        { human_merge: PERMITTED }
+evidence_provability:
+  human_actor_attribution: UNPROVABLE
+  reason: shared_GitHub_identity
+platform_capability:
+  independent_APPROVE_review: UNAVAILABLE
+  reason: PR_author_cannot_approve_own_PR
+effectuation:        { standard_activation: STRUCTURALLY_BLOCKED }
+```
+
+```text
+TRANSITION_ALLOWED =
+    policy_permits
+  ∧ required_evidence_obtainable
+  ∧ platform_capability_available
+  ∧ receipt_valid
+  ∧ enforcement_consumes_receipt
+```
+
+**`policy_permits = true` alone moves nothing.** A permission whose evidence is
+unobtainable and whose platform capability is absent is not a permission that can be
+exercised, and reporting it as "permitted" invites someone to try.
+
+## 12. Landing is not activation — two transitions, not one
+
+```text
+Proposal PR merged
+    ↓  records the artifact canonically; changes no authority
+PROPOSED artifact canonically recorded
+    ↓  independent ratification receipt issued
+Receipt accepted
+    ↓  a separate activation PR binds receipt + effective event
+ACTIVE
+```
+
+**Merging #123 does the first arrow and nothing else.** After it lands, `main` still
+carries `lifecycle_state: PROPOSED` and `binding: false` — which is the intended
+outcome, not an oversight. Activation is a distinct change:
+
+```yaml
+standard_id: SECB-AMS-001
+version: 1.0.0
+lifecycle_state: ACTIVE
+binding: true
+effective_event:
+  type: RATIFICATION_RECEIPT_ACCEPTED
+  receipt_id: <id>
+  effective_at: <timestamp>
+ratification_receipt:
+  head_sha: <activation-head>
+  independent_actor_id: <id>
+```
+
+**That transition is `STRUCTURALLY_BLOCKED` under `C-7`**: `independent_actor_id`
+cannot be filled from one account. So this standard can be *recorded* now and cannot
+be *activated* until `C-7` is discharged — and the two-phase shape is what makes that
+sentence expressible at all.
+
+### Lifecycle cross-field invariants
+
+```text
+PROPOSED   → binding = false ∧ effective_event = null ∧ ratification_receipt = null
+ACTIVE     → binding = true  ∧ effective_event ≠ null ∧ ratification_receipt ≠ null
+SUPERSEDED → binding = false ∧ successor reference complete
+```
+
+No other `lifecycle_state` is valid. A parser that accepts an unknown state, or a
+`binding: true` with no receipt, is not checking the thing that matters.
+
+## 13. What this standard does not do
 
 - **It does not implement anything.** `required_authority` needs the semantic
   classifier (`WP-02`); the eligibility conjunction needs the EBTA evaluator
