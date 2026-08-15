@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.control-execution-graph/v1",
+  "title": "Control Execution Graph",
+  "description": "SECB-WP-FWK-082, issue #147. Replaces filename-pattern discovery of controls with the paths CI actually invokes. STATIC_EXECUTION_GRAPH <-> RUNTIME_EXECUTION_RECEIPT <-> CONTROL_SURFACE_REGISTRY are three separate views: this schema describes the FIRST, and a static graph cannot observe the second. Each control path carries six independent statuses and none of them implies the next.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "parse_fidelity", "paths", "unresolved_edges"],
+  "properties": {
+    "schema": { "const": "secb.control-execution-graph/v1" },
+
+    "parse_fidelity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "why"],
+      "properties": {
+        "level": {
+          "const": "SUBSET",
+          "description": "Enforcement scripts import the standard library only (NFR-12), so no YAML library is available. The parser recognises a declared subset of workflow syntax; anything outside it becomes an UNRESOLVED_DYNAMIC_EDGE rather than silence."
+        },
+        "recognised": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "jobs, steps, run, uses, if, needs, strategy.matrix, continue-on-error"
+        },
+        "why": { "type": "string", "minLength": 40 }
+      }
+    },
+
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "job", "status"],
+        "properties": {
+          "path": { "type": "string" },
+          "job": { "type": "string" },
+          "step": { "type": "string" },
+          "job_condition": { "type": ["string", "null"] },
+          "step_condition": { "type": ["string", "null"] },
+          "needs": { "type": "array", "items": { "type": "string" } },
+          "continue_on_error": { "type": "boolean" },
+          "status": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["DISCOVERED", "REACHABLE", "EXECUTED", "RESULT_PROPAGATED", "NORMATIVELY_CONSUMED", "ENFORCED"],
+            "properties": {
+              "DISCOVERED": {
+                "const": true,
+                "description": "The path appears in the graph. Statically decidable."
+              },
+              "REACHABLE": {
+                "enum": ["UNCONDITIONAL", "CONDITIONAL", "UNREACHABLE"],
+                "description": "CONDITIONAL when a job or step `if` guards it, or when `needs` can skip it. A conditionally-skipped job can report Success and not block a merge even as a required check, so conditional reachability is NOT execution."
+              },
+              "EXECUTED": {
+                "enum": ["NOT_OBSERVED"],
+                "description": "Requires a run. A static graph cannot observe execution, and this field exists to stop DISCOVERED from being read as EXECUTED."
+              },
+              "RESULT_PROPAGATED": {
+                "enum": [false, "NOT_OBSERVED"],
+                "description": "false is statically PROVEN when continue-on-error is true: the step cannot fail its job, so its result reaches no consumer. Otherwise a run is required."
+              },
+              "NORMATIVELY_CONSUMED": {
+                "enum": ["NOT_OBSERVED"],
+                "description": "Whether a consumer read the result. Belongs to the runtime-receipt view; the vocabulary is secb.pr-input-binding/v1's, not restated here."
+              },
+              "ENFORCED": {
+                "enum": [false, "NOT_OBSERVED"],
+                "description": "Requires observing branch protection or a ruleset. Not observed by a static parser."
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "unresolved_edges": {
+      "type": "array",
+      "description": "Edges the parser could not follow. An unresolved edge is reported, never dropped: a silent omission is indistinguishable from an absent control.",
+      "items": {
+        "type": "object",
+        "required": ["kind", "where", "value"],
+        "properties": {
+          "kind": {
+            "enum": ["UNRESOLVED_DYNAMIC_EDGE", "EXTERNAL_ACTION", "REUSABLE_WORKFLOW", "COMPOSITE_ACTION", "UNRECOGNISED_SYNTAX"]
+          },
+          "where": { "type": "string" },
+          "value": { "type": "string" },
+          "why": { "type": "string" }
+        }
+      }
+    },
+
+    "not_proven": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -166,10 +167,16 @@ def test_every_enforcement_script_is_either_tracked_or_declared_excluded():
     # No path unclassified -- the runbook's rule, applied to the manifest. A new
     # enforcement script must be a deliberate decision (tracked, or excluded
     # with a trigger), never an omission nobody noticed.
-    on_disk = {
-        f"scripts/{p.name}"
-        for p in (REPO_ROOT / "scripts").glob("check_*.py")
-    } | {"scripts/classify_authority_delta.py"}
+    #
+    # Discovery is by EXECUTION PATH, not by filename (SECB-WP-FWK-082, #147). The
+    # previous version globbed `check_*.py`, which was wrong in both directions and
+    # both were live: `scripts/emit_pr_input_binding.py` is invoked by ci.yml on #134
+    # and escaped classification entirely, while `scripts/check_identity_receipt.py`
+    # matches the glob although no workflow invokes it. What a control IS cannot be
+    # decided by what it is called.
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    on_disk = set(re.findall(r"scripts/[a-z0-9_]+\.py", workflow))
+    assert on_disk, "no invoked scripts parsed from ci.yml -- the workflow shape changed"
     accounted = {c["path"] for c in CONTROLS} | {e["path"] for e in EXCLUSIONS}
     unaccounted = on_disk - accounted
     assert not unaccounted, (
