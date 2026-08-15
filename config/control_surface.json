@@ -70,6 +70,19 @@
       "claimed_transferable_by": "docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md",
       "field_observation": "The instantiation edited envelope_id, authority_source, every tier token and the scope paths -- as it should. Its digest is recorded so that a downstream can see the SHAPE has changed upstream, but a mismatch here is never evidence of staleness. This entry exists to keep the manifest from crying wolf: an undifferentiated digest list would flag every instantiated envelope as stale on day one, and a guard that always fires is a guard nobody reads.",
       "staleness_consequence": "None derivable from the digest. Schema-level drift detection for configure-class controls is not built and has no trigger yet."
+    },
+    {
+      "path": "scripts/emit_pr_input_binding.py",
+      "sha256": "4001baa9de1b9160fb1c07921bafdef5bdad87d85a0e0f4d2c016fc5852d1e51",
+      "bytes": 13920,
+      "owning_work_package": "SECB-WP-FWK-068",
+      "last_changed_commit": "SECB-WP-FWK-068",
+      "portability_class": "configure",
+      "control_role": "PRODUCER",
+      "role_note": "PRODUCER, not verifier and not enforcer. It EMITS a binding; it decides nothing and blocks nothing. Recording it as a verifier would credit the pipeline with a check that does not exist -- the record's own evidence_lifecycle puts CONSUMER_VERIFIED and ENFORCEMENT_APPLIED under producer_may_not_certify for the same reason. Classified here because ci.yml invokes it, which SECB-WP-FWK-082 makes the discovery criterion; the previous filename glob never saw it.",
+      "claimed_transferable_by": "not listed in docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md",
+      "field_observation": "Not yet instantiated anywhere. 'configure' because the emitter's logic is reusable while the envelope prefix it reads and the workflow that supplies its environment are project-specific.",
+      "staleness_consequence": "None derivable. Configure-class: a downstream copy is supposed to differ, so a digest mismatch says nothing about staleness."
     }
   ],
   "declared_exclusions": [
