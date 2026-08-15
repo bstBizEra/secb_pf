@@ -1,0 +1,79 @@
+{
+  "$comment": "Public-organization cutover controller state (SECB-WP-FWK-080, issue #143). THIS FILE PERFORMS NO EXTERNAL EFFECT. It does not transfer a repository, change visibility, create a ruleset, enable a merge queue, or attest an artifact. It records where the cutover stands and refuses transitions that are not evidenced. Every capability is tracked separately: one capability becoming available NEVER raises the state of another, because they are configured through different surfaces and fail independently.",
+  "manifest_id": "PCC-SECB-001",
+  "schema_version": 1,
+  "work_package": "SECB-WP-FWK-080",
+  "lifecycle_state": "DISCLOSURE_UNAPPROVED",
+
+  "invariant": "BUSINESS_DECISION_TO_DISCLOSE != CAPABILITY_AVAILABLE != CONTROL_CONFIGURED != CONTROL_VERIFIED != CONTROL_ENFORCED",
+
+  "what_this_is_not": {
+    "not_an_approval": "Recording DISCLOSURE_APPROVED requires a human decision this file cannot make and an executor cannot supply.",
+    "not_a_capability_probe": "live_readback is NOT_OBSERVED throughout. No external call is permitted at this state, so every capability's real status is unmeasured -- declared, not assumed absent.",
+    "not_enforcement": "Nothing consumes this manifest at merge time. Its only consumer is a validator and a test."
+  },
+
+  "irreversibility": {
+    "visibility_change": "Making the repository public exposes Actions run history and job logs. Secrecy is not restorable by reverting visibility: anything disclosed may have been fetched, cached or indexed.",
+    "consequence": "DISCLOSURE_APPROVED is the one transition that cannot be undone by a later transition, which is why it is gated on a human decision and not on capability readiness.",
+    "prerequisite": "Credential cutover (issue #115, WP-05) must complete first. A secret that is still live when logs become public is disclosed, not rotated."
+  },
+
+  "capabilities": {
+    "rulesets": {
+      "purpose": "Branch protection equivalent -- required checks, merge restrictions",
+      "current_state_on_this_plan": "UNAVAILABLE",
+      "measured": "branches/main/protection returns 403 Upgrade to GitHub Pro or make this repository public",
+      "configured_intent": null,
+      "live_readback": { "status": "NOT_OBSERVED", "reason": "no external call permitted at DISCLOSURE_UNAPPROVED" },
+      "verified": false,
+      "enforced": false
+    },
+    "merge_queue": {
+      "purpose": "Serialize merges and test the combined queue head",
+      "current_state_on_this_plan": "UNAVAILABLE",
+      "measured": "requires rulesets, which return 403",
+      "configured_intent": null,
+      "live_readback": { "status": "NOT_OBSERVED", "reason": "no external call permitted at DISCLOSURE_UNAPPROVED" },
+      "verified": false,
+      "enforced": false,
+      "blocking_prerequisite": "ci.yml declares no merge_group trigger, and three of four jobs are gated on github.event_name == 'pull_request', so they would be SKIPPED on a merge-group event. Enabling the queue before that is fixed produces skipped required checks. See issue #118.",
+      "membership_proof": "NOT_PROVEN -- no documented field binds an ordered PR list to the event group-head SHA. Ref-name parsing and commit topology are prohibited as substitutes."
+    },
+    "artifact_attestations": {
+      "purpose": "Cryptographically signed build provenance",
+      "current_state_on_this_plan": "UNAVAILABLE",
+      "measured": "available for public repositories on Free/Pro/Team; this repository is private",
+      "configured_intent": null,
+      "live_readback": { "status": "NOT_OBSERVED", "reason": "no external call permitted at DISCLOSURE_UNAPPROVED" },
+      "verified": false,
+      "enforced": false,
+      "blocking_prerequisite": "Producing an attestation grants nothing until a consumer verifies signature, timestamp and signer identity. Generation is not provenance."
+    },
+    "archival": {
+      "purpose": "Immutable retention of evidence outside the working repository",
+      "current_state_on_this_plan": "NOT_ASSESSED",
+      "measured": null,
+      "configured_intent": null,
+      "live_readback": { "status": "NOT_OBSERVED", "reason": "no external call permitted at DISCLOSURE_UNAPPROVED" },
+      "verified": false,
+      "enforced": false
+    }
+  },
+
+  "evidence_lifecycle": {
+    "canonical_source": "secb.pr-input-binding/v1 -- scripts/emit_pr_input_binding.py",
+    "canonical_source_state": "UNMERGED (issue #127, PR #134)",
+    "restated_here": false,
+    "why_not_restated": "Copying the stage list would create a second definition that drifts from the first. This manifest cites the source and adds nothing to it; the stage vocabulary is that file's to define. The claim-strength axis it plugs into is issue #124, also unmerged.",
+    "producer_may_not_certify": ["CONSUMER_VERIFIED", "ENFORCEMENT_APPLIED"]
+  },
+
+  "independent_obligations": [
+    { "issue": 117, "subject": "L0-GIT-004 -- prohibit non-fast-forward update of a canonical ref", "closed_by_this_manifest": false },
+    { "issue": 118, "subject": "TR-01 Transition Evidence Receipt, and the merge_group activation note", "closed_by_this_manifest": false },
+    { "issue": 119, "subject": "EP-01 Evidence Preservation", "closed_by_this_manifest": false }
+  ],
+
+  "transition_evidence": {}
+}

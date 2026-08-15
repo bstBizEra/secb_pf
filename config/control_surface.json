@@ -120,6 +120,13 @@
       "reason": "Not CI enforcement and not portable. No workflow invokes it -- it is an operator tool that measures whether SecB's own pull-request queue drains, against SecB's own branches. Under the graph-derived discovery of SECB-WP-FWK-082 (#148) it would not be demanded at all; it is classified here only because that discovery change is unmerged and the filename glob still applies on this base.",
       "trigger_to_cover": "Track it if ci.yml ever invokes it. Note that once #148 lands, discovery derives from the execution graph and this entry becomes informational rather than required.",
       "why_declared": "An undeclared exclusion is indistinguishable from an oversight. Recorded rather than renamed: naming the script verify_* would have hidden it from the glob, which is the evasion SECB-WP-FWK-082 exists to remove."
+    },
+    {
+      "path": "scripts/check_cutover_transition.py",
+      "portability_class": "do_not_copy",
+      "reason": "Not a portable control. It validates SecB's own public-organization cutover state against config/public_cutover_state.json, it is not wired into ci.yml, and nothing consumes it -- so a downstream project copying SecB has no cutover state for it to read. Tracking a digest would let a reader compute staleness for a control that cannot be transferred, which is the opposite of what this manifest is for (SECB-WP-FWK-080).",
+      "trigger_to_cover": "Track it if either becomes true: it is wired into ci.yml as a gate, or docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md lists it under 'Reusable as-is'. Note also that config/control_surface.json is currently modified by PR #142, so a digest added here would sit adjacent to that branch's hunk.",
+      "why_declared": "An undeclared exclusion is indistinguishable from an oversight. The guard fired on the first run of this work package, which is the guard working: a new enforcement script must be a deliberate classification, never an omission nobody noticed. The first version of this entry invented the class 'project_specific', which the closed vocabulary already covers as 'do_not_copy' -- a synonym for an existing term is the identifier-collision defect in miniature, and the vocabulary guard caught it. Preserved through the rebase onto main deliberately: under #148's graph-derived discovery this registration is no longer DEMANDED, since no workflow invokes the script -- but dropping it would leave this control absent from the monolith that SECB-WP-FWK-088 populates the shards from, i.e. structurally invisible after the cutover rather than merely unregistered now. Epoch A keeps the record complete."
     }
   ],
   "known_limits": [
