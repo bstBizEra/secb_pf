@@ -47,6 +47,39 @@ def emit(env: dict) -> dict:
     return json.loads(result.stdout)
 
 
+def actions_env(tmp_path, env: dict | None = None, **payload_overrides) -> dict:
+    """A full, self-consistent Actions context — the only mode that yields evidence.
+
+    Writes a real event payload and points `GITHUB_EVENT_PATH` at it, because the
+    emitter re-reads and compares it. Runner variables are provenance, not attestation:
+    a test that only set the variables would be asserting the weaker property.
+    """
+    env = dict(env or BASE_ENV)
+    payload = {
+        "pull_request": {
+            "title": env["PR_TITLE"],
+            "body": env.get("PR_BODY", ""),
+            "head": {"sha": env["HEAD_SHA"]},
+            "base": {"sha": env["BASE_SHA"]},
+        }
+    }
+    for key, value in payload_overrides.items():
+        if key == "drop_pull_request":
+            payload.pop("pull_request")
+        elif key in ("title", "body"):
+            payload["pull_request"][key] = value
+        elif key in ("head", "base"):
+            payload["pull_request"][key] = {"sha": value}
+    path = tmp_path / "event.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    env.update({
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_EVENT_PATH": str(path),
+    })
+    return env
+
+
 # --- emission ----------------------------------------------------------------
 
 
@@ -88,10 +121,24 @@ def test_a_title_edit_changes_the_binding():
 # --- verification -------------------------------------------------------------
 
 
-def test_verify_passes_when_the_live_pull_request_still_matches(tmp_path):
-    recorded = tmp_path / "binding.json"
+def test_verify_refuses_a_local_diagnostic_record(tmp_path):
+    """`--verify` is a normative consumer, so it must reject a diagnostic record.
+
+    Same schema name, same fields, no event binding. If verification accepted it, the
+    two modes would collapse and the classification would be decoration.
+    """
+    recorded = tmp_path / "local.json"
     recorded.write_text(json.dumps(emit(BASE_ENV)), encoding="utf-8")
-    result = run(BASE_ENV, "--verify", str(recorded))
+    result = run(actions_env(tmp_path), "--verify", str(recorded))
+    assert result.returncode == FAIL
+    assert "EVIDENCE_NOT_CONSUMABLE" in result.stderr
+
+
+def test_verify_passes_when_the_live_pull_request_still_matches(tmp_path):
+    env = actions_env(tmp_path)
+    recorded = tmp_path / "binding.json"
+    recorded.write_text(json.dumps(emit(env)), encoding="utf-8")
+    result = run(env, "--verify", str(recorded))
     assert result.returncode == OK, result.stderr
     assert "CHECK_CURRENT PASS" in result.stdout
 
@@ -112,9 +159,11 @@ def test_verify_fails_and_names_the_term_that_changed(tmp_path, key, value, term
     Retargeting a pull request changes the diff under review without touching the head,
     so a binding over the head alone would call that unchanged.
     """
+    env = actions_env(tmp_path)
     recorded = tmp_path / "binding.json"
-    recorded.write_text(json.dumps(emit(BASE_ENV)), encoding="utf-8")
-    result = run({**BASE_ENV, key: value}, "--verify", str(recorded))
+    recorded.write_text(json.dumps(emit(env)), encoding="utf-8")
+    changed = actions_env(tmp_path, env={**BASE_ENV, key: value})
+    result = run(changed, "--verify", str(recorded))
     assert result.returncode == FAIL
     assert "CHECK_CURRENT FAIL" in result.stderr
     assert term in result.stderr, (
@@ -187,22 +236,89 @@ def test_a_non_pull_request_event_is_refused_rather_than_stamped(event):
     assert event in result.stderr
 
 
-def test_the_supported_event_is_accepted_so_the_guard_is_not_vacuous():
-    binding = emit({**BASE_ENV, "GITHUB_EVENT_NAME": "pull_request"})
-    assert binding["observed_event"] == "pull_request"
+# --- two execution modes (#127 provenance contract) ---------------------------
 
 
-def test_an_unset_event_is_recorded_as_unset_not_assumed():
-    """Local runs have no event. That is recorded, never inferred as a pull request."""
+def test_a_full_actions_context_is_event_bound_and_consumable(tmp_path):
+    """The accept path, so every refusal below is non-vacuous."""
+    binding = emit(actions_env(tmp_path))
+    context = binding["execution_context"]
+    assert context["mode"] == "GITHUB_ACTIONS_EVENT_BOUND"
+    assert context["event_payload_consistent"] is True
+    assert context["event_payload_digest"].startswith("sha256:")
+    assert binding["evidence_consumable"] is True
+
+
+def test_a_local_run_is_diagnostic_and_not_consumable():
+    """Usable for diagnosis, refused as evidence — the hole from the previous round.
+
+    Previously an unset event was permitted and merely *declared* as a gap. A declared
+    gap is still a gap: the record carried the same schema name and nothing marked it
+    unusable. It is now classified and flagged instead.
+    """
     binding = emit(BASE_ENV)
-    assert binding["observed_event"] == "UNSET"
-    assert any("UNSET" in item for item in binding["not_proven"]), (
-        "permitting UNSET for local use must be declared, since it is a hole in the guard"
-    )
+    assert binding["execution_context"]["mode"] == "LOCAL_DIAGNOSTIC"
+    assert binding["evidence_consumable"] is False
+    assert binding["execution_context"]["event_payload_digest"] is None
+
+
+@pytest.mark.parametrize("present", ["GITHUB_ACTIONS", "GITHUB_EVENT_PATH"])
+def test_a_partial_actions_context_is_refused_not_downgraded(present):
+    """Refused, not silently treated as local.
+
+    Downgrading would hand a caller a diagnostic record while the run looked event-bound,
+    which is the laundering shape one level up.
+    """
+    result = run({**BASE_ENV, present: "true" if present == "GITHUB_ACTIONS" else "/tmp/x"})
+    assert result.returncode == FAIL
+    assert "INVALID_ACTIONS_CONTEXT" in result.stderr
+
+
+def test_actions_false_with_a_payload_is_refused(tmp_path):
+    env = actions_env(tmp_path)
+    env["GITHUB_ACTIONS"] = "false"
+    result = run(env)
+    assert result.returncode == FAIL
+    assert "GITHUB_ACTIONS is not true" in result.stderr
+
+
+def test_an_unreadable_event_payload_fails_closed(tmp_path):
+    env = actions_env(tmp_path)
+    env["GITHUB_EVENT_PATH"] = str(tmp_path / "absent.json")
+    result = run(env)
+    assert result.returncode == FAIL
+    assert "unreadable or unparseable" in result.stderr
+
+
+def test_a_payload_without_a_pull_request_object_fails_closed(tmp_path):
+    result = run(actions_env(tmp_path, drop_pull_request=True))
+    assert result.returncode == FAIL
+    assert "no pull_request object" in result.stderr
+
+
+@pytest.mark.parametrize("field,value", [
+    ("title", "SECB-WP-FWK-999: a title the event never carried"),
+    ("body", "a body the event never carried"),
+    ("head", "9999999999999999999999999999999999999999"),
+    ("base", "8888888888888888888888888888888888888888"),
+])
+def test_a_payload_inconsistent_with_the_bound_values_fails_closed(tmp_path, field, value):
+    """Runner variables are provenance, not attestation.
+
+    Anyone with shell access can set `GITHUB_ACTIONS=true`. What cannot be faked as
+    cheaply is a payload that agrees with the values being bound, so the payload is
+    re-read and compared field by field.
+    """
+    result = run(actions_env(tmp_path, **{field: value}))
+    assert result.returncode == FAIL
+    assert "INVALID_ACTIONS_CONTEXT" in result.stderr
+    assert field in result.stderr
 
 
 def test_binding_declares_what_it_does_not_prove():
     """Emission enables readback; it does not perform it, and no consumer requires it."""
     binding = emit(BASE_ENV)
+    assert any("LOCAL_DIAGNOSTIC" in item for item in binding["not_proven"])
+    assert any("attestation" in item for item in binding["not_proven"])
     assert binding["not_proven"], "the binding must state the claims it does not support"
     assert any("--verify" in item for item in binding["not_proven"])

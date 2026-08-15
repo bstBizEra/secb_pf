@@ -82,6 +82,20 @@ class UnsupportedSubject(ValueError):
     """The event supplies a subject this schema cannot describe."""
 
 
+class InvalidActionsContext(ValueError):
+    """A run claims an Actions context it cannot substantiate."""
+
+
+LOCAL_DIAGNOSTIC = "LOCAL_DIAGNOSTIC"
+EVENT_BOUND = "GITHUB_ACTIONS_EVENT_BOUND"
+INVALID_CONTEXT = "INVALID_ACTIONS_CONTEXT"
+
+# Any one of these present means the run is claiming to be in Actions. Claiming it
+# obliges the full set: a partial context is refused rather than downgraded, because
+# downgrading would let a caller obtain a diagnostic record while looking event-bound.
+ACTIONS_VARS = ("GITHUB_ACTIONS", "GITHUB_EVENT_NAME", "GITHUB_EVENT_PATH")
+
+
 # This schema describes exactly one subject: a single pull request, with one head, one
 # base, one title and one budget declaration. A merge group is a different subject --
 # an ordered set of pull requests plus a synthesized queue head -- and the fields below
@@ -104,6 +118,70 @@ def normalized_subject(title: str) -> str:
     number is not known to the gate, so only the normalized title is bound.
     """
     return " ".join(title.split())
+
+
+def execution_context(env: dict[str, str], title: str, body: str,
+                      head_sha: str, base_sha: str) -> dict:
+    """Classify the run, and decide whether its output may be consumed as evidence.
+
+    `GITHUB_ACTIONS`, `GITHUB_EVENT_NAME` and `GITHUB_EVENT_PATH` are default runner
+    variables that a workflow's `env:` cannot override. That is **runner provenance, not
+    cryptographic attestation** — anyone with shell access can set them — so the payload
+    is re-read and compared against the values being bound rather than trusted.
+    """
+    claimed = [v for v in ACTIONS_VARS if env.get(v, "").strip()]
+    if not claimed:
+        return {
+            "mode": LOCAL_DIAGNOSTIC,
+            "event_payload_digest": None,
+            "event_payload_consistent": None,
+            "evidence_consumable": False,
+        }
+
+    missing = [v for v in ACTIONS_VARS if not env.get(v, "").strip()]
+    if missing:
+        raise InvalidActionsContext(
+            f"{INVALID_CONTEXT}: {claimed} present but {missing} absent. A partial "
+            "Actions context is refused, not downgraded to a diagnostic record"
+        )
+    if env["GITHUB_ACTIONS"].strip().lower() != "true":
+        raise InvalidActionsContext(f"{INVALID_CONTEXT}: GITHUB_ACTIONS is not true")
+
+    try:
+        raw = Path(env["GITHUB_EVENT_PATH"]).read_bytes()
+        payload = json.loads(raw)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise InvalidActionsContext(
+            f"{INVALID_CONTEXT}: event payload unreadable or unparseable ({exc})"
+        ) from exc
+
+    pull_request = payload.get("pull_request")
+    if not isinstance(pull_request, dict):
+        raise InvalidActionsContext(
+            f"{INVALID_CONTEXT}: payload carries no pull_request object"
+        )
+
+    observed = {
+        "title": pull_request.get("title"),
+        "body": pull_request.get("body") or "",
+        "head": (pull_request.get("head") or {}).get("sha"),
+        "base": (pull_request.get("base") or {}).get("sha"),
+    }
+    bound = {"title": title, "body": body, "head": head_sha, "base": base_sha}
+    mismatched = [k for k in bound if observed[k] != bound[k]]
+    if mismatched:
+        raise InvalidActionsContext(
+            f"{INVALID_CONTEXT}: {mismatched} differ between the event payload and the "
+            "values being bound. The emitter would otherwise stamp inputs the event did "
+            "not supply"
+        )
+
+    return {
+        "mode": EVENT_BOUND,
+        "event_payload_digest": digest(raw.decode("utf-8", "replace")),
+        "event_payload_consistent": True,
+        "evidence_consumable": True,
+    }
 
 
 def build_binding(env: dict[str, str]) -> dict:
@@ -130,6 +208,8 @@ def build_binding(env: dict[str, str]) -> dict:
     work_package_id = find_reference(f"{title}\n{body}", prefix)
 
     budget_match = BUDGET_LINE.search(body)
+    context = execution_context(env, title, body, env["HEAD_SHA"].strip(),
+                                env["BASE_SHA"].strip())
 
     return {
         "schema": "secb.pr-input-binding/v1",
@@ -137,6 +217,8 @@ def build_binding(env: dict[str, str]) -> dict:
         "supported_event": SUPPORTED_EVENT,
         "merge_group_compatible": False,
         "observed_event": observed_event or "UNSET",
+        "execution_context": context,
+        "evidence_consumable": context["evidence_consumable"],
         "head_sha": env["HEAD_SHA"].strip(),
         "base_sha": env["BASE_SHA"].strip(),
         "title_digest": digest(title),
@@ -148,8 +230,11 @@ def build_binding(env: dict[str, str]) -> dict:
         "not_proven": [
             "that the recorded values are still current — that is --verify's job",
             "that any consumer requires this binding",
-            "anything about a merge group; observed_event UNSET is permitted for local "
-            "runs and is not evidence the subject was a pull request",
+            "anything about a merge group",
+            "that a LOCAL_DIAGNOSTIC record is evidence — it carries the same schema name "
+            "and is not consumable; a normative consumer must reject it",
+            "that runner variables are attestation; they are provenance, which is why the "
+            "event payload is re-read and compared",
         ],
     }
 
@@ -174,6 +259,9 @@ def verify(recorded: dict, current: dict) -> list[str]:
 def main(argv: list[str]) -> int:
     try:
         current = build_binding(dict(os.environ))
+    except InvalidActionsContext as exc:
+        print(f"BINDING REFUSED: {exc}", file=sys.stderr)
+        return FAIL
     except UnsupportedSubject as exc:
         print(f"BINDING REFUSED: {exc}", file=sys.stderr)
         return FAIL
@@ -190,6 +278,15 @@ def main(argv: list[str]) -> int:
             recorded = json.loads(Path(argv[index + 1]).read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             print(f"BINDING FAIL (closed): recorded binding unreadable ({exc})", file=sys.stderr)
+            return FAIL
+
+        if not recorded.get("evidence_consumable"):
+            print(
+                "EVIDENCE_NOT_CONSUMABLE: the recorded binding was produced in "
+                f"{recorded.get('execution_context', {}).get('mode', 'an unknown mode')} "
+                "and carries no event binding. Matching the schema name is not enough.",
+                file=sys.stderr,
+            )
             return FAIL
 
         mismatched = verify(recorded, current)
