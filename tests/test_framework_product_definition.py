@@ -10,6 +10,12 @@ request is not a property of the framework — the 209 tests reported while revi
 is therefore recomputed here **from the ref the document itself names**, so moving the ref
 without re-measuring fails, and re-measuring without moving the ref fails too.
 
+**Where this module can and cannot run.** Recomputation needs the cited commit in the
+local object store. CI checks out shallow, so those tests `skip` there with an
+`OBSERVATION_INCOMPLETE` reason rather than passing — a guard that cannot observe has not
+verified anything. They run on any full clone. Giving the test job full history means
+editing `ci.yml`, which PR #134 already claims, so it is deferred rather than contended.
+
 `README.md` said *"Skeleton / Draft"* for a framework with 51 commits and seven working
 gates. That is an underclaim, the mirror of `NFR-17`, and the same fault: the record and
 the tree disagreed.
@@ -30,6 +36,36 @@ CHECKLIST = REPO_ROOT / "docs" / "16-templates" / "FRAMEWORK_INSTANTIATION_CHECK
 README = REPO_ROOT / "README.md"
 
 PROJECTION_FIELDS = ("as_of_ref", "projection", "binding", "observation_boundary")
+
+
+def ref_available(ref: str) -> bool:
+    """Is the cited commit in this checkout's object store?
+
+    `actions/checkout@v4` defaults to `fetch-depth: 1`, so the test job holds only the
+    PR head — a historical ref is simply absent, and `git cat-file` exits 128. Measured:
+    this module's first version failed CI for exactly that reason while passing locally.
+    """
+    return subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "cat-file", "-e", f"{ref}^{{commit}}"],
+        capture_output=True,
+    ).returncode == 0
+
+
+def require_ref(ref: str) -> None:
+    """Skip with a reason that cannot be read as verification.
+
+    A shallow checkout makes recomputation impossible, not passing. The distinction is
+    `OBSERVATION_INCOMPLETE` versus a clean result — the same rule #126 sets for the
+    network half of its gate, applied to this module's own limits. Making CI fetch full
+    history would edit `ci.yml`, which PR #134 already claims; deferred rather than
+    contended.
+    """
+    if not ref_available(ref):
+        pytest.skip(
+            f"OBSERVATION_INCOMPLETE: cited ref {ref[:7]} is absent from this checkout "
+            "(shallow clone). Recomputation is a full-clone guard and did NOT run — this "
+            "is not evidence the counts are correct"
+        )
 
 
 def git(*args: str) -> str:
@@ -64,6 +100,9 @@ def test_the_measured_block_declares_every_projection_field():
 def test_the_cited_ref_exists_and_is_an_ancestor_of_main():
     """A ref nobody can resolve makes every count below it unverifiable."""
     ref = measured_block()["as_of_ref"]
+    require_ref(ref)
+    if not ref_available("origin/main"):
+        pytest.skip("OBSERVATION_INCOMPLETE: origin/main is absent from this checkout")
     assert git("cat-file", "-t", ref) == "commit"
     merge_base = git("merge-base", ref, "origin/main")
     assert merge_base == ref, (
@@ -85,6 +124,7 @@ def test_each_count_is_recomputable_from_the_cited_ref(field, command):
     """The coupling: move the ref without re-measuring, and this fails."""
     block = measured_block()
     ref = block["as_of_ref"]
+    require_ref(ref)
     declared = int(block[field])
 
     if field == "commits":
