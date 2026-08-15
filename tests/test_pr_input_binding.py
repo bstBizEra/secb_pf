@@ -159,6 +159,48 @@ def test_unreadable_envelope_fails_closed():
     assert "BINDING FAIL (closed)" in result.stderr
 
 
+# --- subject scope (#127 disposition) -----------------------------------------
+
+
+def test_the_binding_names_the_only_subject_it_can_describe():
+    binding = emit(BASE_ENV)
+    assert binding["subject_kind"] == "PULL_REQUEST"
+    assert binding["supported_event"] == "pull_request"
+    assert binding["merge_group_compatible"] is False, (
+        "one head, one base, one title, one budget — a merge group is an ordered set of "
+        "pull requests plus a synthesized head, and widening these fields to take a list "
+        "would give one schema two meanings"
+    )
+
+
+@pytest.mark.parametrize("event", ["merge_group", "push", "schedule", "workflow_dispatch"])
+def test_a_non_pull_request_event_is_refused_rather_than_stamped(event):
+    """Schema laundering: PR-shaped inputs must not buy this schema's provenance.
+
+    A merge-group runner can populate `PR_TITLE` and `HEAD_SHA` from a queue entry. If
+    the emitter stamped that, the binding would assert a subject the event never
+    supplied. Refusing is correct — the group has its own envelope, tracked on #118.
+    """
+    result = run({**BASE_ENV, "GITHUB_EVENT_NAME": event})
+    assert result.returncode == FAIL
+    assert "UNSUPPORTED_SUBJECT" in result.stderr
+    assert event in result.stderr
+
+
+def test_the_supported_event_is_accepted_so_the_guard_is_not_vacuous():
+    binding = emit({**BASE_ENV, "GITHUB_EVENT_NAME": "pull_request"})
+    assert binding["observed_event"] == "pull_request"
+
+
+def test_an_unset_event_is_recorded_as_unset_not_assumed():
+    """Local runs have no event. That is recorded, never inferred as a pull request."""
+    binding = emit(BASE_ENV)
+    assert binding["observed_event"] == "UNSET"
+    assert any("UNSET" in item for item in binding["not_proven"]), (
+        "permitting UNSET for local use must be declared, since it is a hole in the guard"
+    )
+
+
 def test_binding_declares_what_it_does_not_prove():
     """Emission enables readback; it does not perform it, and no consumer requires it."""
     binding = emit(BASE_ENV)

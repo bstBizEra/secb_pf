@@ -36,6 +36,7 @@ necessarily external, and this script's emit half exists to make it possible at 
 
 Contract:
 
+    GITHUB_EVENT_NAME  the triggering event      (refused unless pull_request)
     PR_TITLE      pull request title            (required)
     PR_BODY       pull request body             (optional; empty is legitimate)
     HEAD_SHA      pull request head SHA         (required)
@@ -76,6 +77,18 @@ from check_work_package_ref import (  # noqa: E402
 OK = 0
 FAIL = 2
 
+
+class UnsupportedSubject(ValueError):
+    """The event supplies a subject this schema cannot describe."""
+
+
+# This schema describes exactly one subject: a single pull request, with one head, one
+# base, one title and one budget declaration. A merge group is a different subject --
+# an ordered set of pull requests plus a synthesized queue head -- and the fields below
+# cannot carry it. Widening them to accept a list would give one schema two meanings.
+SUBJECT_KIND = "PULL_REQUEST"
+SUPPORTED_EVENT = "pull_request"
+
 BUDGET_LINE = re.compile(r"^BUDGET:.*$", re.M)
 
 
@@ -98,6 +111,18 @@ def build_binding(env: dict[str, str]) -> dict:
     if missing:
         raise ValueError(f"required input absent: {', '.join(missing)}")
 
+    # Forward guard against schema laundering: PR-shaped inputs assembled under a
+    # different event must not receive this schema's stamp. A merge-group runner could
+    # populate PR_TITLE and HEAD_SHA from a queue entry and obtain a binding that claims
+    # provenance the event never supplied. Emitting nothing is correct; the group has its
+    # own envelope (`secb.merge-group-input-binding/v1`, tracked on #118).
+    observed_event = env.get("GITHUB_EVENT_NAME", "").strip()
+    if observed_event and observed_event != SUPPORTED_EVENT:
+        raise UnsupportedSubject(
+            f"UNSUPPORTED_SUBJECT: this schema binds a {SUBJECT_KIND} under "
+            f"{SUPPORTED_EVENT!r}; observed event {observed_event!r}"
+        )
+
     title = env["PR_TITLE"]
     body = env.get("PR_BODY", "")
 
@@ -108,6 +133,10 @@ def build_binding(env: dict[str, str]) -> dict:
 
     return {
         "schema": "secb.pr-input-binding/v1",
+        "subject_kind": SUBJECT_KIND,
+        "supported_event": SUPPORTED_EVENT,
+        "merge_group_compatible": False,
+        "observed_event": observed_event or "UNSET",
         "head_sha": env["HEAD_SHA"].strip(),
         "base_sha": env["BASE_SHA"].strip(),
         "title_digest": digest(title),
@@ -119,6 +148,8 @@ def build_binding(env: dict[str, str]) -> dict:
         "not_proven": [
             "that the recorded values are still current — that is --verify's job",
             "that any consumer requires this binding",
+            "anything about a merge group; observed_event UNSET is permitted for local "
+            "runs and is not evidence the subject was a pull request",
         ],
     }
 
@@ -143,6 +174,9 @@ def verify(recorded: dict, current: dict) -> list[str]:
 def main(argv: list[str]) -> int:
     try:
         current = build_binding(dict(os.environ))
+    except UnsupportedSubject as exc:
+        print(f"BINDING REFUSED: {exc}", file=sys.stderr)
+        return FAIL
     except ValueError as exc:
         print(f"BINDING FAIL (closed): {exc}", file=sys.stderr)
         return FAIL
