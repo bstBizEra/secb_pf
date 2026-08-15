@@ -14,14 +14,38 @@ this change touch* but **how does it change authority**. A refactor of a gate
 that provably decides every case identically expands nothing; a two-line edit
 to a ceiling expands everything.
 
-So authority is split into four layers, and each layer names who may change it.
+So authority is split into four layers. Each layer names the route its design
+intends, **and separately whether that route can be taken today**:
 
-| Layer | Contents | Who may change it |
-| --- | --- | --- |
-| **L0 — Root Constitution** | This file. Trust anchor, absolute ceilings, prohibited actions, quorum rules, the ladder itself | Constitutional authority only |
-| **L1 — Delegation Envelope** | `config/delegation_envelope.json` — the scope, caps and tier delegated in advance | Agent action inside L0 maxima, once the ballot layer is active |
-| **L2 — Policy Implementation** | Classifier, dual-policy check, gate logic, governance docs | Agent action with evidence and ballots |
-| **L3 — Operational Changes** | Documentation, tests, application and sandbox code, CI mechanics | Agent auto-merge by risk class |
+```text
+DECLARED_ROUTE  ≠  CAPABILITY_AVAILABLE  ≠  LIVE_ROUTE
+```
+
+| Layer | Contents | Declared authority | Capability state | Live route | Blocker |
+| --- | --- | --- | --- | --- | --- |
+| **L0 — Root Constitution** | This file. Trust anchor, absolute ceilings, prohibited actions, quorum rules, the ladder itself | Constitutional authority only | `AVAILABLE` — the authority exists and is exercisable | Constitutional authority, by human merge | None. This row's declared and live routes coincide |
+| **L1 — Delegation Envelope** | `config/delegation_envelope.json` — the scope, caps and tier delegated in advance | Agent action inside L0 maxima, once the ballot layer is active | `UNAVAILABLE` — `ballot_layer.state` is `NOT_ACTIVE` | Constitutional authority, by human merge | Ballot layer inactive: five independently-identified agents do not exist in this deployment |
+| **L2 — Policy Implementation** | Classifier, dual-policy check, gate logic, governance docs | Agent action with evidence and ballots | `PARTIAL` — evidence is available; ballots are not | Agent authors, **human merges**; the classifier escalates constitutional paths | Ballot layer inactive. Also `C-7`: one GitHub identity cannot supply an independent approval |
+| **L3 — Operational Changes** | Documentation, tests, application and sandbox code, CI mechanics | Agent auto-merge by risk class | `UNAVAILABLE` — no auto-merge has ever been enabled on a pull request here, and branch protection returns `403` on this plan (`NFR-13`) | Agent authors, **human merges** | Platform capability absent, and auto-merge is closed by operator posture |
+
+**Three of the four declared routes are not reachable today, and the table says
+so rather than leaving a reader to discover it.** The previous version of this
+table had one column — *"who may change it"* — which fused constitutional design
+with present execution, so `L1`'s *"agent action … once the ballot layer is
+active"* read as a live agent route while the ballot layer has never been
+active. `L3`'s *"agent auto-merge by risk class"* read the same way while no
+pull request in this repository has ever carried auto-merge.
+
+**Nothing here grants, removes, or advances any authority.** The declared column
+is reproduced unchanged from the version this replaces; what is added is a
+statement of what the machinery currently permits. `C-6` and `C-7` remain open,
+the ballot layer remains `NOT_ACTIVE`, and no route becomes live by being
+described accurately (`SECB-WP-FWK-070`).
+
+**A declared route is not dead because it is unreachable.** These are the routes
+the design intends once the capability exists — recording them as
+declared-but-blocked is what makes the blocker actionable, and deleting them
+would lose the design.
 
 An agent operating under this constitution never *creates* authority. It
 exercises authority the constitutional authority delegated in advance, and
