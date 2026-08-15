@@ -63,13 +63,17 @@ SNAPSHOT = {
 }
 
 
-def prove_separation(d: dict) -> None:
+AIS_LADDER = ["AIS0_SELF_ASSERTED", "AIS1_WORKFLOW_BOUND", "AIS2_PLATFORM_PRINCIPALS",
+              "AIS3_CUSTODY_SEPARATED", "AIS4_INDEPENDENT_DOMAINS"]
+
+
+def prove_separation(d: dict, level: str = "AIS4_INDEPENDENT_DOMAINS") -> None:
     """The one mutation that makes the accept path reachable at all.
 
-    Set only in fixtures. On the shipped manifest this is `IDENTITY_SEPARATION_UNPROVEN`,
-    and every route to `DISCLOSURE_AUTHORIZED` is refused because of it.
+    Set only in fixtures. The shipped manifest observes `AIS0_SELF_ASSERTED`, and every
+    route to `DISCLOSURE_AUTHORIZED` is refused because of it.
     """
-    d["agentic_authorization"]["identity_separation"]["status"] = "PROVEN"
+    d["agentic_authorization"]["identity_separation"]["observed_level"] = level
 
 
 def write_receipt(tmp_path, roles=None, snapshot=None, schema=None, name="receipt.json"):
@@ -143,9 +147,10 @@ def test_the_shipped_state_refuses_on_identity_separation_first(tmp_path):
     """
     result = authorize(tmp_path, mutate=None)
     assert result.returncode == FAIL
-    assert "IDENTITY_SEPARATION_UNPROVEN" in result.stderr
+    assert "IDENTITY_SEPARATION_INSUFFICIENT" in result.stderr
     assert "C-7" in result.stderr
-    assert "self-asserted text" in result.stderr
+    assert "AIS0_SELF_ASSERTED" in result.stderr and "AIS4_INDEPENDENT_DOMAINS" in result.stderr
+    assert "one account writes any of them" in result.stderr
 
 
 def test_a_perfect_receipt_still_loses_to_unproven_identity(tmp_path):
@@ -153,7 +158,30 @@ def test_a_perfect_receipt_still_loses_to_unproven_identity(tmp_path):
     result = authorize(tmp_path, mutate=None)
     assert result.returncode == FAIL
     assert "RECEIPT_STALE" not in result.stderr
-    assert "IDENTITY_SEPARATION_UNPROVEN" in result.stderr
+    assert "IDENTITY_SEPARATION_INSUFFICIENT" in result.stderr
+
+
+@pytest.mark.parametrize("level", AIS_LADDER[:-1])
+def test_every_level_below_the_required_one_is_insufficient(tmp_path, level):
+    """The property a boolean could not express.
+
+    `identity_separation: PROVEN` was one bit any edit could flip. AIS1–AIS3 are real
+    progress — workflow-bound OIDC, separate App principals, separated custody — and each
+    is still insufficient for an irreversible effect. A ladder makes the gap a measurable
+    distance instead of a yes/no claim.
+    """
+    result = authorize(tmp_path, mutate=lambda d: prove_separation(d, level))
+    assert result.returncode == FAIL
+    assert "IDENTITY_SEPARATION_INSUFFICIENT" in result.stderr
+    assert level in result.stderr
+
+
+@pytest.mark.parametrize("bogus", ["PROVEN", "AIS5", "true", ""])
+def test_an_unknown_substrate_level_is_refused(tmp_path, bogus):
+    """Including the old boolean value, which must not read as a level."""
+    result = authorize(tmp_path, mutate=lambda d: prove_separation(d, bogus))
+    assert result.returncode == FAIL
+    assert "is not a known AIS level" in result.stderr
 
 
 def test_the_authorized_path_is_reachable_once_separation_is_proven(tmp_path):
@@ -309,9 +337,18 @@ def test_an_unknown_current_state_is_refused(tmp_path):
 
 
 def test_the_authority_model_is_agentic_not_human_per_instance():
-    """`IDENTITY_SEPARATION_UNPROVEN` is a missing substrate, not a reversion."""
+    """An insufficient substrate is a missing capability, not a reversion."""
     separation = manifest()["agentic_authorization"]["identity_separation"]
-    assert separation["status"] == "IDENTITY_SEPARATION_UNPROVEN"
+    assert separation["observed_level"] == "AIS0_SELF_ASSERTED"
+    assert separation["required_level"] == "AIS4_INDEPENDENT_DOMAINS"
+    assert "status" not in separation, (
+        "a boolean status alongside a level would give two answers to one question"
+    )
+    assert set(separation["ladder"]) == set(AIS_LADDER)
+    assert "#145" in separation["ladder_source"]
+    assert separation["distinction"] == (
+        "ROLE_LABEL != PLATFORM_PRINCIPAL != CREDENTIAL_CUSTODY_DOMAIN != DECISION_INDEPENDENCE"
+    )
     assert "NOT a reversion to per-instance human approval" in separation["consequence"]
     for unproven in ("Administration(write)", "OIDC", "attestation"):
         assert any(unproven in item for item in separation["not_proven"]), (

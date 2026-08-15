@@ -132,15 +132,26 @@
       "why": "An API returning 200 proves a call was accepted, not that the resulting state is the one decided. Readback is a separate observation by a separate actor."
     },
     "identity_separation": {
-      "status": "IDENTITY_SEPARATION_UNPROVEN",
       "condition": "C-7",
       "reason": "Seven distinct actor_id STRINGS in a receipt prove nothing: a single account can write any string into a JSON file, exactly as one session can type any role banner. That is the self-approval-in-five-hats defect the ballot layer already refuses. What would prove separation is a structural platform actor field -- distinct GitHub App identities, which rulesets can name as actors -- not text inside the artifact being authorized.",
-      "consequence": "The validator refuses DISCLOSURE_AUTHORIZED while this is UNPROVEN. This is NOT a reversion to per-instance human approval: the authority model is agentic, and what is missing is the identity substrate the model requires.",
+      "consequence": "The validator refuses DISCLOSURE_AUTHORIZED while observed_level is below required_level. This is NOT a reversion to per-instance human approval: the authority model is agentic, and what is missing is the identity substrate the model requires. SECB-WP-FWK-081 turns C-7 from a blocking condition into a capability the team builds.",
       "not_proven": [
         "that Administration(write) confers decision authority -- it is a capability",
         "that OIDC id-token:write permits resource modification -- it is an identity",
         "that generating an attestation verifies one -- signature, timestamp and signer identity must each be checked by a consumer"
-      ]
+      ],
+      "distinction": "ROLE_LABEL != PLATFORM_PRINCIPAL != CREDENTIAL_CUSTODY_DOMAIN != DECISION_INDEPENDENCE",
+      "ladder_source": "SECB-WP-FWK-081 (issue #145)",
+      "ladder": {
+        "AIS0_SELF_ASSERTED": "role and actor strings only -- text inside the artifact being authorized",
+        "AIS1_WORKFLOW_BOUND": "OIDC binds the claim to a workflow and repository",
+        "AIS2_PLATFORM_PRINCIPALS": "separate GitHub App IDs and installations",
+        "AIS3_CUSTODY_SEPARATED": "separate credential brokers and policy domains",
+        "AIS4_INDEPENDENT_DOMAINS": "principal, custody, policy, failure domain, executor and verifier all separated"
+      },
+      "required_level": "AIS4_INDEPENDENT_DOMAINS",
+      "observed_level": "AIS0_SELF_ASSERTED",
+      "why_a_level_and_not_a_boolean": "identity_separation: PROVEN was one bit that any edit could flip, and it could not express a partial substrate. Public disclosure is irreversible, so it requires the top rung: AIS1 through AIS3 are real progress and are each INSUFFICIENT on their own. A ladder makes the gap between where the substrate is and what the effect needs a measurable distance rather than a yes/no claim."
     }
   }
 }

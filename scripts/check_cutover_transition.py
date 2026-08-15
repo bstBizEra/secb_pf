@@ -84,6 +84,21 @@ def load(path: str) -> dict:
 
 RECEIPT_SCHEMA = "secb.agentic-decision-receipt/v1"
 
+# Agent Identity Substrate, lowest to highest (`SECB-WP-FWK-081`, issue #145).
+#
+#     ROLE_LABEL ≠ PLATFORM_PRINCIPAL ≠ CREDENTIAL_CUSTODY_DOMAIN ≠ DECISION_INDEPENDENCE
+#
+# A level, not a boolean. `identity_separation: PROVEN` was one bit that any edit could
+# flip and that could not express a partial substrate. AIS1–AIS3 are real progress and
+# each is insufficient for an irreversible effect on its own.
+AIS_LADDER = [
+    "AIS0_SELF_ASSERTED",
+    "AIS1_WORKFLOW_BOUND",
+    "AIS2_PLATFORM_PRINCIPALS",
+    "AIS3_CUSTODY_SEPARATED",
+    "AIS4_INDEPENDENT_DOMAINS",
+]
+
 
 def check_agentic_authorization(manifest: dict, env: dict[str, str]) -> None:
     """Verify an Agentic Decision Receipt, or refuse.
@@ -95,12 +110,20 @@ def check_agentic_authorization(manifest: dict, env: dict[str, str]) -> None:
     authorization = manifest["agentic_authorization"]
 
     separation = authorization["identity_separation"]
-    if separation["status"] != "PROVEN":
+    observed = separation.get("observed_level")
+    required = separation.get("required_level")
+    for label, level in (("observed_level", observed), ("required_level", required)):
+        if level not in AIS_LADDER:
+            raise Refused(f"{label} {level!r} is not a known AIS level")
+    if AIS_LADDER.index(observed) < AIS_LADDER.index(required):
+        shortfall = AIS_LADDER[AIS_LADDER.index(observed) + 1:AIS_LADDER.index(required) + 1]
         raise Refused(
-            f"{separation['status']} ({separation['condition']}): distinct actor_id strings "
-            "in a receipt are self-asserted text, like a role banner. Separation must come "
-            "from a structural platform actor field. The authority model stays agentic; the "
-            "identity substrate is what is missing"
+            f"IDENTITY_SEPARATION_INSUFFICIENT ({separation['condition']}): observed "
+            f"{observed}, required {required}; missing {shortfall}. At AIS0 the roles are "
+            "actor strings inside the artifact being authorized -- one account writes any "
+            "of them, exactly as one session types any role banner. Public disclosure is "
+            "irreversible, so partial substrate does not carry it. The authority model "
+            "stays agentic; the identity substrate is what is missing"
         )
 
     receipt_path = env.get("DECISION_RECEIPT", "").strip()
