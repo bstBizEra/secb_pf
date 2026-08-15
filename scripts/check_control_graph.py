@@ -13,19 +13,20 @@ was wrong in both directions and both were live:
 * `scripts/check_identity_receipt.py` matches that glob while no workflow invokes it, so
   the glob would claim it as CI enforcement.
 
-Six statuses per path, none implying the next:
+Four independent axes per path, because collapsing them is how a control comes to look
+enforced when it is merely present:
 
-    DISCOVERED → REACHABLE → EXECUTED → RESULT_PROPAGATED
-              → NORMATIVELY_CONSUMED → ENFORCED
+    CONTROL_SURFACE_MEMBERSHIP ≠ CI_REACHABILITY ≠ RESULT_CONSUMPTION ≠ CI_ENFORCEMENT
 
-Only the first two are statically decidable. `EXECUTED` and `NORMATIVELY_CONSUMED` need a
-run and a consumer, so they are `NOT_OBSERVED` — a static parser reporting them any other
-way would be claiming a runtime fact. `RESULT_PROPAGATED` is provably `false` when
-`continue-on-error` is set, because the step then cannot fail its job.
+`CI_REACHABILITY` never says *unconditional*. A step with no `if` still carries GitHub's
+default `success()` condition, so a previous step's failure skips it — the absence of an
+explicit condition is an observation about the file, not a guarantee about execution. The
+values are `NO_EXPLICIT_CONDITION_OBSERVED`, `EXPLICIT_CONDITION_PRESENT`,
+`STATICALLY_UNREACHABLE` and `REACHABILITY_NOT_PROVEN`.
 
-**`REACHABLE` is deliberately three-valued.** A conditionally-skipped job reports success
-and does not block a merge even when it is a required check, so "the path exists" and "the
-path runs" are different claims.
+`RESULT_CONSUMPTION` is split, because `continue-on-error` proves less than it appears to:
+it establishes `DIRECT_JOB_FAILURE_PROPAGATION: false`, and a later step can still read
+`steps.<id>.outcome`, so `DOWNSTREAM_RESULT_CONSUMPTION` stays `NOT_OBSERVED`.
 
 **Parse fidelity is a declared subset.** Enforcement scripts import the standard library
 only (`NFR-12`), so there is no YAML parser here — this reads an indentation-structured
@@ -58,6 +59,20 @@ DEFAULT_WORKFLOW = ".github/workflows/ci.yml"
 DEFAULT_REGISTRY = "config/control_surface.json"
 
 SCRIPT_REF = re.compile(r"(scripts/[a-z0-9_]+\.py)")
+ANCHOR_OR_ALIAS = re.compile(r"(^|\s)[&*][A-Za-z0-9_-]+|^\s*<<:")
+
+# Keys this parser understands. Anything else inside a job or step is reported as
+# UNRECOGNISED_SYNTAX rather than skipped -- silently ignoring a key means the parser
+# cannot honestly say unknown syntax becomes an unresolved edge (C-CEG-02).
+JOB_KEYS = {
+    "name", "runs-on", "if", "needs", "steps", "strategy", "permissions", "env",
+    "timeout-minutes", "outputs", "container", "services", "defaults", "concurrency",
+    "continue-on-error", "uses", "with", "secrets", "environment",
+}
+STEP_KEYS = {
+    "name", "if", "uses", "run", "with", "env", "id", "shell", "working-directory",
+    "timeout-minutes", "continue-on-error",
+}
 EXPRESSION = re.compile(r"\$\{\{.*?\}\}")
 SHELL_VAR = re.compile(r"\$[A-Za-z_{]")
 
@@ -71,8 +86,18 @@ def indent_of(line: str) -> int:
 
 
 def parse_workflow(text: str) -> tuple[list[dict], list[dict]]:
-    """Return (paths, unresolved_edges) from the recognised workflow subset."""
-    lines = text.splitlines()
+    """Return (paths, unresolved_edges) over the recognised subset.
+
+    Every line inside a job that this parser does not recognise becomes an
+    `UNRECOGNISED_SYNTAX` edge and marks its job or step `parse_incomplete`, which forces
+    reachability to `REACHABILITY_NOT_PROVEN`. Reporting only the unsupported syntax it
+    happens to know about — while skipping the rest — is what made the earlier claim that
+    "unknown syntax becomes an unresolved edge" untrue (`C-CEG-02`).
+
+    YAML anchors and aliases are a real blind spot, not a hypothetical one: an alias can
+    import an entire job, so an indentation parser can miss a whole execution path. They
+    are detected and reported rather than silently mis-parsed.
+    """
     paths: list[dict] = []
     unresolved: list[dict] = []
 
@@ -81,6 +106,17 @@ def parse_workflow(text: str) -> tuple[list[dict], list[dict]]:
     job = None
     job_state: dict = {}
     step: dict | None = None
+    step_key_indent: int | None = None
+    block_indent: int | None = None
+
+    def note(kind: str, where: str, value: str, why: str) -> None:
+        unresolved.append({"kind": kind, "where": where, "value": value[:100], "why": why})
+
+    def incomplete() -> None:
+        if step is not None:
+            step["parse_incomplete"] = True
+        elif job_state:
+            job_state["parse_incomplete"] = True
 
     def close_step() -> None:
         nonlocal step
@@ -94,80 +130,120 @@ def parse_workflow(text: str) -> tuple[list[dict], list[dict]]:
                     "step_condition": step.get("if"),
                     "needs": job_state.get("needs", []),
                     "continue_on_error": bool(step.get("continue_on_error")),
+                    "parse_incomplete": bool(step.get("parse_incomplete")
+                                             or job_state.get("parse_incomplete")),
                 })
         step = None
 
-    for raw in lines:
+    for raw in text.splitlines():
         line = raw.rstrip()
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         indent = indent_of(line)
         stripped = line.strip()
 
+        # inside a block scalar (run: |) the content is shell, not workflow syntax
+        if block_indent is not None:
+            if indent > block_indent:
+                for script in SCRIPT_REF.findall(stripped):
+                    if step is not None and script not in step["scripts"]:
+                        step["scripts"].append(script)
+                    if EXPRESSION.search(stripped) or SHELL_VAR.search(stripped.replace(script, "")):
+                        note("UNRESOLVED_DYNAMIC_EDGE", f"{job}", stripped,
+                             "the invocation is interpolated, so the target is not statically fixed")
+                continue
+            block_indent = None
+
+        if ANCHOR_OR_ALIAS.search(line):
+            note("YAML_ANCHOR_OR_ALIAS", f"{job or '(top level)'}", stripped,
+                 "an anchor or alias can import an entire job; an indentation parser may "
+                 "miss the execution path it introduces")
+            incomplete()
+
         if not in_jobs:
             if stripped == "jobs:":
                 in_jobs, jobs_indent = True, indent
             continue
 
-        # a new job key
         if indent == jobs_indent + 2 and stripped.endswith(":") and " " not in stripped[:-1]:
             close_step()
             job = stripped[:-1]
-            job_state = {"if": None, "needs": []}
+            job_state = {"if": None, "needs": [], "parse_incomplete": False}
             continue
 
         if job is None:
             continue
 
+        key = stripped.split(":", 1)[0].lstrip("- ").strip() if ":" in stripped else None
+        value = stripped.split(":", 1)[1].strip() if ":" in stripped else ""
+        if value in ("|", ">", "|-", ">-", "|+", ">+"):
+            block_indent = indent
+
         # job-level keys
-        if indent == jobs_indent + 4:
-            if stripped.startswith("if:"):
-                job_state["if"] = stripped[3:].strip()
-            elif stripped.startswith("needs:"):
-                value = stripped[6:].strip()
+        if indent == jobs_indent + 4 and step is None:
+            if key not in JOB_KEYS:
+                note("UNRECOGNISED_SYNTAX", f"{job}.{key}", stripped,
+                     "the parser does not model this job key, so anything it implies about "
+                     "execution is unknown")
+                job_state["parse_incomplete"] = True
+            elif key == "if":
+                job_state["if"] = value
+            elif key == "needs":
                 job_state["needs"] = [v.strip() for v in value.strip("[]").split(",") if v.strip()]
-            elif stripped.startswith("strategy:"):
-                unresolved.append({
-                    "kind": "UNRESOLVED_DYNAMIC_EDGE", "where": f"{job}.strategy",
-                    "value": "matrix", "why": "a matrix multiplies a job into instances this parser does not enumerate",
-                })
+            elif key == "strategy":
+                note("UNRESOLVED_DYNAMIC_EDGE", f"{job}.strategy", "matrix",
+                     "a matrix multiplies a job into instances this parser does not enumerate")
+                job_state["parse_incomplete"] = True
             continue
 
-        # step boundary
         if stripped.startswith("- ") and indent >= jobs_indent + 6:
             close_step()
-            step = {"scripts": [], "if": None, "name": None, "continue_on_error": False}
+            step = {"scripts": [], "if": None, "name": None,
+                    "continue_on_error": False, "parse_incomplete": False}
+            # A step's own keys sit two columns right of the dash. Anything deeper is a
+            # child of one of them -- `with:` and `env:` mappings especially -- and is not
+            # a step key. Without this the parser flagged `python-version` and every env
+            # var as unrecognised, forcing REACHABILITY_NOT_PROVEN on every path. A guard
+            # that always says "not proven" is one nobody reads.
+            step_key_indent = indent + 2
             stripped = stripped[2:].strip()
+            key = stripped.split(":", 1)[0].strip() if ":" in stripped else None
+            value = stripped.split(":", 1)[1].strip() if ":" in stripped else ""
+            if value in ("|", ">", "|-", ">-"):
+                block_indent = indent
 
         if step is None:
             continue
 
-        if stripped.startswith("name:"):
-            step["name"] = stripped[5:].strip().strip('"')
-        elif stripped.startswith("if:"):
-            step["if"] = stripped[3:].strip()
-        elif stripped.startswith("continue-on-error:"):
-            step["continue_on_error"] = stripped.split(":", 1)[1].strip() == "true"
-        elif stripped.startswith("uses:"):
-            value = stripped[5:].strip()
+        # a child of a step key, not a step key
+        if step_key_indent is not None and indent > step_key_indent:
+            for script in SCRIPT_REF.findall(stripped):
+                if script not in step["scripts"]:
+                    step["scripts"].append(script)
+            continue
+
+        if key and key not in STEP_KEYS and block_indent is None:
+            note("UNRECOGNISED_SYNTAX", f"{job}.step.{key}", stripped,
+                 "the parser does not model this step key")
+            step["parse_incomplete"] = True
+        elif key == "name":
+            step["name"] = value.strip('"')
+        elif key == "if":
+            step["if"] = value
+        elif key == "continue-on-error":
+            step["continue_on_error"] = value == "true"
+        elif key == "uses":
             local = value.startswith("./")
-            unresolved.append({
-                "kind": "COMPOSITE_ACTION" if local else "EXTERNAL_ACTION",
-                "where": f"{job}.{step.get('name') or '(unnamed)'}",
-                "value": value,
-                "why": ("a local composite action adds execution edges the caller does not show"
-                        if local else
-                        "an external action's steps are not in this repository and are not followed"),
-            })
+            note("COMPOSITE_ACTION" if local else "EXTERNAL_ACTION",
+                 f"{job}.{step.get('name') or '(unnamed)'}", value,
+                 "a local composite action adds execution edges the caller does not show"
+                 if local else
+                 "an external action's steps are not in this repository and are not followed")
 
         for script in SCRIPT_REF.findall(stripped):
             if EXPRESSION.search(stripped) or SHELL_VAR.search(stripped.replace(script, "")):
-                unresolved.append({
-                    "kind": "UNRESOLVED_DYNAMIC_EDGE",
-                    "where": f"{job}.{step.get('name') or '(unnamed)'}",
-                    "value": stripped[:80],
-                    "why": "the invocation is interpolated, so the target is not statically fixed",
-                })
+                note("UNRESOLVED_DYNAMIC_EDGE", f"{job}.{step.get('name') or '(unnamed)'}",
+                     stripped, "the invocation is interpolated, so the target is not statically fixed")
             if script not in step["scripts"]:
                 step["scripts"].append(script)
 
@@ -175,15 +251,54 @@ def parse_workflow(text: str) -> tuple[list[dict], list[dict]]:
     return paths, unresolved
 
 
-def classify(record: dict) -> dict:
-    conditional = bool(record["job_condition"] or record["step_condition"] or record["needs"])
+def invoked_scripts(text: str) -> set[str]:
+    """The canonical discovery entry point.
+
+    `tests/test_control_surface.py` imports this rather than re-deriving the set with its
+    own regex. Two implementations of "which controls does CI invoke" would disagree
+    eventually, and the guard would be enforcing the weaker one (`C-CEG-01`).
+    """
+    records, _ = parse_workflow(text)
+    return {record["path"] for record in records}
+
+
+def reachability(record: dict) -> str:
+    """Four values, and `UNCONDITIONAL` is not among them (`C-CEG-04`).
+
+    A step with no `if` is **not** unconditional: GitHub applies a default `success()`
+    condition, so a previous step's failure skips it. The absence of an explicit condition
+    is an observation about the file, not a guarantee about execution.
+    """
+    if record.get("parse_incomplete"):
+        return "REACHABILITY_NOT_PROVEN"
+    for condition in (record["job_condition"], record["step_condition"]):
+        if condition and condition.strip() in ("false", "${{ false }}"):
+            return "STATICALLY_UNREACHABLE"
+    if record["job_condition"] or record["step_condition"] or record["needs"]:
+        return "EXPLICIT_CONDITION_PRESENT"
+    return "NO_EXPLICIT_CONDITION_OBSERVED"
+
+
+def classify(record: dict, membership: str) -> dict:
+    """Four independent axes (`C-CEG-05`).
+
+        CONTROL_SURFACE_MEMBERSHIP ≠ CI_REACHABILITY ≠ RESULT_CONSUMPTION ≠ CI_ENFORCEMENT
+
+    Being in the registry says nothing about running; running says nothing about anyone
+    reading the result; and none of it says a merge is blocked.
+    """
     return {
-        "DISCOVERED": True,
-        "REACHABLE": "CONDITIONAL" if conditional else "UNCONDITIONAL",
-        "EXECUTED": "NOT_OBSERVED",
-        "RESULT_PROPAGATED": False if record["continue_on_error"] else "NOT_OBSERVED",
-        "NORMATIVELY_CONSUMED": "NOT_OBSERVED",
-        "ENFORCED": "NOT_OBSERVED",
+        "CONTROL_SURFACE_MEMBERSHIP": membership,
+        "CI_REACHABILITY": reachability(record),
+        "EXECUTION_OBSERVED": "NOT_OBSERVED",
+        "RESULT_CONSUMPTION": {
+            # `continue-on-error` proves only that a failure does not fail the job
+            # DIRECTLY. A later step can still read `steps.<id>.outcome`, so consumption
+            # is a separate, unobserved question (`C-CEG-03`).
+            "DIRECT_JOB_FAILURE_PROPAGATION": False if record["continue_on_error"] else "NOT_OBSERVED",
+            "DOWNSTREAM_RESULT_CONSUMPTION": "NOT_OBSERVED",
+        },
+        "CI_ENFORCEMENT": "NOT_OBSERVED",
     }
 
 
@@ -202,8 +317,12 @@ def main(argv: list[str]) -> int:
         return FAIL
 
     records, unresolved = parse_workflow(text)
+    tracked = {c["path"] for c in registry.get("controls", [])}
+    excluded = {e["path"] for e in registry.get("declared_exclusions", [])}
     for record in records:
-        record["status"] = classify(record)
+        membership = ("TRACKED" if record["path"] in tracked
+                      else "EXCLUDED" if record["path"] in excluded else "UNACCOUNTED")
+        record["axes"] = classify(record, membership)
 
     invoked = {r["path"] for r in records}
     missing = sorted(invoked - accounted(registry))
@@ -228,10 +347,13 @@ def main(argv: list[str]) -> int:
         "paths": sorted(records, key=lambda r: (r["path"], r["job"])),
         "unresolved_edges": unresolved,
         "not_proven": [
-            "that any path executed -- EXECUTED requires a run",
-            "that any result was consumed -- that view is the runtime receipt's",
+            "that any path executed -- execution requires a run",
+            "that a downstream step did not read a continue-on-error outcome",
+            "that a path without an explicit condition is unconditional; the default "
+            "success() condition still applies",
             "that anything is enforced -- branch protection is not observed here",
-            "that the parse is YAML-conformant; it recognises a declared subset",
+            "that the parse is YAML-conformant; unrecognised keys and YAML aliases are "
+            "reported as unresolved edges and force REACHABILITY_NOT_PROVEN",
         ],
     }, indent=2, sort_keys=True))
     return OK

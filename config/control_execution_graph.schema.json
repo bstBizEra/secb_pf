@@ -5,14 +5,23 @@
   "description": "SECB-WP-FWK-082, issue #147. Replaces filename-pattern discovery of controls with the paths CI actually invokes. STATIC_EXECUTION_GRAPH <-> RUNTIME_EXECUTION_RECEIPT <-> CONTROL_SURFACE_REGISTRY are three separate views: this schema describes the FIRST, and a static graph cannot observe the second. Each control path carries six independent statuses and none of them implies the next.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "parse_fidelity", "paths", "unresolved_edges"],
+  "required": [
+    "schema",
+    "parse_fidelity",
+    "paths",
+    "unresolved_edges"
+  ],
   "properties": {
-    "schema": { "const": "secb.control-execution-graph/v1" },
-
+    "schema": {
+      "const": "secb.control-execution-graph/v1"
+    },
     "parse_fidelity": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["level", "why"],
+      "required": [
+        "level",
+        "why"
+      ],
       "properties": {
         "level": {
           "const": "SUBSET",
@@ -20,82 +29,167 @@
         },
         "recognised": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "jobs, steps, run, uses, if, needs, strategy.matrix, continue-on-error"
         },
-        "why": { "type": "string", "minLength": 40 }
+        "why": {
+          "type": "string",
+          "minLength": 40,
+          "description": "Unrecognised keys and YAML anchors/aliases are reported as edges AND force REACHABILITY_NOT_PROVEN, so the subset's blind spots degrade the claim rather than passing silently."
+        }
       }
     },
-
     "paths": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["path", "job", "status"],
+        "required": [
+          "path",
+          "job",
+          "axes"
+        ],
         "properties": {
-          "path": { "type": "string" },
-          "job": { "type": "string" },
-          "step": { "type": "string" },
-          "job_condition": { "type": ["string", "null"] },
-          "step_condition": { "type": ["string", "null"] },
-          "needs": { "type": "array", "items": { "type": "string" } },
-          "continue_on_error": { "type": "boolean" },
-          "status": {
+          "path": {
+            "type": "string"
+          },
+          "job": {
+            "type": "string"
+          },
+          "step": {
+            "type": "string"
+          },
+          "job_condition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "step_condition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "needs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "continue_on_error": {
+            "type": "boolean"
+          },
+          "parse_incomplete": {
+            "type": "boolean"
+          },
+          "axes": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["DISCOVERED", "REACHABLE", "EXECUTED", "RESULT_PROPAGATED", "NORMATIVELY_CONSUMED", "ENFORCED"],
+            "required": [
+              "CONTROL_SURFACE_MEMBERSHIP",
+              "CI_REACHABILITY",
+              "EXECUTION_OBSERVED",
+              "RESULT_CONSUMPTION",
+              "CI_ENFORCEMENT"
+            ],
+            "description": "CONTROL_SURFACE_MEMBERSHIP != CI_REACHABILITY != RESULT_CONSUMPTION != CI_ENFORCEMENT. Four independent axes: being in the registry says nothing about running, running says nothing about anyone reading the result, and none of it says a merge is blocked.",
             "properties": {
-              "DISCOVERED": {
-                "const": true,
-                "description": "The path appears in the graph. Statically decidable."
+              "CONTROL_SURFACE_MEMBERSHIP": {
+                "enum": [
+                  "TRACKED",
+                  "EXCLUDED",
+                  "UNACCOUNTED"
+                ]
               },
-              "REACHABLE": {
-                "enum": ["UNCONDITIONAL", "CONDITIONAL", "UNREACHABLE"],
-                "description": "CONDITIONAL when a job or step `if` guards it, or when `needs` can skip it. A conditionally-skipped job can report Success and not block a merge even as a required check, so conditional reachability is NOT execution."
+              "CI_REACHABILITY": {
+                "enum": [
+                  "NO_EXPLICIT_CONDITION_OBSERVED",
+                  "EXPLICIT_CONDITION_PRESENT",
+                  "STATICALLY_UNREACHABLE",
+                  "REACHABILITY_NOT_PROVEN"
+                ],
+                "description": "UNCONDITIONAL is deliberately absent. A step with no `if` still carries GitHub's default success() condition, so a previous step's failure skips it; the absence of an explicit condition is an observation about the file, not a guarantee about execution. REACHABILITY_NOT_PROVEN is returned whenever the parser met syntax it does not model."
               },
-              "EXECUTED": {
-                "enum": ["NOT_OBSERVED"],
-                "description": "Requires a run. A static graph cannot observe execution, and this field exists to stop DISCOVERED from being read as EXECUTED."
+              "EXECUTION_OBSERVED": {
+                "enum": [
+                  "NOT_OBSERVED"
+                ]
               },
-              "RESULT_PROPAGATED": {
-                "enum": [false, "NOT_OBSERVED"],
-                "description": "false is statically PROVEN when continue-on-error is true: the step cannot fail its job, so its result reaches no consumer. Otherwise a run is required."
+              "RESULT_CONSUMPTION": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "DIRECT_JOB_FAILURE_PROPAGATION",
+                  "DOWNSTREAM_RESULT_CONSUMPTION"
+                ],
+                "properties": {
+                  "DIRECT_JOB_FAILURE_PROPAGATION": {
+                    "enum": [
+                      false,
+                      "NOT_OBSERVED"
+                    ],
+                    "description": "false is proven under continue-on-error: the step cannot fail its job DIRECTLY."
+                  },
+                  "DOWNSTREAM_RESULT_CONSUMPTION": {
+                    "enum": [
+                      "NOT_OBSERVED"
+                    ],
+                    "description": "continue-on-error does not stop a later step reading steps.<id>.outcome, so nobody-read-it is a separate and unobserved claim."
+                  }
+                }
               },
-              "NORMATIVELY_CONSUMED": {
-                "enum": ["NOT_OBSERVED"],
-                "description": "Whether a consumer read the result. Belongs to the runtime-receipt view; the vocabulary is secb.pr-input-binding/v1's, not restated here."
-              },
-              "ENFORCED": {
-                "enum": [false, "NOT_OBSERVED"],
-                "description": "Requires observing branch protection or a ruleset. Not observed by a static parser."
+              "CI_ENFORCEMENT": {
+                "enum": [
+                  false,
+                  "NOT_OBSERVED"
+                ]
               }
             }
           }
         }
       }
     },
-
     "unresolved_edges": {
       "type": "array",
       "description": "Edges the parser could not follow. An unresolved edge is reported, never dropped: a silent omission is indistinguishable from an absent control.",
       "items": {
         "type": "object",
-        "required": ["kind", "where", "value"],
+        "required": [
+          "kind",
+          "where",
+          "value"
+        ],
         "properties": {
           "kind": {
-            "enum": ["UNRESOLVED_DYNAMIC_EDGE", "EXTERNAL_ACTION", "REUSABLE_WORKFLOW", "COMPOSITE_ACTION", "UNRECOGNISED_SYNTAX"]
+            "enum": [
+              "UNRESOLVED_DYNAMIC_EDGE",
+              "EXTERNAL_ACTION",
+              "REUSABLE_WORKFLOW",
+              "COMPOSITE_ACTION",
+              "UNRECOGNISED_SYNTAX",
+              "YAML_ANCHOR_OR_ALIAS"
+            ]
           },
-          "where": { "type": "string" },
-          "value": { "type": "string" },
-          "why": { "type": "string" }
+          "where": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
         }
       }
     },
-
     "not_proven": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     }
   }
 }

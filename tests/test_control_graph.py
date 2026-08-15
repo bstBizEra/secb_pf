@@ -88,8 +88,14 @@ def test_the_repository_workflow_parses_and_every_invoked_control_is_accounted(t
 # --- reachability is three-valued ---------------------------------------------
 
 
-def test_an_unguarded_step_is_unconditionally_reachable(tmp_path):
-    assert path_for(graph(tmp_path), "check_budget.py")["status"]["REACHABLE"] == "UNCONDITIONAL"
+def test_a_step_without_an_if_is_recorded_as_observed_not_unconditional(tmp_path):
+    """`C-CEG-04`. GitHub applies a default `success()` condition to every step.
+
+    A previous step's failure skips it, so the absence of an explicit condition is an
+    observation about the file — never a guarantee about execution. The word
+    `UNCONDITIONAL` is gone from the vocabulary for that reason.
+    """
+    assert path_for(graph(tmp_path), "check_budget.py")["axes"]["CI_REACHABILITY"] == "NO_EXPLICIT_CONDITION_OBSERVED"
 
 
 def test_a_job_level_condition_makes_the_path_conditional(tmp_path):
@@ -98,14 +104,14 @@ def test_a_job_level_condition_makes_the_path_conditional(tmp_path):
     So "the path exists" and "the path runs" are different claims, and collapsing them is
     how a required check comes to certify nothing.
     """
-    assert path_for(graph(tmp_path), "check_dual_policy.py")["status"]["REACHABLE"] == "CONDITIONAL"
+    assert path_for(graph(tmp_path), "check_dual_policy.py")["axes"]["CI_REACHABILITY"] == "EXPLICIT_CONDITION_PRESENT"
 
 
 def test_a_step_level_condition_makes_the_path_conditional(tmp_path):
     workflow = WORKFLOW.replace(
         "      - name: Run the budget gate\n",
         "      - name: Run the budget gate\n        if: always()\n")
-    assert path_for(graph(tmp_path, workflow), "check_budget.py")["status"]["REACHABLE"] == "CONDITIONAL"
+    assert path_for(graph(tmp_path, workflow), "check_budget.py")["axes"]["CI_REACHABILITY"] == "EXPLICIT_CONDITION_PRESENT"
 
 
 def test_a_needs_edge_makes_the_path_conditional(tmp_path):
@@ -113,36 +119,91 @@ def test_a_needs_edge_makes_the_path_conditional(tmp_path):
     workflow = WORKFLOW.replace(
         "  plain-gate:\n    name: \"Plain\"\n",
         "  plain-gate:\n    name: \"Plain\"\n    needs: [guarded-gate]\n")
-    assert path_for(graph(tmp_path, workflow), "check_budget.py")["status"]["REACHABLE"] == "CONDITIONAL"
+    assert path_for(graph(tmp_path, workflow), "check_budget.py")["axes"]["CI_REACHABILITY"] == "EXPLICIT_CONDITION_PRESENT"
 
 
 # --- what a static parser must never claim ------------------------------------
 
 
-@pytest.mark.parametrize("field", ["EXECUTED", "NORMATIVELY_CONSUMED"])
-def test_runtime_statuses_are_never_inferred_from_the_graph(tmp_path, field):
-    """`DISCOVERED` is not `EXECUTED`. The field exists to stop that inference."""
+def test_the_four_axes_are_separate(tmp_path):
+    """`C-CEG-05`. Membership, reachability, consumption and enforcement are not one fact."""
+    axes = path_for(graph(tmp_path), "check_budget.py")["axes"]
+    assert set(axes) == {
+        "CONTROL_SURFACE_MEMBERSHIP", "CI_REACHABILITY", "EXECUTION_OBSERVED",
+        "RESULT_CONSUMPTION", "CI_ENFORCEMENT",
+    }
+    assert axes["CONTROL_SURFACE_MEMBERSHIP"] in {"TRACKED", "EXCLUDED", "UNACCOUNTED"}
+
+
+def test_runtime_facts_are_never_inferred_from_the_graph(tmp_path):
     for record in graph(tmp_path)["paths"]:
-        assert record["status"][field] == "NOT_OBSERVED"
+        assert record["axes"]["EXECUTION_OBSERVED"] == "NOT_OBSERVED"
+        assert record["axes"]["CI_ENFORCEMENT"] == "NOT_OBSERVED"
 
 
-def test_enforcement_is_not_claimed(tmp_path):
-    for record in graph(tmp_path)["paths"]:
-        assert record["status"]["ENFORCED"] == "NOT_OBSERVED"
+def test_continue_on_error_proves_only_direct_failure_propagation(tmp_path):
+    """`C-CEG-03`. It does not prove nobody read the outcome.
 
-
-def test_continue_on_error_proves_the_result_does_not_propagate(tmp_path):
-    """The one runtime-ish fact that IS static: the step cannot fail its job."""
+    A later step can still read `steps.<id>.outcome`, so the two claims are recorded
+    separately: one is proven, the other is not observed.
+    """
     workflow = WORKFLOW.replace(
         "      - name: Run the budget gate\n",
         "      - name: Run the budget gate\n        continue-on-error: true\n")
-    record = path_for(graph(tmp_path, workflow), "check_budget.py")
-    assert record["continue_on_error"] is True
-    assert record["status"]["RESULT_PROPAGATED"] is False
+    consumption = path_for(graph(tmp_path, workflow), "check_budget.py")["axes"]["RESULT_CONSUMPTION"]
+    assert consumption["DIRECT_JOB_FAILURE_PROPAGATION"] is False
+    assert consumption["DOWNSTREAM_RESULT_CONSUMPTION"] == "NOT_OBSERVED"
 
 
-def test_a_normal_step_leaves_propagation_unobserved(tmp_path):
-    assert path_for(graph(tmp_path), "check_budget.py")["status"]["RESULT_PROPAGATED"] == "NOT_OBSERVED"
+def test_a_normal_step_leaves_both_consumption_facts_unobserved(tmp_path):
+    consumption = path_for(graph(tmp_path), "check_budget.py")["axes"]["RESULT_CONSUMPTION"]
+    assert consumption["DIRECT_JOB_FAILURE_PROPAGATION"] == "NOT_OBSERVED"
+    assert consumption["DOWNSTREAM_RESULT_CONSUMPTION"] == "NOT_OBSERVED"
+
+
+def test_unrecognised_syntax_is_reported_and_forces_unproven_reachability(tmp_path):
+    """`C-CEG-02`. Silently skipping an unknown key is what made the old claim untrue."""
+    workflow = WORKFLOW.replace(
+        "        run: python scripts/check_budget.py",
+        "        run: python scripts/check_budget.py\n        unknown-future-key: yes")
+    document = graph(tmp_path, workflow)
+    kinds = {e["kind"] for e in document["unresolved_edges"]}
+    assert "UNRECOGNISED_SYNTAX" in kinds
+    assert path_for(document, "check_budget.py")["axes"]["CI_REACHABILITY"] == (
+        "REACHABILITY_NOT_PROVEN"
+    )
+
+
+def test_a_yaml_alias_is_reported_as_a_blind_spot(tmp_path):
+    """An alias can import an entire job, so an indentation parser may miss a path."""
+    workflow = WORKFLOW.replace("  plain-gate:\n", "  plain-gate: &base\n")
+    kinds = {e["kind"] for e in graph(tmp_path, workflow)["unresolved_edges"]}
+    assert "YAML_ANCHOR_OR_ALIAS" in kinds
+
+
+def test_a_statically_false_condition_is_unreachable(tmp_path):
+    workflow = WORKFLOW.replace("    if: github.event_name == 'pull_request'", "    if: false")
+    assert path_for(graph(tmp_path, workflow), "check_dual_policy.py")["axes"]["CI_REACHABILITY"] == (
+        "STATICALLY_UNREACHABLE"
+    )
+
+
+def test_nested_mapping_keys_are_not_mistaken_for_step_keys(tmp_path):
+    """Regression: `with:` and `env:` children are not unrecognised step keys.
+
+    The first version flagged `python-version` and every environment variable, forcing
+    REACHABILITY_NOT_PROVEN on every path in the real workflow. A guard that always says
+    "not proven" is one nobody reads, and it was found by looking at the output rather
+    than by a green test.
+    """
+    workflow = WORKFLOW.replace(
+        "      - uses: actions/checkout@v4",
+        "      - uses: actions/setup-python@v5\n        with:\n          python-version: \"3.12\"")
+    document = graph(tmp_path, workflow)
+    assert not [e for e in document["unresolved_edges"] if e["kind"] == "UNRECOGNISED_SYNTAX"]
+    assert path_for(document, "check_budget.py")["axes"]["CI_REACHABILITY"] == (
+        "NO_EXPLICIT_CONDITION_OBSERVED"
+    )
 
 
 # --- edges the parser cannot follow are reported, never dropped ---------------
@@ -216,6 +277,15 @@ def test_an_unparseable_registry_fails_closed(tmp_path):
     result = run(tmp_path, registry=str(broken))
     assert result.returncode == FAIL
     assert "REFUSED (closed)" in result.stderr
+
+
+def test_the_guard_uses_the_parser_rather_than_a_second_regex(tmp_path):
+    """`C-CEG-01`. One discovery implementation, or the guard enforces the weaker one."""
+    guard = (REPO_ROOT / "tests" / "test_control_surface.py").read_text(encoding="utf-8")
+    assert "from check_control_graph import invoked_scripts" in guard
+    assert "re.findall(r\"scripts/" not in guard, (
+        "the guard must not re-derive the invoked set with its own pattern"
+    )
 
 
 def test_the_parser_declares_its_fidelity_rather_than_implying_completeness(tmp_path):

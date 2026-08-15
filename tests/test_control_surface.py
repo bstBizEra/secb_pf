@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -174,8 +175,14 @@ def test_every_enforcement_script_is_either_tracked_or_declared_excluded():
     # and escaped classification entirely, while `scripts/check_identity_receipt.py`
     # matches the glob although no workflow invokes it. What a control IS cannot be
     # decided by what it is called.
+    # The graph parser IS the discovery implementation; this guard does not re-derive
+    # the set with a second regex. Two implementations of "which controls does CI
+    # invoke" disagree eventually, and the guard would enforce the weaker one (C-CEG-01).
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from check_control_graph import invoked_scripts
+
     workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    on_disk = set(re.findall(r"scripts/[a-z0-9_]+\.py", workflow))
+    on_disk = invoked_scripts(workflow)
     assert on_disk, "no invoked scripts parsed from ci.yml -- the workflow shape changed"
     accounted = {c["path"] for c in CONTROLS} | {e["path"] for e in EXCLUSIONS}
     unaccounted = on_disk - accounted
