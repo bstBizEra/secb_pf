@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.agent-identity-registry/v1",
+  "title": "Agent Identity Registry (sandbox)",
+  "description": "SECB-WP-FWK-081, issue #145. Describes the identity substrate a set of agent roles operates under, so an AIS level can be COMPUTED from evidence instead of asserted. THIS SCHEMA IS FOR A SANDBOX. No GitHub App, installation, secret, token or permission is created by anything that reads it, and no registry conforming to it can raise the production level: production_ais_level is pinned to NOT_OBSERVED. ROLE_LABEL != PLATFORM_PRINCIPAL != CREDENTIAL_CUSTODY_DOMAIN != DECISION_INDEPENDENCE -- the four are separate fields here because a single field would let one of them stand in for the others.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "sandbox", "signature", "principals"],
+  "properties": {
+    "schema": { "const": "secb.agent-identity-registry/v1" },
+
+    "sandbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["is_sandbox", "production_ais_level", "why_capped"],
+      "properties": {
+        "is_sandbox": { "const": true },
+        "production_ais_level": {
+          "const": "NOT_OBSERVED",
+          "description": "A fixture can demonstrate the SHAPE of AIS1-AIS3 evidence. It cannot observe production, and it must never advance production to AIS4."
+        },
+        "max_computable_level": {
+          "const": "AIS3_CUSTODY_SEPARATED",
+          "description": "AIS4 requires independent failure domains, which a single simulated environment cannot exhibit."
+        },
+        "why_capped": { "type": "string", "minLength": 40 }
+      }
+    },
+
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "not_oidc"],
+      "properties": {
+        "algorithm": {
+          "const": "HMAC_SHA256_FIXTURE",
+          "description": "Real OIDC tokens are asymmetrically signed and verified against a published JWKS. A shared-secret HMAC proves a fixture was not edited; it proves nothing about an issuer."
+        },
+        "not_oidc": { "const": true }
+      }
+    },
+
+    "principals": {
+      "type": "object",
+      "minProperties": 2,
+      "description": "One entry per role. Keys are role names; a role name is a LABEL and is never evidence.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["app_id", "installation_id", "custody_domain", "policy_domain", "failure_domain", "token_scope", "oidc_claims"],
+        "properties": {
+          "app_id": { "type": "string", "minLength": 1 },
+          "installation_id": { "type": "string", "minLength": 1 },
+          "custody_domain": {
+            "type": "string",
+            "description": "The broker holding this principal's private key. Separate custody means a compromise of one broker does not yield another's token."
+          },
+          "policy_domain": {
+            "type": "string",
+            "description": "Who decides what this principal may request. Same broker with one policy is one domain wearing several names."
+          },
+          "failure_domain": {
+            "type": "string",
+            "description": "What takes this principal down. Required for AIS4 and NOT computable in a sandbox."
+          },
+          "token_scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["repositories", "permissions", "expires_in_seconds"],
+            "properties": {
+              "repositories": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+              "permissions": { "type": "object", "minProperties": 1 },
+              "expires_in_seconds": {
+                "type": "integer",
+                "maximum": 3600,
+                "description": "An hour ceiling is not least privilege on its own: a token scoped to every repository with broad permissions is over-privileged for the whole hour."
+              }
+            }
+          },
+          "oidc_claims": {
+            "type": "object",
+            "required": ["repository_id", "run_id", "workflow_ref", "workflow_sha"],
+            "properties": {
+              "repository_id": { "type": "string", "minLength": 1 },
+              "run_id": { "type": "string", "minLength": 1 },
+              "workflow_ref": { "type": "string", "minLength": 1 },
+              "workflow_sha": {
+                "type": "string",
+                "minLength": 1,
+                "description": "workflow_ref names a path; workflow_sha pins its content. A ref without a sha binds a moveable target."
+              },
+              "job_workflow_ref": { "type": "string" },
+              "job_workflow_sha": {
+                "type": "string",
+                "description": "Required whenever job_workflow_ref is present: under a reusable workflow the executing definition is not the entry workflow."
+              },
+              "actor_id": {
+                "type": "string",
+                "description": "PROHIBITED as a principal. actor_id is the account that started the workflow, not the agent holding the role."
+              }
+            }
+          },
+          "revocation": {
+            "type": "object",
+            "required": ["reuse_after_revoke"],
+            "properties": {
+              "http_status": { "type": "integer" },
+              "reuse_after_revoke": {
+                "enum": ["DENIED", "ACCEPTED", "NOT_TESTED"],
+                "description": "Only DENIED is evidence. A 204 says a call was accepted, not that the token stopped working."
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
