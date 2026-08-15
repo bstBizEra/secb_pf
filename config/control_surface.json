@@ -62,10 +62,10 @@
     },
     {
       "path": "config/delegation_envelope.json",
-      "sha256": "a3f624e4dc66c7079124237f0f4c58657222b25472f1546a720c47b0a6b3371d",
-      "bytes": 5360,
+      "sha256": "7a5ec3663af5bb62f927b4a6484850cbc6726075a1b67d2b99bcf9ce102e194f",
+      "bytes": 5876,
       "owning_work_package": "SECB-WP-FWK-044",
-      "last_changed_commit": "2250469",
+      "last_changed_commit": "SECB-WP-FWK-055",
       "portability_class": "configure",
       "claimed_transferable_by": "docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md",
       "field_observation": "The instantiation edited envelope_id, authority_source, every tier token and the scope paths -- as it should. Its digest is recorded so that a downstream can see the SHAPE has changed upstream, but a mismatch here is never evidence of staleness. This entry exists to keep the manifest from crying wolf: an undifferentiated digest list would flag every instantiated envelope as stale on day one, and a guard that always fires is a guard nobody reads.",
