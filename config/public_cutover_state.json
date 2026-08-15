@@ -4,28 +4,27 @@
   "schema_version": 1,
   "work_package": "SECB-WP-FWK-080",
   "lifecycle_state": "DISCLOSURE_UNAPPROVED",
-
   "invariant": "BUSINESS_DECISION_TO_DISCLOSE != CAPABILITY_AVAILABLE != CONTROL_CONFIGURED != CONTROL_VERIFIED != CONTROL_ENFORCED",
-
   "what_this_is_not": {
-    "not_an_approval": "Recording DISCLOSURE_APPROVED requires a human decision this file cannot make and an executor cannot supply.",
+    "not_an_approval": "Recording DISCLOSURE_AUTHORIZED requires an Agentic Decision Receipt this file cannot mint. Authority comes from an effective delegated mandate exercised by independent agents, not from a human approving each instance -- and not from an executor writing its own authorization.",
     "not_a_capability_probe": "live_readback is NOT_OBSERVED throughout. No external call is permitted at this state, so every capability's real status is unmeasured -- declared, not assumed absent.",
     "not_enforcement": "Nothing consumes this manifest at merge time. Its only consumer is a validator and a test."
   },
-
   "irreversibility": {
     "visibility_change": "Making the repository public exposes Actions run history and job logs. Secrecy is not restorable by reverting visibility: anything disclosed may have been fetched, cached or indexed.",
-    "consequence": "DISCLOSURE_APPROVED is the one transition that cannot be undone by a later transition, which is why it is gated on a human decision and not on capability readiness.",
+    "consequence": "DISCLOSURE_AUTHORIZED is the one transition that cannot be undone by a later transition, which is why it is gated on a verifiable receipt rather than on capability readiness. Irreversibility raises the evidence bar; it does not hand the decision to a different actor.",
     "prerequisite": "Credential cutover (issue #115, WP-05) must complete first. A secret that is still live when logs become public is disclosed, not rotated."
   },
-
   "capabilities": {
     "rulesets": {
       "purpose": "Branch protection equivalent -- required checks, merge restrictions",
       "current_state_on_this_plan": "UNAVAILABLE",
       "measured": "branches/main/protection returns 403 Upgrade to GitHub Pro or make this repository public",
       "configured_intent": null,
-      "live_readback": { "status": "NOT_OBSERVED", "reason": "no external call permitted at DISCLOSURE_UNAPPROVED" },
+      "live_readback": {
+        "status": "NOT_OBSERVED",
+        "reason": "no external call permitted at DISCLOSURE_UNAPPROVED"
+      },
       "verified": false,
       "enforced": false
     },
@@ -34,7 +33,10 @@
       "current_state_on_this_plan": "UNAVAILABLE",
       "measured": "requires rulesets, which return 403",
       "configured_intent": null,
-      "live_readback": { "status": "NOT_OBSERVED", "reason": "no external call permitted at DISCLOSURE_UNAPPROVED" },
+      "live_readback": {
+        "status": "NOT_OBSERVED",
+        "reason": "no external call permitted at DISCLOSURE_UNAPPROVED"
+      },
       "verified": false,
       "enforced": false,
       "blocking_prerequisite": "ci.yml declares no merge_group trigger, and three of four jobs are gated on github.event_name == 'pull_request', so they would be SKIPPED on a merge-group event. Enabling the queue before that is fixed produces skipped required checks. See issue #118.",
@@ -45,7 +47,10 @@
       "current_state_on_this_plan": "UNAVAILABLE",
       "measured": "available for public repositories on Free/Pro/Team; this repository is private",
       "configured_intent": null,
-      "live_readback": { "status": "NOT_OBSERVED", "reason": "no external call permitted at DISCLOSURE_UNAPPROVED" },
+      "live_readback": {
+        "status": "NOT_OBSERVED",
+        "reason": "no external call permitted at DISCLOSURE_UNAPPROVED"
+      },
       "verified": false,
       "enforced": false,
       "blocking_prerequisite": "Producing an attestation grants nothing until a consumer verifies signature, timestamp and signer identity. Generation is not provenance."
@@ -55,25 +60,87 @@
       "current_state_on_this_plan": "NOT_ASSESSED",
       "measured": null,
       "configured_intent": null,
-      "live_readback": { "status": "NOT_OBSERVED", "reason": "no external call permitted at DISCLOSURE_UNAPPROVED" },
+      "live_readback": {
+        "status": "NOT_OBSERVED",
+        "reason": "no external call permitted at DISCLOSURE_UNAPPROVED"
+      },
       "verified": false,
       "enforced": false
     }
   },
-
   "evidence_lifecycle": {
     "canonical_source": "secb.pr-input-binding/v1 -- scripts/emit_pr_input_binding.py",
     "canonical_source_state": "UNMERGED (issue #127, PR #134)",
     "restated_here": false,
     "why_not_restated": "Copying the stage list would create a second definition that drifts from the first. This manifest cites the source and adds nothing to it; the stage vocabulary is that file's to define. The claim-strength axis it plugs into is issue #124, also unmerged.",
-    "producer_may_not_certify": ["CONSUMER_VERIFIED", "ENFORCEMENT_APPLIED"]
+    "producer_may_not_certify": [
+      "CONSUMER_VERIFIED",
+      "ENFORCEMENT_APPLIED"
+    ]
   },
-
   "independent_obligations": [
-    { "issue": 117, "subject": "L0-GIT-004 -- prohibit non-fast-forward update of a canonical ref", "closed_by_this_manifest": false },
-    { "issue": 118, "subject": "TR-01 Transition Evidence Receipt, and the merge_group activation note", "closed_by_this_manifest": false },
-    { "issue": 119, "subject": "EP-01 Evidence Preservation", "closed_by_this_manifest": false }
+    {
+      "issue": 117,
+      "subject": "L0-GIT-004 -- prohibit non-fast-forward update of a canonical ref",
+      "closed_by_this_manifest": false
+    },
+    {
+      "issue": 118,
+      "subject": "TR-01 Transition Evidence Receipt, and the merge_group activation note",
+      "closed_by_this_manifest": false
+    },
+    {
+      "issue": 119,
+      "subject": "EP-01 Evidence Preservation",
+      "closed_by_this_manifest": false
+    }
   ],
-
-  "transition_evidence": {}
+  "transition_evidence": {},
+  "agentic_authorization": {
+    "model": "EFFECTIVE_DELEGATED_MANDATE + INDEPENDENT_AGENTIC_DECISION + SNAPSHOT_BOUND_RECEIPT + LEAST_PRIVILEGE_EFFECT_EXECUTOR + INDEPENDENT_POST_EFFECT_READBACK = AGENTICALLY_AUTHORIZED_EFFECT",
+    "receipt_schema": "secb.agentic-decision-receipt/v1",
+    "ballot_roles": [
+      "AUTHORITY_RESOLVER",
+      "DISCLOSURE_CLASSIFIER",
+      "SECRET_AUDITOR",
+      "DEPENDENCY_VERIFIER",
+      "ADVERSARIAL_REVIEWER"
+    ],
+    "effect_roles": [
+      "EFFECT_EXECUTOR",
+      "READBACK_VERIFIER"
+    ],
+    "separation_rules": {
+      "executor_is_not_a_ballot_agent": "An agent that decided may not perform the effect. Otherwise the decision and its execution share a failure mode and one compromised actor carries both.",
+      "readback_verifier_is_not_the_executor": "The actor that made the change may not certify that the change is what was decided -- the producer/consumer boundary applied to an external effect.",
+      "all_seven_actor_ids_distinct": true
+    },
+    "snapshot_binding": {
+      "fields": [
+        "repository_id",
+        "main_sha",
+        "open_pr_head_digest",
+        "mandate_digest",
+        "credential_cutover_result"
+      ],
+      "stale_rule": "If any bound field differs from the observed snapshot at execution time, the receipt is STALE and the effect is refused. A decision is about a state, not about a repository in general.",
+      "mandate_source": "config/business_mandate.json",
+      "mandate_source_state": "ABSENT FROM main -- authored on the #113 DAAF-intake branch and unmerged. Until it lands there is no mandate digest to bind, so no receipt can be complete. Declared rather than stubbed: a placeholder digest would make an unsatisfiable precondition look satisfied."
+    },
+    "post_effect": {
+      "effect_succeeded_readback_mismatch": "EFFECT_UNVERIFIED",
+      "why": "An API returning 200 proves a call was accepted, not that the resulting state is the one decided. Readback is a separate observation by a separate actor."
+    },
+    "identity_separation": {
+      "status": "IDENTITY_SEPARATION_UNPROVEN",
+      "condition": "C-7",
+      "reason": "Seven distinct actor_id STRINGS in a receipt prove nothing: a single account can write any string into a JSON file, exactly as one session can type any role banner. That is the self-approval-in-five-hats defect the ballot layer already refuses. What would prove separation is a structural platform actor field -- distinct GitHub App identities, which rulesets can name as actors -- not text inside the artifact being authorized.",
+      "consequence": "The validator refuses DISCLOSURE_AUTHORIZED while this is UNPROVEN. This is NOT a reversion to per-instance human approval: the authority model is agentic, and what is missing is the identity substrate the model requires.",
+      "not_proven": [
+        "that Administration(write) confers decision authority -- it is a capability",
+        "that OIDC id-token:write permits resource modification -- it is an identity",
+        "that generating an attestation verifies one -- signature, timestamp and signer identity must each be checked by a consumer"
+      ]
+    }
+  }
 }

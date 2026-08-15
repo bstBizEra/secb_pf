@@ -16,18 +16,26 @@ anything. It reads a manifest and answers one question — may this transition b
 
 Two properties it deliberately does not have:
 
-* **It cannot approve disclosure.** `DISCLOSURE_APPROVED` requires a human decision. An
-  executor recording it would be manufacturing the authority the gate exists to require,
-  so the transition demands an approval reference the manifest cannot self-supply.
+* **It cannot authorize disclosure by itself.** `DISCLOSURE_AUTHORIZED` requires an
+  **Agentic Decision Receipt** — a snapshot-bound record from seven separated roles. The
+  authority is agentic, not per-instance human approval; what an executor may never do is
+  write its own authorization. A free-form `APPROVAL_REF` string was the previous gate and
+  was no gate at all: the executor composes that text.
+* **Distinct `actor_id` strings are not identity.** A single account can write any string
+  into a receipt, exactly as one session can type any role banner. While `C-7` leaves
+  identity separation unproven, the transition is refused with
+  `IDENTITY_SEPARATION_UNPROVEN` — which is a missing substrate, not a reversion to human
+  approval.
 * **It cannot observe capability.** Every `live_readback` is `NOT_OBSERVED` because no
   external call is permitted at this state. Absent observation is *unmeasured*, never
   "absent" — and `configured_intent` never satisfies a `verified` requirement.
 
 Contract:
 
-    argv[1]        target lifecycle state
-    MANIFEST       manifest path (default config/public_cutover_state.json)
-    APPROVAL_REF   human approval reference, required for DISCLOSURE_APPROVED
+    argv[1]           target lifecycle state
+    MANIFEST          manifest path (default config/public_cutover_state.json)
+    DECISION_RECEIPT  Agentic Decision Receipt path, required for DISCLOSURE_AUTHORIZED
+    OBSERVED_SNAPSHOT observed-snapshot JSON path, required to detect a STALE receipt
 
 Exit codes:
 
@@ -51,7 +59,7 @@ DEFAULT_MANIFEST = "config/public_cutover_state.json"
 # each state's evidence is the next one's precondition.
 ORDER = [
     "DISCLOSURE_UNAPPROVED",
-    "DISCLOSURE_APPROVED",
+    "DISCLOSURE_AUTHORIZED",
     "ORG_TRANSFERRED",
     "VISIBILITY_PUBLIC",
     "CAPABILITIES_OBSERVED",
@@ -74,6 +82,95 @@ def load(path: str) -> dict:
         raise Refused(f"manifest unreadable or unparseable at {path} ({exc})") from exc
 
 
+RECEIPT_SCHEMA = "secb.agentic-decision-receipt/v1"
+
+
+def check_agentic_authorization(manifest: dict, env: dict[str, str]) -> None:
+    """Verify an Agentic Decision Receipt, or refuse.
+
+    Order matters: identity separation is checked **first**. Every check after it operates
+    on self-asserted content, so passing them while the substrate is unproven would report
+    a verified decision built out of text one actor wrote.
+    """
+    authorization = manifest["agentic_authorization"]
+
+    separation = authorization["identity_separation"]
+    if separation["status"] != "PROVEN":
+        raise Refused(
+            f"{separation['status']} ({separation['condition']}): distinct actor_id strings "
+            "in a receipt are self-asserted text, like a role banner. Separation must come "
+            "from a structural platform actor field. The authority model stays agentic; the "
+            "identity substrate is what is missing"
+        )
+
+    receipt_path = env.get("DECISION_RECEIPT", "").strip()
+    if not receipt_path:
+        raise Refused(
+            "DISCLOSURE_AUTHORIZED requires DECISION_RECEIPT. A free-form approval string "
+            "is not a gate -- the executor composes it"
+        )
+    try:
+        receipt = json.loads(Path(receipt_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise Refused(f"decision receipt unreadable or unparseable ({exc})") from exc
+
+    if receipt.get("schema") != RECEIPT_SCHEMA:
+        raise Refused(f"receipt schema {receipt.get('schema')!r} is not {RECEIPT_SCHEMA}")
+
+    ballot_roles = authorization["ballot_roles"]
+    effect_roles = authorization["effect_roles"]
+    roles = receipt.get("roles", {})
+    missing = [r for r in ballot_roles + effect_roles if r not in roles]
+    if missing:
+        raise Refused(f"receipt omits roles {missing}")
+
+    actors = {}
+    for role in ballot_roles + effect_roles:
+        actor = (roles[role] or {}).get("actor_id", "").strip()
+        if not actor:
+            raise Refused(f"role {role} names no actor_id")
+        actors.setdefault(actor, []).append(role)
+    shared = {a: r for a, r in actors.items() if len(r) > 1}
+    if shared:
+        raise Refused(
+            f"one actor holds several roles: {shared}. Deciding and executing must not share "
+            "a failure mode, and an executor may not certify its own effect"
+        )
+
+    for role in ballot_roles:
+        if (roles[role] or {}).get("decision") != "AUTHORIZE":
+            raise Refused(f"{role} did not record AUTHORIZE")
+
+    bound = receipt.get("snapshot", {})
+    fields = authorization["snapshot_binding"]["fields"]
+    absent = [f for f in fields if not bound.get(f)]
+    if absent:
+        raise Refused(f"receipt binds no {absent}; a decision is about a state, not a repository")
+
+    observed_path = env.get("OBSERVED_SNAPSHOT", "").strip()
+    if not observed_path:
+        raise Refused(
+            "OBSERVED_SNAPSHOT is required: without an observation there is no way to tell "
+            "a current receipt from a stale one, and this validator performs no external call"
+        )
+    try:
+        observed = json.loads(Path(observed_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise Refused(f"observed snapshot unreadable or unparseable ({exc})") from exc
+
+    drifted = [f for f in fields if bound.get(f) != observed.get(f)]
+    if drifted:
+        raise Refused(
+            f"RECEIPT_STALE: {drifted} changed since the decision was recorded"
+        )
+
+    if bound["credential_cutover_result"] != "PASSED":
+        raise Refused(
+            "credential cutover (#115) has not passed; a secret still live when logs become "
+            "public is disclosed, not rotated"
+        )
+
+
 def check(manifest: dict, target: str, env: dict[str, str]) -> None:
     current = manifest.get("lifecycle_state")
     if current not in ORDER:
@@ -94,20 +191,8 @@ def check(manifest: dict, target: str, env: dict[str, str]) -> None:
         )
 
     # The one transition an executor may never self-authorize.
-    if target == "DISCLOSURE_APPROVED":
-        approval = env.get("APPROVAL_REF", "").strip()
-        if not approval:
-            raise Refused(
-                "DISCLOSURE_APPROVED requires APPROVAL_REF, a human decision reference. "
-                "Making the repository public exposes Actions history and logs, and "
-                "secrecy is not restorable by reverting visibility"
-            )
-        prerequisite = manifest.get("irreversibility", {}).get("prerequisite", "")
-        if "#115" not in prerequisite:
-            raise Refused(
-                "the manifest must name the credential-cutover prerequisite (#115); a "
-                "secret still live when logs become public is disclosed, not rotated"
-            )
+    if target == "DISCLOSURE_AUTHORIZED":
+        check_agentic_authorization(manifest, env)
 
     if target == "CAPABILITIES_OBSERVED":
         unobserved = [
