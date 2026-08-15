@@ -23,6 +23,7 @@ the tree disagreed.
 
 from __future__ import annotations
 
+import ast
 import re
 import subprocess
 from pathlib import Path
@@ -88,6 +89,69 @@ def measured_block() -> dict[str, str]:
     raise AssertionError("no EFFECTIVE_MAIN measured block found in the definition")
 
 
+# --- required versus advisory -------------------------------------------------
+#
+# A REQUIRED assertion must never turn a missing prerequisite into a green job. The five
+# ref-dependent checks cannot run under CI's HEAD_ONLY checkout, so they are ADVISORY:
+# named `test_advisory_*`, permitted to skip, and never citable as verification.
+# Everything else is REQUIRED and must execute on every run (`SECB-WP-FWK-078`).
+ADVISORY_PREFIX = "test_advisory_"
+
+
+def test_no_required_assertion_can_skip_its_way_to_green():
+    """The review condition, applied to this module itself.
+
+    `zero failures ≠ zero required observations omitted`. A required test that calls
+    `pytest.skip` on a missing prerequisite converts an unmet precondition into a passing
+    job — the fail-open shape this repository forbids everywhere else.
+
+    Detection is `ast`-based, over **call nodes**, not substrings. The first version
+    matched text and flagged itself, because a guard searching for a skip call
+    necessarily contains that text — the same false positive a name-only matcher produced
+    in `check_prohibited_calls.py` when it read `set.remove()` as a filesystem write
+    (`SECB-WP-FWK-048`). A matcher must look at what the code *calls*.
+    """
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    escapes = {"require_ref", "skip"}
+    offenders = []
+    for node in tree.body:
+        if not isinstance(node, ast.FunctionDef) or not node.name.startswith("test_"):
+            continue
+        if node.name.startswith(ADVISORY_PREFIX):
+            continue
+        for inner in ast.walk(node):
+            if isinstance(inner, ast.Call):
+                func = inner.func
+                name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+                if name in escapes:
+                    offenders.append(node.name)
+                    break
+    assert not offenders, (
+        f"required assertions {offenders} can skip. Rename them test_advisory_* and stop "
+        "citing them as verification, or give them prerequisites that always hold"
+    )
+
+
+def test_the_definition_does_not_claim_verification_it_did_not_receive():
+    """`NOT_VERIFIED_BY_CI` belongs on the claim, not only in a skip reason.
+
+    A skip reason lives in a job log nobody opens once the checkmark is green. The
+    claim's own surface must carry its verification status, or the green Test job becomes
+    the evidence by default.
+    """
+    block = measured_block()
+    assert block.get("verification_status") == "NOT_VERIFIED_BY_CI", (
+        "these counts are recomputed only on a full clone; the document must say so where "
+        "the counts are"
+    )
+    assert block.get("required_checkout_profile") == "ANCESTRY_PATH", (
+        "rev-list --count and the ancestor proof need ancestry, not merely the objects"
+    )
+    assert "must not be cited as evidence" in DEFINITION.read_text(encoding="utf-8"), (
+        "the document must forbid citing the green Test job for these counts"
+    )
+
+
 def test_the_measured_block_declares_every_projection_field():
     block = measured_block()
     for field in PROJECTION_FIELDS:
@@ -97,7 +161,7 @@ def test_the_measured_block_declares_every_projection_field():
     )
 
 
-def test_the_cited_ref_exists_and_is_an_ancestor_of_main():
+def test_advisory_the_cited_ref_exists_and_is_an_ancestor_of_main():
     """A ref nobody can resolve makes every count below it unverifiable."""
     ref = measured_block()["as_of_ref"]
     require_ref(ref)
@@ -120,7 +184,7 @@ def test_the_cited_ref_exists_and_is_an_ancestor_of_main():
         ("numbered_documentation_domains", ("ls-tree", "-d", "--name-only")),
     ],
 )
-def test_each_count_is_recomputable_from_the_cited_ref(field, command):
+def test_advisory_each_count_is_recomputable_from_the_cited_ref(field, command):
     """The coupling: move the ref without re-measuring, and this fails."""
     block = measured_block()
     ref = block["as_of_ref"]

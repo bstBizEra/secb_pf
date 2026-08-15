@@ -39,7 +39,35 @@ json_schemas: 14
 skill_registry_instances: 0
 current_tier: A1
 ballot_layer: NOT_ACTIVE
+
+# How these counts were, and were not, checked (SECB-WP-FWK-078)
+verification_status: NOT_VERIFIED_BY_CI
+recomputation_evidence: LOCAL_FULL_CLONE_ONLY
+required_checkout_profile: ANCESTRY_PATH
+ci_checkout_profile: HEAD_ONLY
+required_history_assertions_executed: 0/5
 ```
+
+**The green Test job must not be cited as evidence for the counts above.** CI checks out
+with `fetch-depth: 1`, so the cited commit is not in its object store and all five
+recomputation assertions **skip**. They are named `test_advisory_*` for that reason, and a
+required assertion in this repository may never skip its way to green:
+
+```text
+honest skip reason  ≠  verification
+zero failures       ≠  zero required observations omitted
+```
+
+The counts are recomputed on a full clone, and that is the whole of their evidence today.
+Two further boundaries, stated because each could be mistaken for coverage:
+
+- `rev-list --count` and the ancestor proof need **ancestry**, not merely the objects.
+  Fetching `as_of_ref` alone would fix `ls-tree` and still leave history unproven.
+- On a `pull_request` event `actions/checkout` builds a **synthetic merge commit**, so the
+  tree CI tested is not the PR head it is reported against.
+
+Full history is not switched on here without measuring its cost, and the job that would
+carry it lives in `ci.yml`, which PR #134 already claims. Tracked as `SECB-WP-FWK-078`.
 
 ```text
 PROPOSED_HEAD evidence  ≠  EFFECTIVE_MAIN capability
