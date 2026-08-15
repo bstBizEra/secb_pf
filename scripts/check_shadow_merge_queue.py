@@ -21,6 +21,11 @@ Three properties that make the receipt honest rather than reassuring:
 * **A first failing prefix is not a culprit.** `FIRST_FAILING_PREFIX_AT_PR_N` ≠
   `PR_N_IS_SOLE_CAUSE`: the failure is a property of the *combination*, and attributing it
   to the last entry added is the same error as blaming the last commit in a bisect range.
+* **The measurement must not perturb what it measures.** The test run is given
+  `PYTHONDONTWRITEBYTECODE=1`, and the worktree is checked for residue afterwards. Without
+  this the run wrote `__pycache__` under the sealed-evidence directory and the
+  sealed-evidence guard failed — a "queue defect" that was entirely the observer's.
+  Suppressing the known contaminant is not proving there was none, so both are done.
 * **A timeout is not a result.** Running out of budget yields
   `measurement_status: INCOMPLETE` and `QUEUE_DRAINABILITY_UNPROVEN`, and the first PR in
   the unmeasured suffix is **not** reported as failing.
@@ -107,6 +112,7 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
     worktree = str(Path(workdir) / "wt")
     prefixes: list[dict] = []
     first_failing: str | None = None
+    contaminated = False
     try:
         git("worktree", "add", "--detach", "-q", worktree, base)
         for index, ref in enumerate(queue, start=1):
@@ -142,12 +148,32 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
             record["synthetic_commit_sha"] = git("rev-parse", "HEAD", cwd=worktree)
             record["synthetic_tree_sha"] = git("rev-parse", "HEAD^{tree}", cwd=worktree)
 
+            # The measurement must not perturb what it measures. Without
+            # PYTHONDONTWRITEBYTECODE the test run writes __pycache__ into the tree,
+            # including under the sealed-evidence directory, and the sealed-evidence guard
+            # then fails -- reporting a queue defect that is entirely the observer's.
+            # Measured: this produced a false QUEUE_NOT_DRAINABLE_AS_ORDERED at the first
+            # prefix, and the same tree passed 175 tests when run cleanly.
+            test_env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
             tests = subprocess.run(
                 test_command, shell=True, cwd=worktree,
-                capture_output=True, text=True,
+                capture_output=True, text=True, env=test_env,
             )
             record["tests"] = "PASS" if tests.returncode == 0 else "FAIL"
             record["test_summary"] = (tests.stdout or tests.stderr).strip().splitlines()[-1:]
+
+            # Suppressing the known contaminant is not the same as proving there was none.
+            residue = [line for line in
+                       git("status", "--porcelain", cwd=worktree, check=False).splitlines()
+                       if line.strip()]
+            if residue:
+                record["contamination"] = residue[:10]
+                record["tests"] = "MEASUREMENT_CONTAMINATED"
+                prefixes.append(record)
+                first_failing = None
+                contaminated = True
+                break
+
             prefixes.append(record)
             if tests.returncode != 0:
                 first_failing = ref
@@ -173,7 +199,15 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
         "confers_merge_authority": False,
     }
 
-    if first_failing:
+    if contaminated:
+        receipt["verdict"] = "MEASUREMENT_CONTAMINATED"
+        receipt["measurement_status"] = "REFUSED"
+        receipt["why"] = (
+            "the test command left the worktree dirty, so the tree that was tested is not "
+            "the tree that was built. A result from a perturbed measurement is not a result "
+            "in either direction"
+        )
+    elif first_failing:
         receipt["first_failing_prefix_at"] = first_failing
         receipt["attribution"] = (
             f"FIRST_FAILING_PREFIX_AT {first_failing} is NOT {first_failing}_IS_SOLE_CAUSE. "
