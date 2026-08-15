@@ -1,0 +1,166 @@
+"""`scripts/emit_pr_input_binding.py` — `SECB-WP-FWK-068`.
+
+The defect this closes was measured, not hypothesised: Gate 1's log for PR #122 at head
+`1a569a9` recorded `AUTHORITY GATE PASS: … SECB-WP-FWK-062` while the pull request now
+reads `SECB-WP-FWK-066`. The check stayed green and GitHub showed nothing stale, because
+a check is bound to `head_sha` and metadata is not part of it.
+
+Every rejection path below is exercised by invoking the script as a subprocess, not by
+importing it. A gate is what it does when run.
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRIPT = REPO_ROOT / "scripts" / "emit_pr_input_binding.py"
+
+OK = 0
+FAIL = 2
+
+BASE_ENV = {
+    "PR_TITLE": "SECB-WP-FWK-068: bind a check to the metadata it evaluated",
+    "PR_BODY": "Closes #127.\n\nBUDGET: max_files=4 max_lines=600\n\nBody text.",
+    "HEAD_SHA": "5caad30f34be26dfae16731be1344e44a97928f2",
+    "BASE_SHA": "f1b2516012dc69492a8a2480ea75d29a83f4def0",
+}
+
+
+def run(env: dict, *args: str) -> subprocess.CompletedProcess:
+    full = {"PATH": "/usr/bin:/bin", "ENVELOPE": str(REPO_ROOT / "config" / "delegation_envelope.json")}
+    full.update(env)
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), *args],
+        capture_output=True, text=True, env=full, cwd=str(REPO_ROOT), timeout=30,
+    )
+
+
+def emit(env: dict) -> dict:
+    result = run(env)
+    assert result.returncode == OK, result.stderr
+    return json.loads(result.stdout)
+
+
+# --- emission ----------------------------------------------------------------
+
+
+def test_binding_carries_every_field_the_decision_context_depends_on():
+    binding = emit(BASE_ENV)
+    for field in (
+        "schema", "head_sha", "base_sha", "title_digest", "body_digest",
+        "work_package_id", "budget_digest", "merge_method", "expected_commit_subject",
+    ):
+        assert field in binding, f"the binding omits {field!r}"
+    assert binding["schema"] == "secb.pr-input-binding/v1"
+    assert binding["work_package_id"] == "SECB-WP-FWK-068", (
+        "the work-package ID must be parsed from the metadata, since that is the input "
+        "Gate 1 actually reads"
+    )
+
+
+def test_the_squash_subject_is_bound_because_it_lands_on_main():
+    binding = emit({**BASE_ENV, "PR_TITLE": "  spaced   title\t here  "})
+    assert binding["expected_commit_subject"] == "spaced title here"
+
+
+def test_budget_digest_is_null_when_no_budget_is_declared():
+    binding = emit({**BASE_ENV, "PR_BODY": "No declaration here."})
+    assert binding["budget_digest"] is None, (
+        "an absent declaration must be visibly absent, not digested as empty text"
+    )
+
+
+def test_a_title_edit_changes_the_binding():
+    """The whole point: this is what `head_sha` alone cannot see."""
+    before = emit(BASE_ENV)
+    after = emit({**BASE_ENV, "PR_TITLE": "SECB-WP-FWK-099: something else entirely"})
+    assert before["head_sha"] == after["head_sha"], "the head is deliberately unchanged"
+    assert before["title_digest"] != after["title_digest"]
+    assert before["work_package_id"] != after["work_package_id"]
+
+
+# --- verification -------------------------------------------------------------
+
+
+def test_verify_passes_when_the_live_pull_request_still_matches(tmp_path):
+    recorded = tmp_path / "binding.json"
+    recorded.write_text(json.dumps(emit(BASE_ENV)), encoding="utf-8")
+    result = run(BASE_ENV, "--verify", str(recorded))
+    assert result.returncode == OK, result.stderr
+    assert "CHECK_CURRENT PASS" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "key,value,term",
+    [
+        ("PR_TITLE", "SECB-WP-FWK-068: a different title", "title_digest"),
+        ("PR_BODY", "BUDGET: max_files=4 max_lines=600\ndifferent body", "body_digest"),
+        ("HEAD_SHA", "0000000000000000000000000000000000000000", "head_sha"),
+        ("BASE_SHA", "1111111111111111111111111111111111111111", "base_sha"),
+        ("PR_BODY", "Closes #127.\n\nBUDGET: max_files=99 max_lines=9999\n\nBody text.", "budget_digest"),
+    ],
+)
+def test_verify_fails_and_names_the_term_that_changed(tmp_path, key, value, term):
+    """`base_sha` is in this list on purpose.
+
+    Retargeting a pull request changes the diff under review without touching the head,
+    so a binding over the head alone would call that unchanged.
+    """
+    recorded = tmp_path / "binding.json"
+    recorded.write_text(json.dumps(emit(BASE_ENV)), encoding="utf-8")
+    result = run({**BASE_ENV, key: value}, "--verify", str(recorded))
+    assert result.returncode == FAIL
+    assert "CHECK_CURRENT FAIL" in result.stderr
+    assert term in result.stderr, (
+        f"the failure must name {term!r} — 'something changed' does not tell a reader "
+        f"what to re-check. Got: {result.stderr}"
+    )
+
+
+# --- fail-closed ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize("absent", ["PR_TITLE", "HEAD_SHA", "BASE_SHA"])
+def test_absent_required_input_fails_closed(absent):
+    env = {k: v for k, v in BASE_ENV.items() if k != absent}
+    result = run(env)
+    assert result.returncode == FAIL
+    assert "BINDING FAIL (closed)" in result.stderr
+    assert absent in result.stderr
+
+
+def test_an_empty_body_is_legitimate_and_not_a_failure():
+    """Absence of a body is not absence of an input — it is an input whose value is empty."""
+    binding = emit({**BASE_ENV, "PR_BODY": ""})
+    assert binding["body_digest"].startswith("sha256:")
+
+
+def test_unreadable_recorded_binding_fails_closed(tmp_path):
+    result = run(BASE_ENV, "--verify", str(tmp_path / "does-not-exist.json"))
+    assert result.returncode == FAIL
+    assert "BINDING FAIL (closed)" in result.stderr
+
+
+def test_verify_without_a_path_fails_closed():
+    result = run(BASE_ENV, "--verify")
+    assert result.returncode == FAIL
+
+
+def test_unreadable_envelope_fails_closed():
+    """Inherited from `load_prefix`, which is reused rather than reimplemented."""
+    result = run({**BASE_ENV, "ENVELOPE": "/nonexistent/envelope.json"})
+    assert result.returncode == FAIL
+    assert "BINDING FAIL (closed)" in result.stderr
+
+
+def test_binding_declares_what_it_does_not_prove():
+    """Emission enables readback; it does not perform it, and no consumer requires it."""
+    binding = emit(BASE_ENV)
+    assert binding["not_proven"], "the binding must state the claims it does not support"
+    assert any("--verify" in item for item in binding["not_proven"])

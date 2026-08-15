@@ -1,13 +1,33 @@
 # SecB CI — the executable control gates.
 #
 # CONTROL_GATES.md defines ten gates as prose. This workflow makes three
-# of them mechanically fail-able, and reports a fourth signal:
+# of them mechanically fail-able, and reports a fourth signal.
 #
-#   test-gate           (gate 5, Test)      — FIT-101..120 + repo tests
-#   authority-gate      (gate 1, Authority) — every PR cites a work-package ID
-#   budget-gate         (AGENTS.md §6/§7)   — declared diff budget honoured
-#   governance-verdict  (L0 constitution)   — advisory: authority-delta class
-#                                             plus dual-policy evaluation
+# Checks are named for WHAT THEY DO, not by number (SECB-WP-FWK-068).
+# Two different steps were both called "Gate 6", and the CI numbering was a
+# second, unregistered use of gate numbering — the registered GATE ladder is
+# GATE-001..GATE-010, bound to two-plane verdict rules. A duplicate number is
+# the same defect as a duplicate work-package ID: the label stops identifying
+# one thing.
+#
+#   Functional name                                  Historical alias
+#   ----------------------------------------------   ---------------------
+#   Test — repository and FIT suite                  "Gate 5 — Test"
+#   Safety — prohibited-call scan (NFR-18)           "Gate 6 - prohibited-call scan"
+#   Security — committed-secret scan (NFR-17)        "Gate 6 - committed-secret scan"
+#   Authority — work-package binding                 "Gate 1 — Authority (No Ticket, No Work)"
+#   Budget — declared ceiling                        "Budget circuit breaker (AGENTS.md §6/§7)"
+#   Governance — authority-delta verdict (advisory)  "Governance verdict (advisory)"
+#
+# The aliases are for audit readback only — historical check-runs keep the
+# names they were created with, and a query joining on name across time needs
+# both. A missing number does not mean a missing control, and renaming a check
+# does not implement a new gate.
+#
+# "Governance" is retained deliberately in the verdict check's name: the K-09
+# ledger counts observations with `check_runs[].name | grep -qi governance`
+# (docs/13-evidence/K09_LEDGER.md). A rename dropping that token would silently
+# count zero observations forever while the ledger kept appending rows.
 #
 # CI is a signal, not a hard gate: nothing here blocks a push to main by
 # itself. A red run is the evidence a reviewer or human merge decision
@@ -18,14 +38,20 @@ name: ci
 on:
   push:
     branches: [main]
+  # `edited` and `ready_for_review` are listed explicitly because the default
+  # for `pull_request:` is [opened, synchronize, reopened] — under which a title
+  # or body edit fires nothing at all, leaving a green check bound to metadata
+  # that no longer exists (SECB-WP-FWK-068). A workflow re-run cannot substitute:
+  # it replays the ORIGINAL event payload, so it would re-evaluate the old title.
   pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
 
 permissions:
   contents: read
 
 jobs:
   test-gate:
-    name: "Gate 5 — Test"
+    name: "Test — repository and FIT suite"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,7 +79,7 @@ jobs:
       # SECB-WP-FWK-048 makes it a gate. ast-based, so a mention in a docstring is
       # not a finding and a set.remove() is not a filesystem write, which the
       # first version of the scanner got wrong (DEF-ENGLOOP-MVP-001).
-      - name: "Gate 6 - prohibited-call scan (NFR-18)"
+      - name: "Safety — prohibited-call scan (NFR-18)"
         run: |
           python scripts/check_prohibited_calls.py \
             "docs/06-agent-orchestration/skill-router/SECB-WP-ENGLOOP-MVP-001 — Sandbox Evidence" \
@@ -65,13 +91,13 @@ jobs:
       # anywhere, and secret-named assignments with a real-looking value.
       # Requiring both name AND value is what keeps it usable -- six SHA-256
       # digests live in the tracked tree and every one is an evidence anchor.
-      - name: "Gate 6 - committed-secret scan (NFR-17)"
+      - name: "Security — committed-secret scan (NFR-17)"
         run: |
           python scripts/check_committed_secrets.py \
             AGENTS.md README.md docs config scripts src tests .github
 
   authority-gate:
-    name: "Gate 1 — Authority (No Ticket, No Work)"
+    name: "Authority — work-package binding"
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -90,8 +116,19 @@ jobs:
             ${{ github.event.pull_request.body }}
         run: python scripts/check_work_package_ref.py
 
+      # What this check evaluated, so a later reader can prove it. A result bound
+      # only to head_sha cannot distinguish "still current" from "the title changed
+      # underneath it" — see scripts/emit_pr_input_binding.py.
+      - name: Record the metadata this check evaluated
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python scripts/emit_pr_input_binding.py
+
   budget-gate:
-    name: "Budget circuit breaker (AGENTS.md §6/§7)"
+    name: "Budget — declared ceiling"
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -114,8 +151,19 @@ jobs:
           git diff --numstat "$BASE_SHA...$HEAD_SHA"
           | python scripts/check_budget.py
 
+      # What this check evaluated, so a later reader can prove it. A result bound
+      # only to head_sha cannot distinguish "still current" from "the title changed
+      # underneath it" — see scripts/emit_pr_input_binding.py.
+      - name: Record the metadata this check evaluated
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python scripts/emit_pr_input_binding.py
+
   governance-verdict:
-    name: "Governance verdict (advisory)"
+    name: "Governance — authority-delta verdict (advisory)"
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     # Advisory: this job reports the authority-delta class of the PR and
