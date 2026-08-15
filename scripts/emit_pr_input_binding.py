@@ -47,6 +47,10 @@ Contract:
 Exit codes:
 
     0  binding emitted, or verification passed
+
+Eligibility is not consumption. `eligible_for_normative_consumption: true` says this
+record has the properties a consumer would require; it does not say a consumer read it,
+and the producer is not entitled to claim the stages that belong to one.
     2  fail-closed: required input missing, or a `CHECK_CURRENT` term mismatched
 
 Attacker-controlled text arrives through the environment, never through shell
@@ -85,6 +89,26 @@ class UnsupportedSubject(ValueError):
 class InvalidActionsContext(ValueError):
     """A run claims an Actions context it cannot substantiate."""
 
+
+# Where this record sits in the evidence lifecycle, and where it does not. Each stage
+# is a separate fact: none of them implies the next, and a producer cannot certify the
+# stages that belong to a consumer.
+#
+#   GENERATED → CONTEXT_VALIDATED → PERSISTED → ADDRESSABLE
+#             → INTEGRITY_BOUND → CONSUMER_VERIFIED → ENFORCEMENT_APPLIED
+EVIDENCE_LIFECYCLE = {
+    "reached": ["GENERATED", "CONTEXT_VALIDATED"],
+    "not_reached": {
+        "PERSISTED": "emitted to a step log; no structured record is stored",
+        "ADDRESSABLE": "no stable receipt URI exists",
+        "INTEGRITY_BOUND": "a digest is not a verified signer; nothing is attested",
+        "CONSUMER_VERIFIED": "no consumer reads this record",
+        "ENFORCEMENT_APPLIED": "no merge is denied on its absence or failure",
+    },
+    "producer_may_not_certify": [
+        "CONSUMER_VERIFIED", "ENFORCEMENT_APPLIED",
+    ],
+}
 
 LOCAL_DIAGNOSTIC = "LOCAL_DIAGNOSTIC"
 EVENT_BOUND = "GITHUB_ACTIONS_EVENT_BOUND"
@@ -135,7 +159,7 @@ def execution_context(env: dict[str, str], title: str, body: str,
             "mode": LOCAL_DIAGNOSTIC,
             "event_payload_digest": None,
             "event_payload_consistent": None,
-            "evidence_consumable": False,
+            "eligible_for_normative_consumption": False,
         }
 
     missing = [v for v in ACTIONS_VARS if not env.get(v, "").strip()]
@@ -180,7 +204,7 @@ def execution_context(env: dict[str, str], title: str, body: str,
         "mode": EVENT_BOUND,
         "event_payload_digest": digest(raw.decode("utf-8", "replace")),
         "event_payload_consistent": True,
-        "evidence_consumable": True,
+        "eligible_for_normative_consumption": True,
     }
 
 
@@ -218,7 +242,8 @@ def build_binding(env: dict[str, str]) -> dict:
         "merge_group_compatible": False,
         "observed_event": observed_event or "UNSET",
         "execution_context": context,
-        "evidence_consumable": context["evidence_consumable"],
+        "eligible_for_normative_consumption": context["eligible_for_normative_consumption"],
+        "evidence_lifecycle": EVIDENCE_LIFECYCLE,
         "head_sha": env["HEAD_SHA"].strip(),
         "base_sha": env["BASE_SHA"].strip(),
         "title_digest": digest(title),
@@ -231,8 +256,10 @@ def build_binding(env: dict[str, str]) -> dict:
             "that the recorded values are still current — that is --verify's job",
             "that any consumer requires this binding",
             "anything about a merge group",
+            "that this record has been consumed: eligibility is a property of the record, "
+            "consumption is an act of a consumer, and no consumer exists",
             "that a LOCAL_DIAGNOSTIC record is evidence — it carries the same schema name "
-            "and is not consumable; a normative consumer must reject it",
+            "and is not eligible; a normative consumer must reject it",
             "that runner variables are attestation; they are provenance, which is why the "
             "event payload is re-read and compared",
         ],
@@ -280,7 +307,7 @@ def main(argv: list[str]) -> int:
             print(f"BINDING FAIL (closed): recorded binding unreadable ({exc})", file=sys.stderr)
             return FAIL
 
-        if not recorded.get("evidence_consumable"):
+        if not recorded.get("eligible_for_normative_consumption"):
             print(
                 "EVIDENCE_NOT_CONSUMABLE: the recorded binding was produced in "
                 f"{recorded.get('execution_context', {}).get('mode', 'an unknown mode')} "

@@ -246,7 +246,7 @@ def test_a_full_actions_context_is_event_bound_and_consumable(tmp_path):
     assert context["mode"] == "GITHUB_ACTIONS_EVENT_BOUND"
     assert context["event_payload_consistent"] is True
     assert context["event_payload_digest"].startswith("sha256:")
-    assert binding["evidence_consumable"] is True
+    assert binding["eligible_for_normative_consumption"] is True
 
 
 def test_a_local_run_is_diagnostic_and_not_consumable():
@@ -258,7 +258,7 @@ def test_a_local_run_is_diagnostic_and_not_consumable():
     """
     binding = emit(BASE_ENV)
     assert binding["execution_context"]["mode"] == "LOCAL_DIAGNOSTIC"
-    assert binding["evidence_consumable"] is False
+    assert binding["eligible_for_normative_consumption"] is False
     assert binding["execution_context"]["event_payload_digest"] is None
 
 
@@ -315,10 +315,43 @@ def test_a_payload_inconsistent_with_the_bound_values_fails_closed(tmp_path, fie
     assert field in result.stderr
 
 
+def test_eligibility_is_not_consumption(tmp_path):
+    """The producer states a property; it may not state a consumer's act.
+
+    `evidence_consumable: true` read as *"this has been consumed"*. It never could be:
+    the emitter runs before any consumer exists, and none exists at all. The record now
+    carries its lifecycle position and names the stages it has not reached.
+    """
+    binding = emit(actions_env(tmp_path))
+    assert binding["eligible_for_normative_consumption"] is True
+    assert "evidence_consumable" not in binding, (
+        "the old name asserted a consumer state the producer cannot observe"
+    )
+
+    lifecycle = binding["evidence_lifecycle"]
+    assert lifecycle["reached"] == ["GENERATED", "CONTEXT_VALIDATED"]
+    for stage in ("PERSISTED", "ADDRESSABLE", "INTEGRITY_BOUND",
+                  "CONSUMER_VERIFIED", "ENFORCEMENT_APPLIED"):
+        assert stage in lifecycle["not_reached"], f"{stage} must be declared unreached"
+        assert lifecycle["not_reached"][stage], f"{stage} must say why"
+    assert set(lifecycle["producer_may_not_certify"]) == {
+        "CONSUMER_VERIFIED", "ENFORCEMENT_APPLIED"
+    }
+
+
+def test_no_stage_is_inferred_from_the_one_before_it(tmp_path):
+    """A log line is not a receipt; a digest is not a signer; verified is not enforced."""
+    lifecycle = emit(actions_env(tmp_path))["evidence_lifecycle"]
+    assert "step log" in lifecycle["not_reached"]["PERSISTED"]
+    assert "verified signer" in lifecycle["not_reached"]["INTEGRITY_BOUND"]
+    assert "no merge is denied" in lifecycle["not_reached"]["ENFORCEMENT_APPLIED"]
+
+
 def test_binding_declares_what_it_does_not_prove():
     """Emission enables readback; it does not perform it, and no consumer requires it."""
     binding = emit(BASE_ENV)
     assert any("LOCAL_DIAGNOSTIC" in item for item in binding["not_proven"])
     assert any("attestation" in item for item in binding["not_proven"])
+    assert any("consumption is an act of a consumer" in item for item in binding["not_proven"])
     assert binding["not_proven"], "the binding must state the claims it does not support"
     assert any("--verify" in item for item in binding["not_proven"])
