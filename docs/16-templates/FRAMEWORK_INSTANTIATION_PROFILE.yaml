@@ -1,0 +1,60 @@
+# Instantiation profile for a project built from SecB PF.
+#
+# SECB-WP-FWK-072. Copy this file into the new project, fill every field, and keep it
+# under version control: it is the record of what the instance's authority actually
+# granted, not a convenience.
+#
+# INVARIANT -- every unresolved placeholder makes the instance NOT_READY. A field left
+# as `TODO` is not a default; it is an unanswered authority question, and an instance
+# that starts work with one is operating on inherited text nobody ratified.
+
+schema: secb.framework-instantiation-profile/v1
+framework_source:
+  product_id: SECB-PF
+  as_of_ref: TODO                 # the SecB PF commit this instance was cut from
+  projection: EFFECTIVE_MAIN
+
+# --- identity and authority --------------------------------------------------
+project_identity: TODO            # the instance's own name; never inherited
+authority_owner: TODO             # the human or body that may change L0/L1 here
+work_package_prefix: TODO         # data, not code -- read from the envelope at runtime
+risk_profile: TODO                # e.g. R0..R4 profile this instance operates under
+delegation_ceiling: TODO          # max_changed_lines_ever and max_tier for THIS project
+expiry_policy: TODO               # envelope expiry date and renewal owner
+
+# --- scope --------------------------------------------------------------------
+required_stages: TODO             # which of the 12+2 stages this instance must pass
+evidence_retention: TODO          # how long, where, and what is sealed
+
+# --- populations (a schema is not a population) -------------------------------
+# Each registry is EMPTY until instances are registered AND a consumer selects them
+# through the production path. Declaring a registry does not populate it.
+agent_registry:
+  state: EMPTY
+  entries: []
+skill_registry:
+  state: EMPTY
+  entries: []
+tool_registry:
+  state: EMPTY
+  entries: []
+
+# --- execution ----------------------------------------------------------------
+trigger_profile:
+  pull_request_types: [opened, reopened, synchronize, edited, ready_for_review]
+  scheduled: TODO                 # required if the envelope has an expiry to watch
+executor_bindings:
+  state: NONE                     # SecB PF ships no executor; see the runtime axis
+
+# --- declared strength ---------------------------------------------------------
+# Never report above the mechanism and the verified behaviour. An instance inherits
+# SecB's DETECTIVE ceiling unless it runs on a plan where preventive branch
+# enforcement is actually available -- which must be measured, not assumed.
+enforcement_level: DETECTIVE
+preventive_branch_enforcement: TODO   # measure it; 403 on a free personal plan
+identity_separation: TODO             # required before any autonomous canonical merge
+
+readiness:
+  framework_control: NOT_ASSESSED
+  instance_population: NOT_ASSESSED
+  runtime_execution: NOT_ASSESSED
