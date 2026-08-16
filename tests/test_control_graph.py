@@ -293,3 +293,92 @@ def test_the_parser_declares_its_fidelity_rather_than_implying_completeness(tmp_
     assert fidelity["level"] == "SUBSET"
     assert "NFR-12" in fidelity["why"]
     assert set(fidelity["recognised"]) >= {"jobs", "steps", "run", "uses", "if", "needs"}
+
+
+# --- discovery spans every workflow -------------------------------------------
+
+
+def graph_dir(tmp_path, workflows: dict) -> dict:
+    """Run the parser over a DIRECTORY of workflows."""
+    directory = tmp_path / "workflows"
+    directory.mkdir(exist_ok=True)
+    for name, text in workflows.items():
+        (directory / name).write_text(text, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)], capture_output=True, text=True, timeout=60,
+        cwd=str(REPO_ROOT),
+        env={"PATH": "/usr/bin:/bin", "WORKFLOW_DIR": str(directory),
+             "REGISTRY": str(REGISTRY)},
+    )
+    assert result.stdout, result.stderr
+    return json.loads(result.stdout)
+
+
+SECOND = """\
+name: second
+on:
+  workflow_dispatch:
+
+jobs:
+  only-here:
+    name: "Only in the second workflow"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run the prohibited-call scan
+        run: python scripts/check_prohibited_calls.py src
+"""
+
+
+def test_a_control_reached_only_by_a_second_workflow_is_discovered(tmp_path):
+    """The golden negative, and not hypothetical.
+
+    `FWK-083` adds `.github/workflows/shadow-queue.yml` one pull request after this one. A
+    `ci.yml`-only parser would not see anything it invokes.
+    """
+    document = graph_dir(tmp_path, {"ci.yml": WORKFLOW, "second.yml": SECOND})
+    discovered = {p["path"] for p in document["paths"]}
+    assert "scripts/check_prohibited_calls.py" in discovered
+    assert document["workflows_parsed"] == [".github/workflows/ci.yml",
+                                            ".github/workflows/second.yml"]
+
+
+def test_every_edge_records_the_workflow_it_came_from(tmp_path):
+    document = graph_dir(tmp_path, {"ci.yml": WORKFLOW, "second.yml": SECOND})
+    for record in document["paths"]:
+        assert record["workflow_path"].startswith(".github/workflows/")
+    origins = {p["path"]: p["workflow_path"] for p in document["paths"]}
+    assert origins["scripts/check_prohibited_calls.py"].endswith("second.yml")
+
+
+def test_the_same_script_in_two_workflows_is_two_edges_and_one_obligation(tmp_path):
+    both = SECOND.replace("scripts/check_prohibited_calls.py src",
+                          "scripts/check_budget.py")
+    document = graph_dir(tmp_path, {"ci.yml": WORKFLOW, "second.yml": both})
+    edges = [p for p in document["paths"] if p["path"] == "scripts/check_budget.py"]
+    assert len(edges) == 2, "two workflows invoking it is two execution edges"
+    assert len({e["workflow_path"] for e in edges}) == 2
+    # One control, discovered twice -- the registry obligation is not doubled.
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from check_control_graph import invoked_scripts_in
+    assert len(invoked_scripts_in(tmp_path / "workflows")) == len(
+        {p["path"] for p in document["paths"]})
+
+
+def test_a_yaml_extension_workflow_is_not_missed(tmp_path):
+    document = graph_dir(tmp_path, {"ci.yml": WORKFLOW, "extra.yaml": SECOND})
+    assert any(p["workflow_path"].endswith("extra.yaml") for p in document["paths"])
+
+
+def test_an_empty_workflow_directory_is_reported_not_treated_as_clean(tmp_path):
+    document = graph_dir(tmp_path, {})
+    assert document["paths"] == []
+    assert any("no workflows" in e["value"] for e in document["unresolved_edges"]), (
+        "discovery over an empty set proves nothing and must say so"
+    )
+
+
+def test_discovery_still_does_not_imply_enforcement(tmp_path):
+    document = graph_dir(tmp_path, {"ci.yml": WORKFLOW, "second.yml": SECOND})
+    assert any("discovery implies enforcement" in n for n in document["not_proven"])
+    for record in document["paths"]:
+        assert record["axes"]["CI_ENFORCEMENT"] == "NOT_OBSERVED"

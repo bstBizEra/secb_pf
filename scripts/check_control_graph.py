@@ -13,6 +13,15 @@ was wrong in both directions and both were live:
 * `scripts/check_identity_receipt.py` matches that glob while no workflow invokes it, so
   the glob would claim it as CI enforcement.
 
+Discovery is the **union over all tracked workflows**, not `ci.yml` alone:
+
+    CONTROL DISCOVERY = UNION(EXECUTION EDGES OF ALL TRACKED WORKFLOWS)
+
+`FWK-083` added a second workflow one pull request after this one, which would have been
+invisible to a `ci.yml`-only parser. Every edge records its `workflow_path`, the same
+script reached from two workflows is two edges and one membership obligation, and a
+workflow that cannot be read is reported rather than skipped.
+
 Four independent axes per path, because collapsing them is how a control comes to look
 enforced when it is merely present:
 
@@ -251,13 +260,65 @@ def parse_workflow(text: str) -> tuple[list[dict], list[dict]]:
     return paths, unresolved
 
 
-def invoked_scripts(text: str) -> set[str]:
-    """The canonical discovery entry point.
+def parse_all(directory: Path) -> tuple[list[dict], list[dict]]:
+    """Every tracked workflow, deterministically ordered.
+
+        CONTROL DISCOVERY = UNION(EXECUTION EDGES OF ALL TRACKED WORKFLOWS)
+                          ≠ EXECUTION EDGES OF ci.yml ONLY
+
+    The first version read `ci.yml` alone, so a control invoked only by a second workflow
+    was invisible — and `FWK-083` added exactly such a workflow one pull request later,
+    which is the golden-negative case below rather than a hypothetical.
+
+    An unreadable workflow is **reported**, never skipped: a silent omission is
+    indistinguishable from an absent control, and the file that cannot be parsed is the
+    one most likely to be hiding something.
+    """
+    records: list[dict] = []
+    unresolved: list[dict] = []
+    files = sorted(list(directory.glob("*.yml")) + list(directory.glob("*.yaml")))
+    if not files:
+        unresolved.append({
+            "kind": "UNRECOGNISED_SYNTAX", "where": str(directory), "value": "(no workflows)",
+            "why": "no workflow files found; discovery over an empty set proves nothing",
+        })
+    for file in files:
+        relative = f".github/workflows/{file.name}"
+        try:
+            text = file.read_text(encoding="utf-8")
+        except OSError as exc:
+            unresolved.append({
+                "kind": "UNRECOGNISED_SYNTAX", "where": relative, "value": str(exc)[:100],
+                "why": "the workflow could not be read, so its execution edges are unknown; "
+                       "omitting it silently would look identical to it having none",
+            })
+            continue
+        file_records, file_unresolved = parse_workflow(text)
+        for record in file_records:
+            record["workflow_path"] = relative
+        for edge in file_unresolved:
+            edge["workflow_path"] = relative
+        records.extend(file_records)
+        unresolved.extend(file_unresolved)
+    return records, unresolved
+
+
+def invoked_scripts_in(directory: Path) -> set[str]:
+    """The canonical discovery entry point, over all workflows.
 
     `tests/test_control_surface.py` imports this rather than re-deriving the set with its
     own regex. Two implementations of "which controls does CI invoke" would disagree
     eventually, and the guard would be enforcing the weaker one (`C-CEG-01`).
+
+    The same script invoked by two workflows yields two graph **edges** and **one**
+    membership obligation — it is one control, discovered twice.
     """
+    records, _ = parse_all(directory)
+    return {record["path"] for record in records}
+
+
+def invoked_scripts(text: str) -> set[str]:
+    """Single-workflow discovery, retained for callers holding one file's text."""
     records, _ = parse_workflow(text)
     return {record["path"] for record in records}
 
@@ -310,13 +371,19 @@ def accounted(registry: dict) -> set[str]:
 def main(argv: list[str]) -> int:
     env = dict(os.environ)
     try:
-        text = Path(env.get("WORKFLOW", DEFAULT_WORKFLOW)).read_text(encoding="utf-8")
         registry = json.loads(Path(env.get("REGISTRY", DEFAULT_REGISTRY)).read_text(encoding="utf-8"))
+        if env.get("WORKFLOW"):
+            # One named workflow, for fixtures and narrow checks.
+            text = Path(env["WORKFLOW"]).read_text(encoding="utf-8")
+            records, unresolved = parse_workflow(text)
+            for record in records:
+                record["workflow_path"] = env["WORKFLOW"]
+        else:
+            records, unresolved = parse_all(
+                Path(env.get("WORKFLOW_DIR", ".github/workflows")))
     except (OSError, json.JSONDecodeError) as exc:
         print(f"REFUSED (closed): {exc}", file=sys.stderr)
         return FAIL
-
-    records, unresolved = parse_workflow(text)
     tracked = {c["path"] for c in registry.get("controls", [])}
     excluded = {e["path"] for e in registry.get("declared_exclusions", [])}
     for record in records:
@@ -324,6 +391,7 @@ def main(argv: list[str]) -> int:
                       else "EXCLUDED" if record["path"] in excluded else "UNACCOUNTED")
         record["axes"] = classify(record, membership)
 
+    # One membership obligation per control, however many edges reach it.
     invoked = {r["path"] for r in records}
     missing = sorted(invoked - accounted(registry))
     if missing:
@@ -344,7 +412,8 @@ def main(argv: list[str]) -> int:
             "why": ("Enforcement scripts import the standard library only (NFR-12), so no YAML "
                     "parser is available; unrecognised syntax becomes an unresolved edge."),
         },
-        "paths": sorted(records, key=lambda r: (r["path"], r["job"])),
+        "paths": sorted(records, key=lambda r: (r["path"], r.get("workflow_path", ""), r["job"])),
+        "workflows_parsed": sorted({r.get("workflow_path", "?") for r in records}),
         "unresolved_edges": unresolved,
         "not_proven": [
             "that any path executed -- execution requires a run",
@@ -354,6 +423,8 @@ def main(argv: list[str]) -> int:
             "that anything is enforced -- branch protection is not observed here",
             "that the parse is YAML-conformant; unrecognised keys and YAML aliases are "
             "reported as unresolved edges and force REACHABILITY_NOT_PROVEN",
+            "that discovery implies enforcement; membership, reachability, consumption and "
+            "enforcement remain four separate axes",
         ],
     }, indent=2, sort_keys=True))
     return OK

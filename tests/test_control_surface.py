@@ -179,11 +179,13 @@ def test_every_enforcement_script_is_either_tracked_or_declared_excluded():
     # the set with a second regex. Two implementations of "which controls does CI
     # invoke" disagree eventually, and the guard would enforce the weaker one (C-CEG-01).
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
-    from check_control_graph import invoked_scripts
+    from check_control_graph import invoked_scripts_in
 
-    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    on_disk = invoked_scripts(workflow)
-    assert on_disk, "no invoked scripts parsed from ci.yml -- the workflow shape changed"
+    # The UNION over all tracked workflows, not ci.yml alone (SECB-WP-FWK-082, #147).
+    # A control invoked only by a second workflow would otherwise be invisible, and
+    # SECB-WP-FWK-083 adds exactly such a workflow.
+    on_disk = invoked_scripts_in(REPO_ROOT / ".github" / "workflows")
+    assert on_disk, "no invoked scripts parsed -- the workflow directory shape changed"
     accounted = {c["path"] for c in CONTROLS} | {e["path"] for e in EXCLUSIONS}
     unaccounted = on_disk - accounted
     assert not unaccounted, (
