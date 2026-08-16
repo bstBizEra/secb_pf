@@ -95,6 +95,20 @@ def environment_digest(test_command: str) -> dict:
     }
 
 
+def canonical_cohort(receipt: dict) -> str:
+    """The bytes that define WHAT was measured, in a fixed order."""
+    heads = [f"{p['ref']}@{p['head_sha']}" for p in receipt.get("prefixes", [])]
+    persistence = receipt.get("persistence", {})
+    parts = [
+        receipt.get("base_sha", ""),
+        persistence.get("base_tree", ""),
+        receipt.get("merge_method", ""),
+        (receipt.get("environment") or {}).get("test_command_digest", ""),
+        *heads,
+    ]
+    return "\n".join(parts)
+
+
 def measure(base: str, queue: list[str], method: str, test_command: str,
             budget: float) -> dict:
     if method != REPO_MERGE_METHOD:
@@ -273,6 +287,22 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
     else:
         receipt["verdict"] = "QUEUE_DRAINS_AS_ORDERED"
 
+    # Cohort identity excludes the measuring run. A push to the measuring pull request
+    # changes the workflow head and the run id; it does not change what was measured, so it
+    # must not invalidate the receipt. The cohort is the base, the ordered heads, the merge
+    # method and the test command -- nothing about who observed them.
+    receipt["cohort_digest"] = digest(canonical_cohort(receipt))
+    receipt["cohort_identity"] = {
+        "includes": ["base_sha", "base_tree", "ordered_pr_heads", "merge_method",
+                     "test_command_digest"],
+        "excludes": ["measuring_pr_head", "run_id", "workflow_ref", "measured_at"],
+        "why": (
+            "Provenance answers who measured; identity answers what was measured. Folding "
+            "the measuring head into identity would expire every receipt on the next push "
+            "to the measuring pull request, which changes nothing about the cohort."
+        ),
+    }
+
     receipt["not_proven"] = [
         "that GitHub's required checks pass on the merged result; these are local tests "
         "against a synthetic tree",
@@ -422,6 +452,7 @@ def main(argv: list[str]) -> int:
             "receipt_digest": f"sha256:{actual}",
             "expires_at": expiry,
             "measured_prefix": stored.get("measured_prefix", []),
+            "cohort_digest": stored.get("cohort_digest"),
             "not_proven": [
                 "that the bytes are attested; storage and retention are not provenance",
                 "that the measurement is still current; bound inputs must be re-checked",

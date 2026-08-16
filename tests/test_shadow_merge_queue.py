@@ -402,3 +402,87 @@ def test_verification_reads_the_artifact_rather_than_regenerating_it(tmp_path, r
     assert "prefixes" not in findings, (
         "the verifier must report on the stored bytes, not produce a fresh measurement"
     )
+
+
+# --- cohort identity versus provenance ----------------------------------------
+
+
+def test_cohort_identity_excludes_who_measured_it(repo):
+    """A push to the measuring PR must not expire the receipt.
+
+    Provenance answers who measured; identity answers what was measured. Folding the
+    measuring head into identity would invalidate every receipt on the next push to the
+    measuring pull request, which changes nothing about the cohort.
+    """
+    identity = receipt(repo)["cohort_identity"]
+    assert set(identity["includes"]) == {
+        "base_sha", "base_tree", "ordered_pr_heads", "merge_method", "test_command_digest"}
+    for excluded in ("measuring_pr_head", "run_id", "workflow_ref"):
+        assert excluded in identity["excludes"]
+
+
+def test_the_cohort_digest_is_stable_when_only_provenance_changes(repo, monkeypatch):
+    first = receipt(repo)["cohort_digest"]
+    second = receipt(repo, MEASURING_PR_HEAD="a" * 40, GITHUB_RUN_ID="999")["cohort_digest"]
+    assert first == second, "changing who measured must not change what was measured"
+
+
+def test_the_cohort_digest_moves_when_the_cohort_changes(repo):
+    first = receipt(repo)["cohort_digest"]
+    assert receipt(repo, JAMS)["cohort_digest"] != first
+
+
+def test_the_cohort_digest_moves_when_the_test_command_changes(repo):
+    """A pass is relative to the command that produced it."""
+    assert receipt(repo, TEST_COMMAND="true ")["cohort_digest"] != receipt(repo)["cohort_digest"]
+
+
+# --- the bootstrap workflow ----------------------------------------------------
+
+
+WORKFLOW_FILE = REPO_ROOT / ".github" / "workflows" / "shadow-queue.yml"
+
+
+def test_the_bootstrap_trigger_is_scoped_to_one_pull_request():
+    """Otherwise a one-time trigger quietly becomes a per-PR measurement."""
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    assert "github.event.pull_request.number == 150" in text
+    assert "REMOVE ONCE THE FIRST ARTIFACT IS PROVEN" in text
+
+
+def test_the_bootstrap_cohort_is_committed_not_caller_supplied():
+    """A measurement whose queue an invoker chooses proves what the invoker wanted."""
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    assert "BOOTSTRAP_COMMITTED_COHORT" in text
+    bootstrap = text.split("if [ \"${{ github.event_name }}\" = \"pull_request\" ]; then")[1]
+    bootstrap = bootstrap.split("else")[0]
+    assert "inputs.queue" not in bootstrap, "the bootstrap path must not read caller inputs"
+    assert "origin/feat/secb-wp-fwk-055" in bootstrap
+
+
+def test_the_four_shas_are_kept_distinct():
+    """`github.sha` on a pull_request event is the synthetic merge commit, not the head."""
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    for name in ("MEASURING_PR_HEAD", "SYNTHETIC_MERGE_SHA", "MEASURING_WORKFLOW_SHA"):
+        assert name in text
+    assert "MEASURING_PR_HEAD: ${{ github.event.pull_request.head.sha }}" in text
+    assert "SYNTHETIC_MERGE_SHA: ${{ github.sha }}" in text
+
+
+def test_readback_happens_in_a_second_job_over_downloaded_bytes():
+    """Verifying in the producing job checks a file that never left the runner."""
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    assert "needs: measure" in text
+    assert "actions/download-artifact" in text
+    assert "VERIFY_ARTIFACT: receipt.json" in text
+    assert "does NOT re-measure" in text
+
+
+def test_the_workflow_needs_full_history_for_the_queued_heads():
+    assert "fetch-depth: 0" in WORKFLOW_FILE.read_text(encoding="utf-8")
+
+
+def test_the_measurement_workflow_does_not_touch_ci_yml():
+    """#134 claims ci.yml; a second claimant would conflict for no reason."""
+    ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "check_shadow_merge_queue" not in ci

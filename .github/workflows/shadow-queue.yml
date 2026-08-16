@@ -13,6 +13,16 @@
 name: shadow-queue
 
 on:
+  # BOOTSTRAP TRIGGER -- REMOVE ONCE THE FIRST ARTIFACT IS PROVEN.
+  #
+  # workflow_dispatch only works once the workflow is on the default branch, which needs
+  # this pull request merged -- and merging it moves `main` outside the measured order,
+  # invalidating the receipt the measurement is for. A one-time pull_request trigger, scoped
+  # to this pull request alone, breaks that circle by producing the artifact BEFORE the
+  # merge. It is not a steady-state trigger and is deleted in the same change that proves
+  # the artifact.
+  pull_request:
+
   workflow_dispatch:
     inputs:
       queue:
@@ -33,7 +43,12 @@ permissions:
 jobs:
   measure:
     name: "Shadow queue — ordered drainability"
+    # Scoped to the bootstrap pull request. Every other pull request skips, so this trigger
+    # cannot quietly become a per-PR measurement.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.number == 150
     runs-on: ubuntu-latest
+    outputs:
+      receipt_digest: ${{ steps.digest.outputs.sha256 }}
     steps:
       # Full history: every queued head must be resolvable, and a shallow checkout has none
       # of them. This is the environment dependency that reddened Gate 5 once already.
@@ -48,19 +63,50 @@ jobs:
       - name: Install pytest
         run: python -m pip install --quiet pytest
 
+      # In bootstrap mode the cohort is COMMITTED, not supplied by a caller: a measurement
+      # whose queue an invoker chooses proves whatever the invoker wanted measured. The
+      # dispatch path keeps its inputs, because there the caller is choosing a cohort
+      # deliberately rather than certifying this one.
+      - name: Resolve the cohort
+        id: cohort
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "queue=origin/feat/secb-wp-fwk-055-envelope-note-correction,origin/feat/secb-wp-fwk-069-nfr-17-correction,origin/feat/secb-wp-fwk-061-k09-recount-d-under-review,origin/feat/secb-wp-fwk-062-register-c5-c6-c7,origin/feat/secb-wp-fwk-070-live-route-projection,origin/feat/secb-wp-fwk-072-framework-product,origin/feat/secb-wp-fwk-068-metadata-binding,origin/feat/secb-wp-fwk-082-control-execution-graph" >> "$GITHUB_OUTPUT"
+            echo "base=origin/main" >> "$GITHUB_OUTPUT"
+            echo "retention=90" >> "$GITHUB_OUTPUT"
+            echo "mode=BOOTSTRAP_COMMITTED_COHORT" >> "$GITHUB_OUTPUT"
+          else
+            echo "queue=${{ inputs.queue }}" >> "$GITHUB_OUTPUT"
+            echo "base=${{ inputs.base }}" >> "$GITHUB_OUTPUT"
+            echo "retention=${{ inputs.retention_days }}" >> "$GITHUB_OUTPUT"
+            echo "mode=DISPATCH_CALLER_COHORT" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Four distinct SHAs, deliberately not conflated: the pull request head is what is
+      # under review, github.sha on a pull_request event is the SYNTHETIC MERGE commit,
+      # the base is what the cohort was measured against, and the workflow SHA is which
+      # measuring code ran. Only the base belongs to cohort identity.
       - name: Measure the queue
         env:
-          QUEUE: ${{ inputs.queue }}
-          BASE: ${{ inputs.base }}
-          ARTIFACT_RETENTION_DAYS: ${{ inputs.retention_days }}
-          MEASURING_PR_HEAD: ${{ github.sha }}
+          QUEUE: ${{ steps.cohort.outputs.queue }}
+          BASE: ${{ steps.cohort.outputs.base }}
+          ARTIFACT_RETENTION_DAYS: ${{ steps.cohort.outputs.retention }}
+          MEASURING_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          SYNTHETIC_MERGE_SHA: ${{ github.sha }}
+          MEASURING_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          COHORT_MODE: ${{ steps.cohort.outputs.mode }}
         # The tool exits 2 when the queue does not drain, which is a finding rather than a
         # broken run -- the receipt is uploaded either way.
         continue-on-error: true
         run: python scripts/check_shadow_merge_queue.py > receipt.json
 
       - name: Emit the receipt digest out of band
+        id: digest
         run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import hashlib, pathlib
+          print("sha256=" + hashlib.sha256(pathlib.Path("receipt.json").read_bytes()).hexdigest())
+          PY
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import hashlib, pathlib
           raw = pathlib.Path("receipt.json").read_bytes()
@@ -79,3 +125,29 @@ jobs:
           name: shadow-queue-receipt
           path: receipt.json
           retention-days: ${{ inputs.retention_days }}
+
+  verify:
+    name: "Shadow queue — artifact readback"
+    needs: measure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # A SECOND job, so the bytes verified are the bytes that survived upload and
+      # download. Verifying in the producing job would check a local file that never left
+      # the runner, which proves storage of nothing.
+      - uses: actions/download-artifact@v4
+        with:
+          name: shadow-queue-receipt
+
+      - name: Verify the downloaded receipt against the out-of-band digest
+        env:
+          VERIFY_ARTIFACT: receipt.json
+          RECEIPT_DIGEST: ${{ needs.measure.outputs.receipt_digest }}
+        # Reads the stored bytes. It does NOT re-measure: regenerating would produce a
+        # fresh receipt and prove nothing about the one that was stored.
+        run: python scripts/check_shadow_merge_queue.py
