@@ -1,0 +1,81 @@
+# Shadow merge queue measurement (SECB-WP-FWK-083).
+#
+# Manual only. It measures whether an ORDERED queue drains and uploads the receipt as an
+# artifact, because a receipt that exists only in an operator's shell is not addressable:
+# after a squash you could show MERGE_API_SUCCESS and never prove SIMULATED_TREE_LANDED.
+#
+# It merges nothing, pushes nothing, and the receipt confers no merge authority. Storage
+# and retention are not provenance -- an artifact is not an attestation.
+#
+# A separate workflow rather than a step in ci.yml: this needs full history, runs on
+# demand, and ci.yml is claimed by another open branch.
+
+name: shadow-queue
+
+on:
+  workflow_dispatch:
+    inputs:
+      queue:
+        description: "Comma-separated refs, in queue order"
+        required: true
+      base:
+        description: "Base ref"
+        required: false
+        default: origin/main
+      retention_days:
+        description: "Artifact retention"
+        required: false
+        default: "90"
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    name: "Shadow queue — ordered drainability"
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: every queued head must be resolvable, and a shallow checkout has none
+      # of them. This is the environment dependency that reddened Gate 5 once already.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pytest
+        run: python -m pip install --quiet pytest
+
+      - name: Measure the queue
+        env:
+          QUEUE: ${{ inputs.queue }}
+          BASE: ${{ inputs.base }}
+          ARTIFACT_RETENTION_DAYS: ${{ inputs.retention_days }}
+          MEASURING_PR_HEAD: ${{ github.sha }}
+        # The tool exits 2 when the queue does not drain, which is a finding rather than a
+        # broken run -- the receipt is uploaded either way.
+        continue-on-error: true
+        run: python scripts/check_shadow_merge_queue.py > receipt.json
+
+      - name: Emit the receipt digest out of band
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import hashlib, pathlib
+          raw = pathlib.Path("receipt.json").read_bytes()
+          print("### Shadow queue receipt")
+          print()
+          print("```text")
+          print(f"sha256:{hashlib.sha256(raw).hexdigest()}")
+          print("```")
+          print()
+          print("The digest is recorded here and NOT inside the receipt: a mutated file "
+                "whose embedded digest was recomputed would verify against itself.")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shadow-queue-receipt
+          path: receipt.json
+          retention-days: ${{ inputs.retention_days }}

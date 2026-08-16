@@ -316,3 +316,89 @@ def test_a_missing_readback_is_not_treated_as_success(tmp_path, repo):
     findings = handoff(tmp_path, repo, observed)
     assert findings["verdict"] == "READBACK_NOT_OBSERVED"
     assert "acceptance is not landing" in findings["why"]
+
+
+# --- the receipt must be addressable ------------------------------------------
+
+
+def verify_artifact(tmp_path, path, digest) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(SCRIPT)], capture_output=True, text=True, timeout=120,
+        cwd=str(REPO_ROOT), env={"PATH": "/usr/bin:/bin", "VERIFY_ARTIFACT": str(path),
+                                 "RECEIPT_DIGEST": digest},
+    )
+
+
+def stored_receipt(tmp_path, repo, **env_extra):
+    document = receipt(repo, **env_extra)
+    raw = json.dumps(document).encode("utf-8")
+    path = tmp_path / "receipt.json"
+    path.write_bytes(raw)
+    import hashlib
+    return path, hashlib.sha256(raw).hexdigest(), document
+
+
+def test_the_receipt_binds_what_would_make_it_addressable(repo):
+    persistence = receipt(repo)["persistence"]
+    for field in ("repository", "run_id", "workflow_ref", "measuring_pr_head",
+                  "base_tree", "queue_order", "retention_days", "expires_at"):
+        assert field in persistence, f"the receipt does not bind {field}"
+    assert "not signing" in persistence["not_attestation"]
+
+
+def test_an_intact_artifact_verifies(tmp_path, repo):
+    path, digest, _ = stored_receipt(tmp_path, repo)
+    result = verify_artifact(tmp_path, path, digest)
+    assert result.returncode == OK, result.stderr
+    findings = json.loads(result.stdout)
+    assert findings["verdict"] == "RECEIPT_ADDRESSABLE_AND_INTACT"
+    assert findings["confers_merge_authority"] is False
+    assert any("not provenance" in n for n in findings["not_proven"])
+
+
+def test_one_mutated_byte_is_rejected(tmp_path, repo):
+    """The digest is external for exactly this reason."""
+    path, digest, _ = stored_receipt(tmp_path, repo)
+    raw = bytearray(path.read_bytes())
+    raw[-2] = raw[-2] ^ 0x01
+    path.write_bytes(bytes(raw))
+    result = verify_artifact(tmp_path, path, digest)
+    assert result.returncode == FAIL
+    assert "RECEIPT_DIGEST_MISMATCH" in result.stderr
+
+
+def test_verification_without_a_digest_is_refused(tmp_path, repo):
+    path, _, _ = stored_receipt(tmp_path, repo)
+    result = verify_artifact(tmp_path, path, "")
+    assert result.returncode == FAIL
+    assert "trusted for being present" in result.stderr
+
+
+def test_an_absent_artifact_says_remeasure_rather_than_pass(tmp_path, repo):
+    result = verify_artifact(tmp_path, tmp_path / "gone.json", "a" * 64)
+    assert result.returncode == FAIL
+    assert "REMEASUREMENT_REQUIRED" in result.stderr
+
+
+def test_an_expired_receipt_requires_remeasurement(tmp_path, repo):
+    import hashlib
+    document = receipt(repo)
+    document["persistence"]["expires_at"] = "2020-01-01T00:00:00+00:00"
+    raw = json.dumps(document).encode("utf-8")
+    path = tmp_path / "expired.json"
+    path.write_bytes(raw)
+    result = verify_artifact(tmp_path, path, hashlib.sha256(raw).hexdigest())
+    assert result.returncode == FAIL
+    findings = json.loads(result.stdout)
+    assert findings["verdict"] == "REMEASUREMENT_REQUIRED"
+    assert "retention lapse is not a pass" in findings["why"]
+
+
+def test_verification_reads_the_artifact_rather_than_regenerating_it(tmp_path, repo):
+    """Regenerating would measure again; the stop condition asks for verification."""
+    path, digest, document = stored_receipt(tmp_path, repo)
+    findings = json.loads(verify_artifact(tmp_path, path, digest).stdout)
+    assert findings["measured_prefix"] == document["measured_prefix"]
+    assert "prefixes" not in findings, (
+        "the verifier must report on the stored bytes, not produce a fresh measurement"
+    )

@@ -59,6 +59,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 OK = 0
@@ -209,8 +210,33 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
     unmeasured = [r for r in queue if r not in measured]
     complete = not unmeasured and first_failing is None
 
+    # Persistence binding. A receipt that only exists in a shell's scratch directory is
+    # not addressable: after a squash you could show MERGE_API_SUCCESS and never prove
+    # SIMULATED_TREE_LANDED, because the expected tree would be gone.
+    env = os.environ
+    retention = int(env.get("ARTIFACT_RETENTION_DAYS", "90"))
     receipt = {
         "schema": "secb.shadow-merge-queue-receipt/v1",
+        "persistence": {
+            "repository": env.get("GITHUB_REPOSITORY", "NOT_OBSERVED"),
+            "run_id": env.get("GITHUB_RUN_ID", "NOT_OBSERVED"),
+            "workflow_ref": env.get("GITHUB_WORKFLOW_REF", "NOT_OBSERVED"),
+            "measuring_pr_head": env.get("MEASURING_PR_HEAD", "NOT_OBSERVED"),
+            "base_tree": git("rev-parse", f"{base}^{{tree}}"),
+            "queue_order": list(queue),
+            "retention_days": retention,
+            "expires_at": (datetime.now(timezone.utc)
+                           + timedelta(days=retention)).isoformat(),
+            "digest_is_external": (
+                "The receipt's own digest is NOT stored inside it -- a mutated file whose "
+                "embedded digest was recomputed would verify against itself. The digest is "
+                "emitted to the run summary and supplied to the validator out of band."
+            ),
+            "not_attestation": (
+                "Persisting bytes is not signing them. An Actions artifact proves storage "
+                "and retention, not provenance, and it confers no merge authority."
+            ),
+        },
         "base_ref": base,
         "base_sha": git("rev-parse", base),
         "merge_method": method,
@@ -354,6 +380,55 @@ def validate_handoff(receipt: dict, observed: dict) -> dict:
 
 def main(argv: list[str]) -> int:
     env = dict(os.environ)
+
+    # Artifact verification: read the DOWNLOADED bytes and check them against a digest
+    # supplied separately. Regenerating the receipt here would measure again rather than
+    # verify what was stored, which is the difference the stop condition names.
+    if env.get("VERIFY_ARTIFACT"):
+        path = Path(env["VERIFY_ARTIFACT"])
+        expected = env.get("RECEIPT_DIGEST", "").strip().removeprefix("sha256:")
+        if not expected:
+            print("REFUSED (closed): RECEIPT_DIGEST is required; an artifact verified "
+                  "against no digest is an artifact trusted for being present",
+                  file=sys.stderr)
+            return FAIL
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            print(f"REFUSED (closed): artifact unreadable ({exc}). If retention lapsed, "
+                  "the verdict is REMEASUREMENT_REQUIRED, not a pass", file=sys.stderr)
+            return FAIL
+        actual = hashlib.sha256(raw).hexdigest()
+        if actual != expected:
+            print(f"REFUSED (closed): RECEIPT_DIGEST_MISMATCH expected {expected[:16]} "
+                  f"observed {actual[:16]}; one changed byte invalidates the receipt",
+                  file=sys.stderr)
+            return FAIL
+        try:
+            stored = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            print(f"REFUSED (closed): artifact is not a receipt ({exc})", file=sys.stderr)
+            return FAIL
+        expiry = (stored.get("persistence") or {}).get("expires_at")
+        if expiry and datetime.fromisoformat(expiry) < datetime.now(timezone.utc):
+            print(json.dumps({
+                "verdict": "REMEASUREMENT_REQUIRED",
+                "why": f"the receipt expired at {expiry}; retention lapse is not a pass",
+                "confers_merge_authority": False,
+            }, indent=2, sort_keys=True))
+            return FAIL
+        print(json.dumps({
+            "verdict": "RECEIPT_ADDRESSABLE_AND_INTACT",
+            "receipt_digest": f"sha256:{actual}",
+            "expires_at": expiry,
+            "measured_prefix": stored.get("measured_prefix", []),
+            "not_proven": [
+                "that the bytes are attested; storage and retention are not provenance",
+                "that the measurement is still current; bound inputs must be re-checked",
+            ],
+            "confers_merge_authority": False,
+        }, indent=2, sort_keys=True))
+        return OK
 
     # Handoff validation reads a prior receipt; it performs no merge and calls nothing.
     if env.get("HANDOFF_OBSERVED"):
