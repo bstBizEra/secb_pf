@@ -618,3 +618,86 @@ def test_the_worktree_identity_is_configured_once_not_per_call(repo):
     )
     # and it still works locally
     assert receipt(repo)["prefixes"][0]["integration"] == "SQUASHED"
+
+
+# --- evidence promotion --------------------------------------------------------
+
+
+GREEN_CHECKS = {"Gate 5 — Test": "success", "Budget circuit breaker": "success",
+                "Gate 1 — Authority": "success", "Governance verdict": "success"}
+
+
+def promote(tmp_path, repo, queue=DRAINS, **observed_overrides) -> dict:
+    document = receipt(repo, queue)
+    receipt_path = tmp_path / "r.json"
+    receipt_path.write_text(json.dumps(document), encoding="utf-8")
+    observed = {
+        "rollup_head_sha": document["persistence"]["measuring_pr_head"],
+        "artifact_verified": True,
+        "artifact_digest": "sha256:" + "a" * 64,
+        "required_checks": dict(GREEN_CHECKS),
+        "metadata_coherent": True,
+        "cohort_drift": None,
+    }
+    observed.update(observed_overrides)
+    observed_path = tmp_path / "o.json"
+    observed_path.write_text(json.dumps(observed), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)], capture_output=True, text=True, timeout=180,
+        cwd=repo, env={"PATH": "/usr/bin:/bin", "RECEIPT": str(receipt_path),
+                       "PROMOTE_OBSERVED": str(observed_path)},
+    )
+    assert result.stdout, result.stderr
+    return json.loads(result.stdout)
+
+
+def test_a_complete_verified_measurement_on_a_green_revision_is_promotable(tmp_path, repo):
+    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef")
+    assert findings["verdict"] == "EVIDENCE_PROMOTABLE"
+    assert findings["execution_eligibility"] == "ELIGIBLE"
+    assert findings["confers_merge_authority"] is False, "eligibility is not authority"
+    assert findings["binding"]["expected_trees"], "the binding must carry the expected trees"
+
+
+def test_a_required_gate_failure_blocks_promotion(tmp_path, repo):
+    """`COMPLETE_MEASUREMENT + VERIFIED_ARTIFACT + REQUIRED_GATE_FAILURE = NOT_PROMOTABLE`.
+
+    Measured on this pull request: run 31959809335 measured 8/8 complete while the budget
+    gate on the same revision was red.
+    """
+    checks = dict(GREEN_CHECKS, **{"Budget circuit breaker": "failure"})
+    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef", required_checks=checks)
+    assert findings["verdict"] == "REQUIRED_GATE_FAILURE"
+    assert findings["execution_eligibility"] == "NOT_ELIGIBLE"
+    assert "however" in findings["why"]
+
+
+def test_evidence_may_not_be_assembled_across_revisions(tmp_path, repo):
+    """A measurement from one head plus a green gate from the next tests nothing."""
+    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef",
+                       rollup_head_sha="cafebabe")
+    assert findings["verdict"] == "CROSS_REVISION_ASSEMBLY"
+    assert "nobody tested" in findings["why"]
+
+
+def test_an_unverified_artifact_blocks_promotion(tmp_path, repo):
+    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef", artifact_verified=False)
+    assert findings["verdict"] == "ARTIFACT_NOT_VERIFIED"
+
+
+def test_incoherent_metadata_blocks_promotion(tmp_path, repo):
+    """A body whose declared budget and narrative disagree cannot bind anything."""
+    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef", metadata_coherent=False)
+    assert findings["verdict"] == "METADATA_COHERENCE_FAILED"
+
+
+def test_cohort_drift_blocks_promotion(tmp_path, repo):
+    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef",
+                       cohort_drift=["first"])
+    assert findings["verdict"] == "COHORT_DRIFT"
+
+
+def test_an_incomplete_measurement_is_not_promotable(tmp_path, repo):
+    findings = promote(tmp_path, repo, JAMS, MEASURING_PR_HEAD="deadbeef")
+    assert findings["verdict"] in {"MEASUREMENT_INCOMPLETE", "MEASUREMENT_NOT_TERMINAL"}
+    assert findings["execution_eligibility"] == "NOT_ELIGIBLE"

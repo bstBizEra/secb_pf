@@ -454,8 +454,104 @@ def validate_handoff(receipt: dict, observed: dict) -> dict:
     return findings
 
 
+# --- evidence promotion --------------------------------------------------------
+
+def promote(receipt: dict, observed: dict) -> dict:
+    """Decide whether a complete measurement may underwrite execution.
+
+        COMPLETE_MEASUREMENT + VERIFIED_ARTIFACT + REQUIRED_GATE_FAILURE
+          = EVIDENCE_NOT_PROMOTABLE
+
+    The binding is **one revision**. Evidence may not be assembled across revisions: a
+    measurement from one head plus a green gate from the next describes a tree nobody
+    tested. GitHub requires its checks to pass on the latest commit for the same reason.
+    """
+    persistence = receipt.get("persistence", {})
+    measuring_head = persistence.get("measuring_pr_head")
+    findings = {
+        "schema": "secb.evidence-promotion/v1",
+        "measuring_pr_head": measuring_head,
+        "cohort_digest": receipt.get("cohort_digest"),
+        "confers_merge_authority": False,
+    }
+
+    def refuse(verdict, why):
+        findings.update(verdict=verdict, why=why, execution_eligibility="NOT_ELIGIBLE")
+        return findings
+
+    if observed.get("rollup_head_sha") != measuring_head:
+        return refuse(
+            "CROSS_REVISION_ASSEMBLY",
+            f"the check rollup is for {observed.get('rollup_head_sha')} and the measurement "
+            f"for {measuring_head}. A measurement from one revision plus a gate result from "
+            "another describes a tree nobody tested",
+        )
+    if receipt.get("measurement_status") != "COMPLETE":
+        return refuse("MEASUREMENT_INCOMPLETE",
+                      f"measurement_status is {receipt.get('measurement_status')}")
+    if receipt.get("verdict") != "QUEUE_DRAINS_AS_ORDERED":
+        return refuse("MEASUREMENT_NOT_TERMINAL", f"verdict is {receipt.get('verdict')}")
+    if receipt.get("unmeasured_suffix"):
+        return refuse("MEASUREMENT_INCOMPLETE", "an unmeasured suffix remains")
+    if not observed.get("artifact_verified"):
+        return refuse("ARTIFACT_NOT_VERIFIED",
+                      "the stored bytes were not read back against an external digest")
+    failing = [c for c, state in (observed.get("required_checks") or {}).items()
+               if state != "success"]
+    if failing or not observed.get("required_checks"):
+        return refuse(
+            "REQUIRED_GATE_FAILURE",
+            f"required checks {failing or '(none reported)'} on the measuring revision. A "
+            "run whose revision fails a required gate cannot underwrite execution, however "
+            "complete its measurement",
+        )
+    if not observed.get("metadata_coherent"):
+        return refuse(
+            "METADATA_COHERENCE_FAILED",
+            "the declared budget and the verification narrative disagree; a body that "
+            "contradicts itself cannot be the binding for anything",
+        )
+    if observed.get("cohort_drift"):
+        return refuse("COHORT_DRIFT", f"bound inputs changed: {observed['cohort_drift']}")
+
+    findings.update(
+        verdict="EVIDENCE_PROMOTABLE",
+        execution_eligibility="ELIGIBLE",
+        binding={
+            "measuring_pr_head": measuring_head,
+            "workflow_ref": persistence.get("workflow_ref"),
+            "base_sha": receipt.get("base_sha"),
+            "base_tree": persistence.get("base_tree"),
+            "cohort_heads": [p["ref"] + "@" + p["head_sha"] for p in receipt["prefixes"]],
+            "expected_trees": {p["ref"]: p["synthetic_tree_sha"] for p in receipt["prefixes"]},
+            "merge_method": receipt.get("merge_method"),
+            "environment": receipt.get("environment"),
+            "artifact_digest": observed.get("artifact_digest"),
+            "expires_at": persistence.get("expires_at"),
+            "required_checks": observed.get("required_checks"),
+        },
+        not_proven=[
+            "that any merge may proceed; eligibility is not authority",
+            "that the binding survives a new push to any cohort head",
+        ],
+    )
+    return findings
+
+
 def main(argv: list[str]) -> int:
     env = dict(os.environ)
+
+    if env.get("PROMOTE_OBSERVED"):
+        try:
+            receipt = json.loads(Path(env["RECEIPT"]).read_text(encoding="utf-8"))
+            observed = json.loads(Path(env["PROMOTE_OBSERVED"]).read_text(encoding="utf-8"))
+        except (OSError, KeyError, json.JSONDecodeError) as exc:
+            print(f"REFUSED (closed): RECEIPT and PROMOTE_OBSERVED required ({exc})",
+                  file=sys.stderr)
+            return FAIL
+        findings = promote(receipt, observed)
+        print(json.dumps(findings, indent=2, sort_keys=True))
+        return OK if findings.get("verdict") == "EVIDENCE_PROMOTABLE" else FAIL
 
     # Artifact verification: read the DOWNLOADED bytes and check them against a digest
     # supplied separately. Regenerating the receipt here would measure again rather than
