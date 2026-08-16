@@ -95,21 +95,49 @@ jobs:
           SYNTHETIC_MERGE_SHA: ${{ github.sha }}
           MEASURING_WORKFLOW_SHA: ${{ github.workflow_sha }}
           COHORT_MODE: ${{ steps.cohort.outputs.mode }}
-        # The tool exits 2 when the queue does not drain, which is a finding rather than a
-        # broken run -- the receipt is uploaded either way.
-        continue-on-error: true
-        run: python scripts/check_shadow_merge_queue.py > receipt.json
+        # The receipt is written OUTSIDE the worktree. Redirecting into the repository
+        # creates the file before python starts, so the tool's own dirty-tree preflight saw
+        # an untracked receipt.json and refused -- the observer perturbing the observed, the
+        # same family as the __pycache__ contamination.
+        #
+        # No `continue-on-error`. It made this job report SUCCESS while the tool refused and
+        # produced nothing, which is precisely the conditional-success defect this
+        # repository catalogues. A queue that does not drain is a FINDING (exit 2, receipt
+        # written); a refusal is an ERROR (no verdict). They are told apart by whether a
+        # verdict exists, not by the exit code alone.
+        run: |
+          set +e
+          python scripts/check_shadow_merge_queue.py > "$RUNNER_TEMP/receipt.json"
+          code=$?
+          set -e
+          if ! RECEIPT="$RUNNER_TEMP/receipt.json" python - <<'PY'
+          import json, os, sys
+          try:
+              document = json.load(open(os.environ["RECEIPT"], encoding="utf-8"))
+          except Exception as exc:
+              print(f"::error::receipt unreadable ({exc}); a refusal is not a finding")
+              sys.exit(1)
+          if not document.get("verdict"):
+              print("::error::receipt carries no verdict; the tool refused")
+              sys.exit(1)
+          print(f"verdict={document['verdict']} status={document.get('measurement_status')}")
+          PY
+          then
+            echo "::error::measurement produced no usable receipt (tool exit $code)"
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/receipt.json" receipt-artifact.json
 
       - name: Emit the receipt digest out of band
         id: digest
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import hashlib, pathlib
-          print("sha256=" + hashlib.sha256(pathlib.Path("receipt.json").read_bytes()).hexdigest())
+          print("sha256=" + hashlib.sha256(pathlib.Path("receipt-artifact.json").read_bytes()).hexdigest())
           PY
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import hashlib, pathlib
-          raw = pathlib.Path("receipt.json").read_bytes()
+          raw = pathlib.Path("receipt-artifact.json").read_bytes()
           print("### Shadow queue receipt")
           print()
           print("```text")
@@ -123,7 +151,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: shadow-queue-receipt
-          path: receipt.json
+          path: receipt-artifact.json
           retention-days: ${{ inputs.retention_days }}
 
   verify:
@@ -146,7 +174,7 @@ jobs:
 
       - name: Verify the downloaded receipt against the out-of-band digest
         env:
-          VERIFY_ARTIFACT: receipt.json
+          VERIFY_ARTIFACT: receipt-artifact.json
           RECEIPT_DIGEST: ${{ needs.measure.outputs.receipt_digest }}
         # Reads the stored bytes. It does NOT re-measure: regenerating would produce a
         # fresh receipt and prove nothing about the one that was stored.

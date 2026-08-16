@@ -474,12 +474,35 @@ def test_readback_happens_in_a_second_job_over_downloaded_bytes():
     text = WORKFLOW_FILE.read_text(encoding="utf-8")
     assert "needs: measure" in text
     assert "actions/download-artifact" in text
-    assert "VERIFY_ARTIFACT: receipt.json" in text
+    assert "VERIFY_ARTIFACT: receipt-artifact.json" in text
     assert "does NOT re-measure" in text
 
 
 def test_the_workflow_needs_full_history_for_the_queued_heads():
     assert "fetch-depth: 0" in WORKFLOW_FILE.read_text(encoding="utf-8")
+
+
+def test_the_receipt_is_written_outside_the_worktree(repo):
+    """Measured in CI: `> receipt.json` created the file before python started, so the
+    tool's own dirty-tree preflight saw an untracked file and refused. The observer
+    perturbing the observed, via output redirection this time.
+    """
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    assert '> "$RUNNER_TEMP/receipt.json"' in text
+    assert "OUTSIDE the worktree" in text
+
+
+def test_the_measurement_job_cannot_report_success_without_a_verdict():
+    """`continue-on-error: true` reported SUCCESS while the tool refused and produced
+    nothing — the conditional-success defect this repository catalogues, introduced here.
+
+    A queue that does not drain is a finding; a refusal is an error. They are distinguished
+    by whether a verdict exists, not by the exit code alone.
+    """
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    assert "continue-on-error: true" not in text
+    assert "carries no verdict; the tool refused" in text
+    assert "a refusal is not a finding" in text
 
 
 def test_the_measurement_workflow_does_not_touch_ci_yml():
