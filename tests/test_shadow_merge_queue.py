@@ -212,3 +212,107 @@ def test_the_schema_pins_the_honesty_fields():
         "QUEUE_DRAINABILITY_UNPROVEN", "MERGE_METHOD_MISMATCH",
     }
     assert "unmeasured" in schema["properties"]["unmeasured_suffix"]["description"]
+
+
+# --- compare-and-swap execution handoff ---------------------------------------
+
+
+def handoff(tmp_path, repo, observed: dict, queue: str = DRAINS) -> dict:
+    """Grade an executed merge against the prefix that was simulated."""
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_text(json.dumps(receipt(repo, queue)), encoding="utf-8")
+    observed_path = tmp_path / "observed.json"
+    observed_path.write_text(json.dumps(observed), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)], capture_output=True, text=True, timeout=180,
+        cwd=repo, env={"PATH": "/usr/bin:/bin", "RECEIPT": str(receipt_path),
+                       "HANDOFF_OBSERVED": str(observed_path)},
+    )
+    assert result.stdout, result.stderr
+    return json.loads(result.stdout)
+
+
+def landed(repo, ref="first", **overrides) -> dict:
+    document = receipt(repo)
+    entry = [p for p in document["prefixes"] if p["ref"] == ref][0]
+    observed = {
+        "ref": ref,
+        "merge_api_success": True,
+        "http_status": 200,
+        "pr_head_sha": entry["handoff"]["preconditions"]["pr_head_sha"],
+        "base_sha_before": entry["handoff"]["preconditions"]["base_sha"],
+        "actual_main_tree": entry["handoff"]["postcondition"]["expected_main_tree"],
+    }
+    observed.update(overrides)
+    return observed
+
+
+def test_the_receipt_pins_the_head_for_the_merge_api(repo):
+    """`sha` makes GitHub answer 409 rather than merging an unsimulated head."""
+    entry = receipt(repo)["prefixes"][0]
+    call = entry["handoff"]["merge_call"]
+    assert call["sha"] == entry["handoff"]["preconditions"]["pr_head_sha"]
+    assert call["merge_method"] == "squash"
+    assert "409" in call["why_sha"]
+
+
+def test_an_entry_that_landed_as_simulated_is_graded_on_three_separate_facts(tmp_path, repo):
+    """`MERGE_API_SUCCESS` ≠ `SIMULATED_TREE_LANDED` ≠ `NEXT_PREFIX_STILL_VALID`."""
+    findings = handoff(tmp_path, repo, landed(repo))
+    assert findings["verdict"] == "ENTRY_LANDED_AS_SIMULATED"
+    assert findings["MERGE_API_SUCCESS"] is True
+    assert findings["SIMULATED_TREE_LANDED"] is True
+    assert findings["NEXT_PREFIX_STILL_VALID"] is True
+    assert findings["confers_merge_authority"] is False
+
+
+def test_a_409_forbids_retry_without_resimulation(tmp_path, repo):
+    findings = handoff(tmp_path, repo, landed(repo, http_status=409, merge_api_success=False))
+    assert findings["verdict"] == "HEAD_MOVED_409"
+    assert "Re-simulate before any retry" in findings["why"]
+    assert findings["NEXT_PREFIX_STILL_VALID"] is False
+
+
+def test_api_success_with_a_different_tree_is_a_mismatch_and_stops(tmp_path, repo):
+    """Acceptance is not landing. A 200 says a call was accepted."""
+    findings = handoff(tmp_path, repo, landed(repo, actual_main_tree="0" * 40))
+    assert findings["verdict"] == "LANDED_TREE_MISMATCH"
+    assert findings["MERGE_API_SUCCESS"] is True
+    assert findings["SIMULATED_TREE_LANDED"] is False
+    assert findings["NEXT_PREFIX_STILL_VALID"] is False
+
+
+def test_a_matching_tree_with_a_different_commit_sha_is_not_a_defect(tmp_path, repo):
+    """Under squash the commit SHA differs by construction; the tree is the content proof."""
+    findings = handoff(tmp_path, repo, landed(repo, actual_commit_sha="f" * 40))
+    assert findings["verdict"] == "ENTRY_LANDED_AS_SIMULATED"
+    assert "new parent" in findings["commit_sha_note"]
+
+
+def test_a_foreign_merge_invalidates_the_whole_remaining_suffix(tmp_path, repo):
+    findings = handoff(tmp_path, repo, landed(repo, foreign_merges_since=["abc1234"]))
+    assert findings["verdict"] == "SUFFIX_INVALIDATED"
+    assert findings["SIMULATED_TREE_LANDED"] is True
+    assert findings["NEXT_PREFIX_STILL_VALID"] is False
+    assert "re-simulated against the new base" in findings["why"]
+
+
+def test_metadata_drift_invalidates_the_pr_and_every_prefix_containing_it(tmp_path, repo):
+    findings = handoff(tmp_path, repo, landed(
+        repo, recorded_title_digest="sha256:aaa", title_digest="sha256:bbb"))
+    assert findings["verdict"] == "METADATA_DRIFTED"
+    assert "every prefix containing it" in findings["invalidates"]
+
+
+def test_a_head_that_drifted_before_the_call_is_refused(tmp_path, repo):
+    findings = handoff(tmp_path, repo, landed(repo, pr_head_sha="1" * 40))
+    assert findings["verdict"] == "PRECONDITION_DRIFTED"
+    assert findings["drifted"] == "pr_head_sha"
+
+
+def test_a_missing_readback_is_not_treated_as_success(tmp_path, repo):
+    observed = landed(repo)
+    del observed["actual_main_tree"]
+    findings = handoff(tmp_path, repo, observed)
+    assert findings["verdict"] == "READBACK_NOT_OBSERVED"
+    assert "acceptance is not landing" in findings["why"]

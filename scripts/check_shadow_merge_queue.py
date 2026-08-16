@@ -147,6 +147,29 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
             record["integration"] = "SQUASHED"
             record["synthetic_commit_sha"] = git("rev-parse", "HEAD", cwd=worktree)
             record["synthetic_tree_sha"] = git("rev-parse", "HEAD^{tree}", cwd=worktree)
+            # Compare-and-swap handoff: a receipt is valid for ONE snapshot. These are the
+            # tokens that must still hold at merge time, and the pinned head goes to the
+            # merge API's `sha` parameter so GitHub answers 409 rather than merging a head
+            # nobody simulated.
+            record["handoff"] = {
+                "preconditions": {
+                    "base_sha": git("rev-parse", base),
+                    "base_tree": git("rev-parse", f"{base}^{{tree}}"),
+                    "pr_head_sha": head,
+                    "merge_method": method,
+                },
+                "merge_call": {
+                    "endpoint": "PUT /repos/{owner}/{repo}/pulls/{number}/merge",
+                    "sha": head,
+                    "merge_method": method.lower(),
+                    "why_sha": "pins the head; a changed head yields 409 Conflict instead of "
+                               "merging something no prefix simulated",
+                },
+                "postcondition": {
+                    "expected_main_tree": record["synthetic_tree_sha"],
+                    "readback": "actual_main_tree == simulated_prefix_tree",
+                },
+            }
 
             # The measurement must not perturb what it measures. Without
             # PYTHONDONTWRITEBYTECODE the test run writes __pycache__ into the tree,
@@ -233,8 +256,119 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
     return receipt
 
 
+# --- compare-and-swap handoff -------------------------------------------------
+
+def validate_handoff(receipt: dict, observed: dict) -> dict:
+    """Grade an executed merge against the prefix that was simulated.
+
+    Three facts, deliberately not one:
+
+        MERGE_API_SUCCESS ≠ SIMULATED_TREE_LANDED ≠ NEXT_PREFIX_STILL_VALID
+
+    A `200` from the merge API says a call was accepted. It does not say the resulting tree
+    is the one measured, and it says nothing about whether the remaining queue is still
+    valid — another merge may have landed in between, which is exactly the case a real
+    merge queue rebuilds its group for.
+    """
+    entries = {p["ref"]: p for p in receipt.get("prefixes", [])}
+    ref = observed.get("ref")
+    if ref not in entries:
+        return {"verdict": "UNKNOWN_ENTRY",
+                "why": f"{ref!r} is not a measured prefix in this receipt"}
+    record = entries[ref]
+    handoff = record.get("handoff") or {}
+    pre = handoff.get("preconditions", {})
+
+    findings = {
+        "ref": ref,
+        "MERGE_API_SUCCESS": bool(observed.get("merge_api_success")),
+        "SIMULATED_TREE_LANDED": None,
+        "NEXT_PREFIX_STILL_VALID": None,
+    }
+
+    if observed.get("http_status") == 409:
+        findings["verdict"] = "HEAD_MOVED_409"
+        findings["why"] = (
+            "the pinned head no longer matched. Re-simulate before any retry: retrying a "
+            "409 against a new head merges something no prefix measured"
+        )
+        findings["NEXT_PREFIX_STILL_VALID"] = False
+        return findings
+
+    for token, key in (("pr_head_sha", "pr_head_sha"), ("base_sha", "base_sha_before")):
+        if observed.get(key) and pre.get(token) and observed[key] != pre[token]:
+            findings["verdict"] = "PRECONDITION_DRIFTED"
+            findings["drifted"] = token
+            findings["NEXT_PREFIX_STILL_VALID"] = False
+            return findings
+
+    for digest_key in ("title_digest", "body_digest"):
+        recorded, seen = observed.get(f"recorded_{digest_key}"), observed.get(digest_key)
+        if recorded and seen and recorded != seen:
+            findings["verdict"] = "METADATA_DRIFTED"
+            findings["drifted"] = digest_key
+            findings["invalidates"] = (
+                "this PR and every prefix containing it; metadata supplies the "
+                "work-package ID and the squash subject"
+            )
+            findings["NEXT_PREFIX_STILL_VALID"] = False
+            return findings
+
+    if not findings["MERGE_API_SUCCESS"]:
+        findings["verdict"] = "MERGE_NOT_ACCEPTED"
+        findings["NEXT_PREFIX_STILL_VALID"] = False
+        return findings
+
+    expected = (handoff.get("postcondition") or {}).get("expected_main_tree")
+    actual = observed.get("actual_main_tree")
+    if not actual:
+        findings["verdict"] = "READBACK_NOT_OBSERVED"
+        findings["why"] = "no actual_main_tree supplied; acceptance is not landing"
+        return findings
+    findings["SIMULATED_TREE_LANDED"] = actual == expected
+    if actual != expected:
+        findings["verdict"] = "LANDED_TREE_MISMATCH"
+        findings["why"] = (
+            f"expected tree {expected} and observed {actual}. Stop: every remaining prefix "
+            "was simulated on a base that did not materialise"
+        )
+        findings["NEXT_PREFIX_STILL_VALID"] = False
+        return findings
+
+    # Tree matched. A different commit SHA is expected under squash and is not a defect:
+    # the tree is the content proof, and the actual SHA becomes the next prefix's parent.
+    findings["commit_sha_note"] = (
+        "tree matched; a differing commit SHA is normal under squash. The tree is the "
+        "content proof and the actual SHA is the new parent for the next prefix."
+    )
+    foreign = observed.get("foreign_merges_since")
+    findings["NEXT_PREFIX_STILL_VALID"] = not foreign
+    findings["verdict"] = "ENTRY_LANDED_AS_SIMULATED" if not foreign else "SUFFIX_INVALIDATED"
+    if foreign:
+        findings["why"] = (
+            "another merge landed on main between simulation and execution, so every "
+            "remaining prefix must be re-simulated against the new base"
+        )
+    return findings
+
+
 def main(argv: list[str]) -> int:
     env = dict(os.environ)
+
+    # Handoff validation reads a prior receipt; it performs no merge and calls nothing.
+    if env.get("HANDOFF_OBSERVED"):
+        try:
+            receipt = json.loads(Path(env["RECEIPT"]).read_text(encoding="utf-8"))
+            observed = json.loads(Path(env["HANDOFF_OBSERVED"]).read_text(encoding="utf-8"))
+        except (OSError, KeyError, json.JSONDecodeError) as exc:
+            print(f"REFUSED (closed): RECEIPT and HANDOFF_OBSERVED required ({exc})",
+                  file=sys.stderr)
+            return FAIL
+        findings = validate_handoff(receipt, observed)
+        findings["confers_merge_authority"] = False
+        print(json.dumps(findings, indent=2, sort_keys=True))
+        return OK if findings.get("verdict") == "ENTRY_LANDED_AS_SIMULATED" else FAIL
+
     queue = [r.strip() for r in env.get("QUEUE", "").split(",") if r.strip()]
     if not queue:
         print("REFUSED (closed): QUEUE is required, in queue order", file=sys.stderr)
