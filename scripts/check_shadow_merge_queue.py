@@ -96,14 +96,24 @@ def environment_digest(test_command: str) -> dict:
 
 
 def canonical_cohort(receipt: dict) -> str:
-    """The bytes that define WHAT was measured, in a fixed order."""
+    """The bytes that define WHAT was measured, in a fixed order.
+
+    The **git version** is part of identity, not provenance. Measured: a local run on git
+    2.34 reported eight prefixes draining while CI on git 2.54 failed at the second, so two
+    receipts over identical heads described different cohorts. Tool drift means
+    `REMEASUREMENT_REQUIRED`, and folding the version into the digest is what makes that
+    detectable instead of arguable.
+    """
     heads = [f"{p['ref']}@{p['head_sha']}" for p in receipt.get("prefixes", [])]
     persistence = receipt.get("persistence", {})
+    environment = receipt.get("environment") or {}
     parts = [
         receipt.get("base_sha", ""),
         persistence.get("base_tree", ""),
         receipt.get("merge_method", ""),
-        (receipt.get("environment") or {}).get("test_command_digest", ""),
+        environment.get("test_command_digest", ""),
+        f"git={environment.get('git', '')}",
+        f"python={environment.get('python', '')}",
         *heads,
     ]
     return "\n".join(parts)
@@ -147,18 +157,37 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
                 cwd=worktree, capture_output=True, text=True,
             )
             if merge.returncode != 0:
-                conflicts = git("diff", "--name-only", "--diff-filter=U",
-                                cwd=worktree, check=False)
+                conflicts = [c for c in git("diff", "--name-only", "--diff-filter=U",
+                                            cwd=worktree, check=False).splitlines() if c]
                 git("merge", "--abort", cwd=worktree, check=False)
-                record["integration"] = "CONFLICT"
-                record["conflicted_paths"] = [p for p in conflicts.splitlines() if p]
+                record["conflicted_paths"] = conflicts
+                record["integration_error"] = (merge.stderr or merge.stdout).strip()[:400]
+                # A non-zero merge with NO unmerged paths is not a content conflict. The
+                # first version labelled both CONFLICT, so an operational failure was
+                # reported as an integration incompatibility between two branches --
+                # measured: a CI run produced `CONFLICT` with `conflicted_paths: []`, which
+                # is a claim about the branches that the evidence did not support.
+                record["integration"] = "CONFLICT" if conflicts else "INTEGRATION_FAILED"
                 record["tests"] = "NOT_RUN"
                 prefixes.append(record)
                 first_failing = ref
                 break
 
-            git("-c", "user.email=smq@local", "-c", "user.name=SMQ",
-                "commit", "-q", "-m", f"smq: squash {ref}", cwd=worktree, check=False)
+            commit = subprocess.run(
+                ["git", "-c", "user.email=smq@local", "-c", "user.name=SMQ",
+                 "commit", "-q", "-m", f"smq: squash {ref}"],
+                cwd=worktree, capture_output=True, text=True,
+            )
+            if commit.returncode != 0:
+                # A failed commit leaves the squash staged, so the NEXT merge fails with no
+                # unmerged paths -- which is how an unchecked commit turned into a phantom
+                # conflict one entry later.
+                record["integration"] = "INTEGRATION_FAILED"
+                record["integration_error"] = (commit.stderr or commit.stdout).strip()[:400]
+                record["tests"] = "NOT_RUN"
+                prefixes.append(record)
+                first_failing = ref
+                break
             record["integration"] = "SQUASHED"
             record["synthetic_commit_sha"] = git("rev-parse", "HEAD", cwd=worktree)
             record["synthetic_tree_sha"] = git("rev-parse", "HEAD^{tree}", cwd=worktree)
@@ -270,6 +299,16 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
             "the tree that was built. A result from a perturbed measurement is not a result "
             "in either direction"
         )
+    elif any(p.get("integration") == "INTEGRATION_FAILED" for p in prefixes):
+        failure = next(p for p in prefixes if p.get("integration") == "INTEGRATION_FAILED")
+        receipt["verdict"] = "INTEGRATION_FAILED"
+        receipt["first_failing_prefix_at"] = failure["ref"]
+        receipt["why"] = (
+            "the merge did not complete and left no unmerged paths, so this is an "
+            "operational failure of the measurement, NOT evidence that the branches are "
+            "incompatible. It says nothing about drainability in either direction"
+        )
+        receipt["attribution"] = "INTEGRATION_FAILED is not QUEUE_NOT_DRAINABLE_AS_ORDERED"
     elif first_failing:
         receipt["first_failing_prefix_at"] = first_failing
         receipt["attribution"] = (
@@ -294,7 +333,7 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
     receipt["cohort_digest"] = digest(canonical_cohort(receipt))
     receipt["cohort_identity"] = {
         "includes": ["base_sha", "base_tree", "ordered_pr_heads", "merge_method",
-                     "test_command_digest"],
+                     "test_command_digest", "git_version", "python_version"],
         "excludes": ["measuring_pr_head", "run_id", "workflow_ref", "measured_at"],
         "why": (
             "Provenance answers who measured; identity answers what was measured. Folding "

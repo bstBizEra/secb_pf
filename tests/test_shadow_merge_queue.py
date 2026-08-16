@@ -416,7 +416,8 @@ def test_cohort_identity_excludes_who_measured_it(repo):
     """
     identity = receipt(repo)["cohort_identity"]
     assert set(identity["includes"]) == {
-        "base_sha", "base_tree", "ordered_pr_heads", "merge_method", "test_command_digest"}
+        "base_sha", "base_tree", "ordered_pr_heads", "merge_method", "test_command_digest",
+        "git_version", "python_version"}
     for excluded in ("measuring_pr_head", "run_id", "workflow_ref"):
         assert excluded in identity["excludes"]
 
@@ -509,3 +510,58 @@ def test_the_measurement_workflow_does_not_touch_ci_yml():
     """#134 claims ci.yml; a second claimant would conflict for no reason."""
     ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     assert "check_shadow_merge_queue" not in ci
+
+
+# --- integration failure is not a conflict ------------------------------------
+
+
+def test_a_conflict_requires_unmerged_paths(repo):
+    """`CONFLICT` is a claim about the branches, and needs evidence for it.
+
+    Measured: a CI run reported `integration: CONFLICT` with `conflicted_paths: []`. A
+    non-zero merge that leaves no unmerged paths is an operational failure of the
+    measurement, and labelling it a conflict asserts an incompatibility between two
+    branches that the evidence does not support.
+    """
+    document = receipt(repo, JAMS)
+    conflicted = document["prefixes"][-1]
+    assert conflicted["integration"] == "CONFLICT"
+    assert conflicted["conflicted_paths"], "a CONFLICT must name the paths that conflicted"
+    assert document["verdict"] == "QUEUE_NOT_DRAINABLE_AS_ORDERED"
+
+
+def test_the_integration_error_is_captured(repo):
+    """Without stderr, a non-conflict failure is indistinguishable from a conflict."""
+    conflicted = receipt(repo, JAMS)["prefixes"][-1]
+    assert "integration_error" in conflicted
+
+
+def test_integration_failed_is_not_a_drainability_verdict(repo):
+    """`INTEGRATION_FAILED` ≠ `QUEUE_NOT_DRAINABLE_AS_ORDERED`.
+
+    Asserted on the vocabulary rather than by forcing a commit failure: the distinction is
+    what the receipt must express, and conflating them turns a broken measurement into a
+    finding about the queue.
+    """
+    source = (REPO_ROOT / "scripts" / "check_shadow_merge_queue.py").read_text(encoding="utf-8")
+    assert "INTEGRATION_FAILED is not QUEUE_NOT_DRAINABLE_AS_ORDERED" in source
+    assert "operational failure of the measurement" in source
+    assert "if conflicts else \"INTEGRATION_FAILED\"" in source
+
+
+# --- tool drift is cohort drift ------------------------------------------------
+
+
+def test_the_git_version_is_part_of_cohort_identity(repo):
+    """Measured: git 2.34 locally drained eight prefixes; git 2.54 in CI failed at the
+    second. Two receipts over identical heads described different cohorts, so the tool
+    version belongs to identity — otherwise the drift is arguable rather than detectable.
+    """
+    identity = receipt(repo)["cohort_identity"]
+    assert "git_version" in identity["includes"]
+    assert "python_version" in identity["includes"]
+
+
+def test_a_different_test_command_or_tool_changes_the_cohort_digest(repo):
+    base = receipt(repo)["cohort_digest"]
+    assert receipt(repo, TEST_COMMAND="true  ")["cohort_digest"] != base
