@@ -140,6 +140,14 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
     contaminated = False
     try:
         git("worktree", "add", "--detach", "-q", worktree, base)
+        # Configure the identity ON THE WORKTREE, not per invocation. Measured in CI:
+        # per-call `-c user.email/-c user.name` covered the commit but not every operation
+        # that needs an ident, and git 2.54 failed with `empty ident name (for
+        # <runner@...>)` -- it had fallen back to the system identity. A runner with no
+        # global git identity then broke the second prefix, and the failure surfaced as a
+        # phantom conflict.
+        git("config", "user.email", "smq@local", cwd=worktree)
+        git("config", "user.name", "SMQ", cwd=worktree)
         for index, ref in enumerate(queue, start=1):
             if time.monotonic() - started > budget:
                 break
@@ -174,8 +182,7 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
                 break
 
             commit = subprocess.run(
-                ["git", "-c", "user.email=smq@local", "-c", "user.name=SMQ",
-                 "commit", "-q", "-m", f"smq: squash {ref}"],
+                ["git", "commit", "-q", "-m", f"smq: squash {ref}"],
                 cwd=worktree, capture_output=True, text=True,
             )
             if commit.returncode != 0:

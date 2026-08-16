@@ -48,6 +48,10 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.number == 150
     runs-on: ubuntu-latest
     outputs:
+      # A TYPED outcome, passed through `needs`. The verifier must not infer usability from
+      # an artifact's existence: a zero-byte file has a perfectly valid SHA-256
+      # (e3b0c442...), and handing that to a verifier launders absence into evidence.
+      outcome: ${{ steps.classify.outputs.outcome }}
       receipt_digest: ${{ steps.digest.outputs.sha256 }}
     steps:
       # Full history: every queued head must be resolvable, and a shallow checkout has none
@@ -126,7 +130,51 @@ jobs:
             echo "::error::measurement produced no usable receipt (tool exit $code)"
             exit 1
           fi
-          cp "$RUNNER_TEMP/receipt.json" receipt-artifact.json
+
+
+      # Validate BEFORE digesting, and publish atomically. Digesting first would produce a
+      # valid hash of an unusable file, which is the laundering step.
+      - name: Classify the producer outcome
+        id: classify
+        env:
+          RECEIPT: ${{ runner.temp }}/receipt.json
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, pathlib, sys
+          path = pathlib.Path(os.environ["RECEIPT"])
+          TERMINAL = {"QUEUE_DRAINS_AS_ORDERED"}
+          FINDINGS = {"QUEUE_NOT_DRAINABLE_AS_ORDERED", "QUEUE_DRAINABILITY_UNPROVEN",
+                      "INTEGRATION_FAILED", "MEASUREMENT_CONTAMINATED",
+                      "MERGE_METHOD_MISMATCH"}
+          outcome = "PRODUCER_ERROR"
+          if path.exists() and path.stat().st_size > 0:
+              try:
+                  document = json.loads(path.read_text(encoding="utf-8"))
+                  verdict = document.get("verdict")
+                  if document.get("schema") != "secb.shadow-merge-queue-receipt/v1":
+                      outcome = "PRODUCER_ERROR"
+                  elif verdict in TERMINAL:
+                      outcome = "VALID_MEASUREMENT"
+                  elif verdict in FINDINGS:
+                      outcome = "VALID_FINDING"
+              except Exception:
+                  outcome = "PRODUCER_ERROR"
+          print(f"outcome={outcome}")
+          PY
+
+      - name: Refuse to publish an unusable receipt
+        if: steps.classify.outputs.outcome == 'PRODUCER_ERROR'
+        run: |
+          echo "::error::PRODUCER_ERROR -- the receipt is absent, empty, malformed or "\
+               "carries no declared verdict. A zero-byte file has a valid digest; "\
+               "publishing it would launder absence into evidence."
+          exit 1
+
+      # Atomic publish: only a validated receipt becomes the artifact path.
+      - name: Publish the validated receipt
+        run: |
+          cp "$RUNNER_TEMP/receipt.json" "$RUNNER_TEMP/receipt-validated.json"
+          mv "$RUNNER_TEMP/receipt-validated.json" receipt-artifact.json
 
       - name: Emit the receipt digest out of band
         id: digest
@@ -171,6 +219,14 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: shadow-queue-receipt
+
+      # Read the TYPED outcome through `needs` rather than inferring usability from the
+      # artifact's name or presence.
+      - name: Refuse a producer error
+        if: needs.measure.outputs.outcome != 'VALID_MEASUREMENT' && needs.measure.outputs.outcome != 'VALID_FINDING'
+        run: |
+          echo "::error::producer outcome ${{ needs.measure.outputs.outcome }} is not usable evidence"
+          exit 1
 
       - name: Verify the downloaded receipt against the out-of-band digest
         env:

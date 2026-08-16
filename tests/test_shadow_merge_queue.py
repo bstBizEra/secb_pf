@@ -565,3 +565,56 @@ def test_the_git_version_is_part_of_cohort_identity(repo):
 def test_a_different_test_command_or_tool_changes_the_cohort_digest(repo):
     base = receipt(repo)["cohort_digest"]
     assert receipt(repo, TEST_COMMAND="true  ")["cohort_digest"] != base
+
+
+# --- typed outcome channel -----------------------------------------------------
+
+
+def test_an_empty_receipt_cannot_be_laundered_into_evidence():
+    """A zero-byte file has a perfectly valid SHA-256 (`e3b0c442…`).
+
+    Measured: an empty `receipt.json` was digested and handed to the verifier, which then
+    failed on parse — the digest step had already certified nothing. Validation now
+    precedes digesting, and only a validated receipt becomes the artifact.
+    """
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    classify = text.split("id: classify")[1].split("- name: Refuse")[0]
+    assert "st_size > 0" in classify
+    assert "secb.shadow-merge-queue-receipt/v1" in classify
+    assert text.index("id: classify") < text.index("id: digest"), (
+        "the receipt must be validated before it is digested"
+    )
+
+
+def test_the_producer_emits_a_typed_outcome_not_just_an_exit_code():
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    for outcome in ("VALID_MEASUREMENT", "VALID_FINDING", "PRODUCER_ERROR"):
+        assert outcome in text
+    assert "outcome: ${{ steps.classify.outputs.outcome }}" in text
+
+
+def test_a_producer_error_is_not_published():
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    assert "if: steps.classify.outputs.outcome == 'PRODUCER_ERROR'" in text
+    assert "launder absence into evidence" in text
+
+
+def test_the_verifier_reads_the_typed_outcome_through_needs():
+    """Not from the artifact's name or its presence."""
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    assert "needs.measure.outputs.outcome" in text
+    assert "is not usable evidence" in text
+
+
+def test_the_worktree_identity_is_configured_once_not_per_call(repo):
+    """Measured in CI: per-call `-c user.email` left git falling back to the system ident,
+    and git 2.54 failed with `empty ident name (for <runner@...>)` at the second prefix —
+    surfacing as a phantom conflict.
+    """
+    source = (REPO_ROOT / "scripts" / "check_shadow_merge_queue.py").read_text(encoding="utf-8")
+    assert 'git("config", "user.email", "smq@local", cwd=worktree)' in source
+    assert '"-c", "user.email=smq@local"' not in source, (
+        "per-invocation flags covered the commit but not every operation needing an ident"
+    )
+    # and it still works locally
+    assert receipt(repo)["prefixes"][0]["integration"] == "SQUASHED"
