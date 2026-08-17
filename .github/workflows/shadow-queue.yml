@@ -79,7 +79,7 @@ jobs:
           # committed cohort is a snapshot and goes stale the moment the queue drains an
           # entry -- which is the first thing the framework's own merge did to it.
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "queue=origin/feat/secb-wp-fwk-069-nfr-17-correction,origin/feat/secb-wp-fwk-061-k09-recount-d-under-review,origin/feat/secb-wp-fwk-062-register-c5-c6-c7,origin/feat/secb-wp-fwk-070-live-route-projection,origin/feat/secb-wp-fwk-072-framework-product,origin/feat/secb-wp-fwk-068-metadata-binding,origin/feat/secb-wp-fwk-082-control-execution-graph" >> "$GITHUB_OUTPUT"
+            echo "queue=origin/feat/secb-wp-fwk-061-k09-recount-d-under-review,origin/feat/secb-wp-fwk-062-register-c5-c6-c7,origin/feat/secb-wp-fwk-070-live-route-projection,origin/feat/secb-wp-fwk-072-framework-product,origin/feat/secb-wp-fwk-068-metadata-binding,origin/feat/secb-wp-fwk-082-control-execution-graph" >> "$GITHUB_OUTPUT"
             echo "base=origin/main" >> "$GITHUB_OUTPUT"
             echo "retention=90" >> "$GITHUB_OUTPUT"
             echo "mode=BOOTSTRAP_COMMITTED_COHORT" >> "$GITHUB_OUTPUT"

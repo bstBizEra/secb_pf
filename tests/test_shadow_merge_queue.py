@@ -459,12 +459,31 @@ def test_the_bootstrap_cohort_is_committed_not_caller_supplied():
     bootstrap = bootstrap.split("else")[0]
     assert "inputs.queue" not in bootstrap, "the bootstrap path must not read caller inputs"
     assert "origin/feat/secb-wp-fwk-" in bootstrap, "the cohort must be committed, not empty"
-    # Not pinned to a specific branch: the cohort is a SNAPSHOT and goes stale the moment
-    # the queue drains an entry. #142 merged, and squashing an already-merged branch stages
-    # nothing -- the commit then fails and the run reports INTEGRATION_FAILED.
-    assert "secb-wp-fwk-055" not in bootstrap, (
-        "a merged entry must be removed from the cohort; it would squash to nothing"
-    )
+
+
+def test_no_cohort_entry_is_already_merged_into_main():
+    """The cohort is a SNAPSHOT and goes stale the moment the queue drains an entry.
+
+    Squashing an already-merged branch stages nothing, the commit then fails, and the run
+    reports INTEGRATION_FAILED. Twice now a merge has expired this list -- #142, then #132 --
+    so the guard derives staleness instead of naming branches: an entry that is already an
+    ancestor of `main` is merged, and must be removed.
+    """
+    import re
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    bootstrap = text.split('if [ "${{ github.event_name }}" = "pull_request" ]; then')[1]
+    bootstrap = bootstrap.split("else")[0]
+    refs = re.findall(r"origin/feat/[a-z0-9./-]+", bootstrap)
+    assert refs, "no cohort refs parsed from the bootstrap path"
+    for ref in refs:
+        merged = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ref, "origin/main"],
+            cwd=str(REPO_ROOT), capture_output=True, timeout=60,
+        ).returncode == 0
+        assert not merged, (
+            f"{ref} is already an ancestor of origin/main -- it is merged, and squashing it "
+            "would stage nothing. Remove it from the committed cohort."
+        )
 
 
 def test_the_four_shas_are_kept_distinct():
