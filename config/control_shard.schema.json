@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.control-shard/v1",
+  "title": "Control surface shard",
+  "description": "SECB-WP-FWK-084, issue #151. One file per control, exclusion or tombstone, so adding a control does not edit a file every other branch is editing. Measured cause: config/control_surface.json was claimed by five open branches at one hunk each, all at the array tail, and the shadow merge queue proved the resulting conflict at prefix 9. There is NO hand-maintained index -- the aggregate is derived by enumerating shards, so an index cannot disagree with reality.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "kind", "id", "path"],
+  "properties": {
+    "schema": { "const": "secb.control-shard/v1" },
+    "kind": {
+      "enum": ["CONTROL", "EXCLUSION", "TOMBSTONE"],
+      "description": "A TOMBSTONE records a removal. Deleting a shard file silently would let a control disappear with no trace, which is the silent-closure failure the register exists to prevent."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "description": "Unique across all shards of every kind. Two shards claiming one id is a golden-negative case, not a merge to resolve by hand."
+    },
+    "path": { "type": "string", "minLength": 1 },
+
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "bytes": { "type": "integer", "minimum": 0 },
+    "owning_work_package": { "type": "string" },
+    "portability_class": { "enum": ["verbatim", "configure", "adapt", "do_not_copy"] },
+    "staleness_consequence": { "type": "string" },
+    "control_role": { "enum": ["PRODUCER", "VERIFIER", "ENFORCER", "DIAGNOSTIC"] },
+    "reason": { "type": "string" },
+    "trigger_to_cover": { "type": "string" },
+    "why_declared": { "type": "string" },
+
+    "supersedes_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "TOMBSTONE only, and required for it: the canonical digest of the shard being retired. A tombstone that does not name what it retires cannot be checked against anything."
+    },
+    "retired_reason": { "type": "string" },
+    "retired_by_work_package": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "TOMBSTONE" } } },
+      "then": { "required": ["supersedes_digest", "retired_reason", "retired_by_work_package"] }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "CONTROL" } } },
+      "then": { "required": ["sha256", "portability_class", "staleness_consequence"] }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "EXCLUSION" } } },
+      "then": { "required": ["reason", "trigger_to_cover", "why_declared"] }
+    }
+  ]
+}
