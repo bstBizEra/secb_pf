@@ -433,11 +433,12 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
     # Cohort identity excludes the measuring run. A push to the measuring pull request
     # changes the workflow head and the run id; it does not change what was measured, so it
     # must not invalidate the receipt. The cohort is the base, the ordered heads, the merge
-    # method and the test command -- nothing about who observed them.
+    # method, test command, and collection-boundary epoch -- nothing about who observed them.
     receipt["cohort_digest"] = digest(canonical_cohort(receipt))
     receipt["cohort_identity"] = {
         "includes": ["base_sha", "base_tree", "ordered_pr_heads", "merge_method",
-                     "test_command_digest", "git_version", "python_version"],
+                     "test_command_digest", "test_set_epoch", "git_version",
+                     "python_version"],
         "excludes": ["measuring_pr_head", "run_id", "workflow_ref", "measured_at"],
         "why": (
             "Provenance answers who measured; identity answers what was measured. Folding "
