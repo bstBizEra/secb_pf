@@ -112,6 +112,104 @@ act. That is recorded here rather than discovered at stage 5.
 
 ---
 
+## `C-5` — replace `G-02` with a squash-aware content-and-provenance proof
+
+| Field | Value |
+|---|---|
+| `condition_id` | `C-5` |
+| `origin_decision` | `STAGE_GATE_REQUIREMENTS_READY_ADDENDUM_001.md` — operator's amended stage-2 verdict, 2026-08-13 |
+| `statement` | `G-02` (`main == expected tested trunk SHA`) is incompatible with squash-merge and must be replaced by a proof of content **and** provenance |
+| `status` | **`PARTIALLY_SATISFIED`** — the historical half is done, the forward half is not |
+| `severity` | Major |
+| `blocking_scope` | **Does not block a stage.** It blocks the next autonomous canonical merge being *provable*, not any stage transition |
+| `owner` | Executor |
+| `due_stage` | Before the next autonomous canonical merge |
+| `closure_predicate` | `G-02S-HISTORICAL_SQUASH_EQUIVALENCE` grades the Genesis **and** `TR-01` is effective as the forward control, with `M ∧ H ∧ B ∧ T ∧ P ∧ C ∧ R ∧ E` evaluated per merge |
+| `required_evidence` | The audit corrections at `f1b2516` (done) · a `TR-01` implementation with its test vectors passing (not done) |
+| `closure_authority` | Operator |
+| `supersedes / superseded_by` | — |
+| `history` | 2026-08-13 created (amended verdict) · 2026-08-14 historical half satisfied at `f1b2516` (`SECB-WP-FWK-060`); forward half tracked as `TR-01`, issue #118 |
+
+**Why `PARTIALLY_SATISFIED` and not `OPEN`.** Two distinguishable obligations sit
+inside one condition: grade the Genesis correctly, and govern future merges. The
+first is closed by evidence on `main`; the second cannot be until `TR-01` exists.
+Recording it as `OPEN` would lose the first; recording it as `CLOSED` would claim
+the second. **The register's arithmetic needs a state for a condition that is half
+discharged**, and inventing one here is smaller than pretending the halves are one.
+
+---
+
+## `C-6` — prohibit non-fast-forward update of a canonical ref, with preventive enforcement
+
+| Field | Value |
+|---|---|
+| `condition_id` | `C-6` |
+| `origin_decision` | `STAGE_GATE_REQUIREMENTS_READY_ADDENDUM_001.md` — operator's amended stage-2 verdict, 2026-08-13 |
+| `statement` | An `L0` amendment prohibits non-fast-forward update, deletion-and-recreation or forced replacement of a canonical branch ref, **and preventive enforcement exists** |
+| `status` | **`OPEN`** |
+| `severity` | Major |
+| `blocking_scope` | Blocks the next autonomous canonical merge. **Does not block stages 3–4** |
+| `owner` | Operator (`G4` — amends `L0_ROOT_CONSTITUTION.md`) |
+| `due_stage` | Before the next autonomous canonical merge |
+| `closure_predicate` | `L0-GIT-004` ratified as a **state invariant** (`new_sha != ZERO ∧ is_ancestor(old,new) ∧ release_certificate.result_sha == new_sha ∧ receipt_chain_valid`) **and** `NEG-01`…`AUD-01` pass against live enforcement with bypass disabled |
+| `required_evidence` | The ratified `L0` text · a ruleset requiring PR and status checks, blocking force-push and deletion, with no bypass actors · eight negative-test results |
+| `closure_authority` | Operator, as constitutional authority |
+| `supersedes / superseded_by` | — |
+| `history` | 2026-08-13 created (amended verdict) · drafted at issue #117, status `RATIFIED_NOT_EFFECTIVE` pending live enforcement |
+
+**Ratifying the text does not close this.** `L0` prose alone is a *documentary*
+control; the closure predicate requires enforcement that rejects a bad push
+server-side. And a change from `403` to `200` on the rulesets endpoint does not
+close it either — **configuration is not enforcement.**
+
+---
+
+## `C-7` — separate human/operator identity from the agent's App identity
+
+| Field | Value |
+|---|---|
+| `condition_id` | `C-7` |
+| `origin_decision` | `STAGE_GATE_REQUIREMENTS_READY_ADDENDUM_001.md` — operator's amended stage-2 verdict, 2026-08-13 |
+| `statement` | The operator's identity and the agent's identity are distinct principals, with separate credentials and separate key custody |
+| `status` | **`OPEN`** |
+| `severity` | **Critical** — it is the same unmet precondition behind the inert ballot layer, tiers `A3`/`A4`, and stage 9 |
+| `blocking_scope` | Blocks the next autonomous canonical merge **and** stage 9 (`RELEASE_CANDIDATE_VALIDATED`), whose independence requirement one identity cannot satisfy. Does not block stages 3–4 |
+| `owner` | Operator |
+| `due_stage` | Before the next autonomous canonical merge; **and structurally before stage 9** |
+| `closure_predicate` | `HUMAN_GITHUB_CREDENTIAL_PRESENT_IN_AGENT_RUNTIME = false` ∧ App keys held outside the agent domain ∧ role custody separated ∧ short-lived tokens only ∧ the `WP-05` negative tests pass |
+| `required_evidence` | The credential-cutover receipts of `WP-05` (issue #115): server-side revocation, destroyed runtime, clean-runtime attestation, broker-issued tokens |
+| `closure_authority` | Operator |
+| `supersedes / superseded_by` | Subsumes the identity half of `C-3`'s ballot-layer blocker; neither is closed by the other |
+| `history` | 2026-08-13 created (amended verdict) · 2026-08-13 measured `FAIL`: the agent runtime holds the owner's GitHub credential (`gh auth status` → `bstBizEra`) |
+
+**This is the highest-severity condition in the register**, and unlike the others it
+cannot be discharged by engineering. Recorded as `Critical` because three separate
+capabilities wait on it and none of them has an alternative path.
+
+---
+
+## The register nearly lost three conditions, one merge after being cited
+
+`Addendum 001` (`SECB-WP-FWK-060`, merged `f1b2516`) added `C-5`, `C-6` and `C-7` —
+**and stated them only in the verdict record.** They were absent from this register
+until `SECB-WP-FWK-062`.
+
+That is precisely the defect this register was opened to prevent. Its own opening
+paragraph reads: *"Carried conditions previously lived only in the text of the
+verdict that created them. A condition mentioned in one record and not the next then
+reads as closed — which is closure by silence."*
+
+**The addendum even quoted the rule while breaking it**, writing "cited, not
+restated" about `C-3` and `C-4` in the same document that restated three new
+conditions with no register entry. Carry-forward is arithmetic —
+`Open(t+1) = Open(t) ∪ New − Closed − …` — and `New` has to be written down
+somewhere for the arithmetic to have inputs.
+
+Recorded rather than silently fixed, because a register that quietly absorbs the
+conditions it nearly lost teaches nobody how it nearly lost them.
+
+---
+
 ## Why `GC-03`'s improvement does not close either condition
 
 The stage-1 gate criterion on measurable KPIs (`GC-03`) passed with
