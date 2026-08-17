@@ -1,16 +1,21 @@
-"""SECB-WP-FWK-089, issue #158 -- the AIS4 production evidence verifier.
+"""SECB-WP-FWK-089, issue #158 -- the AIS4 production evidence verifier (v2).
 
-Every refusal below is produced by INVOKING scripts/check_ais_production_evidence.py as a
-subprocess against a mutated document. Importing the module and calling `evaluate` would
-test the function; the shipped surface is a command, and a command can raise ImportError on
-every invocation while its module's unit tests stay green.
+Every refusal is produced by INVOKING scripts/check_ais_production_evidence.py as a
+subprocess against a mutated document. Importing `evaluate` would test the function; the
+shipped surface is a command.
 
-The accept path is tested too, so no refusal is vacuous -- a verifier that refuses
-everything passes a refusal-only suite perfectly.
+THE TEST THAT SHOULD HAVE EXISTED FIRST is `test_v1_counterexample_is_refused`. v1 of this
+verifier checked RS256 correctly and still accepted one authentic token copied across every
+role record, beside fabricated app/custody/policy strings and unsigned ballots, because the
+signature covered the workflow context and nothing adjacent to it. Everything else here
+exists to keep that class of hole closed:
 
-The one thing this file may NOT do is reach AIS4 from a document alone. The out-of-band
-`EXPECT_JWKS_DIGEST` test proves the AIS4 rung is reachable when an external fetch confirms
-the key set, and the fixture test proves the shipped fixture does not reach it.
+    A VALID SIGNATURE OVER ONE PORTION OF A DOCUMENT MUST NOT LEND AUTHENTICITY TO
+    ADJACENT UNSIGNED FIELDS.
+
+The accept path is tested too, so no refusal is vacuous -- and the ceiling test asserts the
+sound document reaches AIS3 and NOT AIS4, because AIS4 needs a live issuer fetch this tool
+cannot perform.
 """
 from __future__ import annotations
 
@@ -29,40 +34,24 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "scripts" / "check_ais_production_evidence.py"
 SCHEMA_PATH = ROOT / "config" / "ais_production_evidence.schema.json"
+KEYS_PATH = Path(__file__).parent / "fixtures" / "ais_test_keys.json"
 
 GITHUB_ISSUER = "https://token.actions.githubusercontent.com"
+JWKS_URI = f"{GITHUB_ISSUER}/.well-known/jwks"
 MAIN_SHA = "f5aa26aef86250a7dfb68223f8f0b5d63f54ea52"
-WORKFLOW_SHA = "5cba625d2ad6fc20b48cc4c5afb9ea18416c03d8"
+WORKFLOW_SHA = "7e478d714ef57f624de2ccddc5733697f06fb119"
+JOB_WORKFLOW_REF = "bstBizEra/secb_pf/.github/workflows/ci.yml@refs/heads/main"
+REPOSITORY_ID = "1029384756"
+AUDIENCE = "bstBizEra"
+SUBJECT_PREFIX = "repo:bstBizEra/secb_pf:"
+NOW = "2026-08-17T10:30:00+00:00"
 
-# A 2048-bit RSA keypair generated once for these tests and hardcoded so runs are
-# deterministic. It signs nothing outside this file and guards nothing. Hardcoding is the
-# point: generating a keypair per run would make the suite slow and non-reproducible, and a
-# pure-Python 2048-bit keygen is a lot of code to own for no test value.
-_N_HEX = (
-    "cf4883ab6da0b694091bbbfa1a5a3c67552e32bf1a99b071f305bc8d6155ab87"
-    "b54c7e2cab9612a0f8716081924b00bf2d16d6239043526cfffc65647bb281a4"
-    "6a74297a31869a3c10e2ab403fe36c38b8f84a7edc32538453ec4be5bb72ab8c"
-    "e52dc2536b770a18d16f19c6591b61b8d0e37a9e3b6c47f89811847d3ad9bc31"
-    "37e60b7ade2dbb9eed6c8649dd6bb3810e880568b903b8292fb87275ceb5f397"
-    "df7f2854439b3b2f3078e9715e20fc910bb7ea756ab9f5ea431567b3055d59ed"
-    "384a08aa06c1984e80ac2bce558aaf3ab0291a41123a97212bc9dbc0c032fdfb"
-    "2e8e5636a7e43a758c5e6fb22eb51a81f14b2e27fcea7d161346f1e8422ea319"
-)
-_D_HEX = (
-    "21fbb0fe93781446dbe16ca599d96e6ac087d4f108d2e69f1fe9325af978baa9"
-    "029bba59e77db0ab2c602622c811bcdb1af0d205bd9a93f263db84e1fef7aa92"
-    "82936dd367383aa41b5e9615f0038094221b2ed772915ba8e7bb674c1039c20f"
-    "54e97621080ed99c6d05aa739edb42dfb27b80f85d24a8fe042c670cc2efbc8f"
-    "07a2d5859d95c222a53163b26997d36ff35f957abf5e03ee7c6e12a51c9b7b58"
-    "e5e6df501b8ece13aee4c5ff93615a6fbbc897ef07b12edb3cd0c25eb3f4c60d"
-    "3b2836ff2956284e88347e1afe8ba706010695dcef996d9a687cb6fe53fb12a2"
-    "7b7917a6fe4e68b5b42f50acd1056e4965568e7c9a4f852d53fd08230a604e7b"
-)
-N = int(_N_HEX, 16)
-D = int(_D_HEX, 16)
-E = 65537
-KID = "secb-test-key-1"
 SHA256_DIGESTINFO = binascii.unhexlify("3031300d060960864801650304020105000420")
+
+_MATERIAL = json.loads(KEYS_PATH.read_text(encoding="utf-8"))
+E = _MATERIAL["e"]
+PRIVATE = {k["kid"]: (int(k["n_hex"], 16), int(k["d_hex"], 16)) for k in _MATERIAL["keys"]}
+ROLE_OF = {k["kid"]: (k["key_role"], k["owner"]) for k in _MATERIAL["keys"]}
 
 
 def b64u(raw: bytes) -> str:
@@ -77,108 +66,152 @@ def sha256_digest(payload: object) -> str:
     return "sha256:" + hashlib.sha256(canonical(payload)).hexdigest()
 
 
-def rsa_sign(message: bytes) -> bytes:
-    """EMSA-PKCS1-v1_5 sign with the test key. Mirrors the verifier's expected block."""
-    k = (N.bit_length() + 7) // 8
+def rsa_sign(kid: str, message: bytes, *, padding: int = 0xFF) -> bytes:
+    """Sign with a test key. `padding` is a knob solely so a slack forgery can be built."""
+    n, d = PRIVATE[kid]
+    k = (n.bit_length() + 7) // 8
     tail = SHA256_DIGESTINFO + hashlib.sha256(message).digest()
-    em = b"\x00\x01" + b"\xff" * (k - len(tail) - 3) + b"\x00" + tail
-    return pow(int.from_bytes(em, "big"), D, N).to_bytes(k, "big")
+    em = b"\x00\x01" + bytes([padding]) * (k - len(tail) - 3) + b"\x00" + tail
+    return pow(int.from_bytes(em, "big"), d, n).to_bytes(k, "big")
 
 
-def jwt(claims: dict, *, alg: str = "RS256", kid: str = KID, sign: bool = True) -> str:
-    header = b64u(canonical({"alg": alg, "kid": kid, "typ": "JWT"}))
-    payload = b64u(canonical(claims))
-    if not sign:
-        return f"{header}.{payload}.{b64u(b'not-a-signature-just-bytes-of-the-right-shape')}"
-    return f"{header}.{payload}.{b64u(rsa_sign(f'{header}.{payload}'.encode('ascii')))}"
-
-
-JWKS_KEYS = [{
-    "kid": KID,
-    "kty": "RSA",
-    "alg": "RS256",
-    "n": b64u(N.to_bytes((N.bit_length() + 7) // 8, "big")),
-    "e": b64u(E.to_bytes(3, "big")),
-}]
-
-
-def principal(role: str, index: int, *, app: str | None = None) -> dict:
+def jwks_key(kid: str) -> dict:
+    n, _ = PRIVATE[kid]
+    key_role, owner = ROLE_OF[kid]
     return {
-        "app_id": app or f"app-{index}",
-        "installation_id": f"inst-{index}",
-        "custody_domain": f"custody-{index}",
-        "policy_domain": f"policy-{index}",
-        # Administered by a DIFFERENT domain: policy-0 administers policy-1 and vice versa.
-        "policy_administered_by": f"policy-{(index + 1) % 4}",
-        "token_scope": {
-            "repositories": ["bstBizEra/secb_pf"],
-            "permissions": {"contents": "read"},
-            "issued_at": "2026-08-17T10:00:00+00:00",
-            "expires_at": "2026-08-17T10:45:00+00:00",
-        },
-        "revocation": {
-            "challenge_id": f"chal-{index}",
-            "revoked_at": "2026-08-17T10:20:00+00:00",
-            "reuse_attempted_at": "2026-08-17T10:21:00+00:00",
-            "reuse_result": "DENIED",
-        },
-        "oidc": {
-            "kid": KID,
-            "token": jwt({
-                "iss": GITHUB_ISSUER,
-                "aud": "bstBizEra",
-                "sub": f"repo:bstBizEra/secb_pf:role:{role}",
-                "repository_id": "1029384756",
-                "run_id": f"3203{index}",
-                "workflow_ref": "bstBizEra/secb_pf/.github/workflows/ci.yml@refs/heads/main",
-                "workflow_sha": WORKFLOW_SHA,
-                "job_workflow_ref": "bstBizEra/secb_pf/.github/workflows/ci.yml@refs/heads/main",
-            }),
-        },
+        "kid": kid,
+        "kty": "RSA",
+        "alg": "RS256",
+        "key_role": key_role,
+        "owner": owner,
+        "n": b64u(n.to_bytes((n.bit_length() + 7) // 8, "big")),
+        "e": b64u(E.to_bytes(3, "big")),
     }
 
 
+JWKS_KEYS = [jwks_key(kid) for kid in PRIVATE]
+
 SNAPSHOT = {
-    "repository_id": "1029384756",
+    "repository_id": REPOSITORY_ID,
     "main_sha": MAIN_SHA,
     "workflow_sha": WORKFLOW_SHA,
-    "job_workflow_ref": "bstBizEra/secb_pf/.github/workflows/ci.yml@refs/heads/main",
+    "job_workflow_ref": JOB_WORKFLOW_REF,
 }
+SNAPSHOT_DIGEST = sha256_digest(SNAPSHOT)
+
+
+def signed(kid: str, payload: dict, **overrides) -> dict:
+    """Wrap a payload in a verified envelope. Overrides let a test break exactly one thing."""
+    body = {"purpose": payload["purpose"], "snapshot_digest": SNAPSHOT_DIGEST, **payload}
+    envelope = {"payload": body, "kid": kid, "signature": b64u(rsa_sign(kid, canonical(body)))}
+    envelope.update(overrides)
+    return envelope
+
+
+def oidc_token(role: str, index: int, *, claims_override: dict | None = None,
+               alg: str = "RS256", kid: str = "platform-oidc", sign_with: str | None = None,
+               drop: str | None = None) -> str:
+    claims = {
+        "iss": GITHUB_ISSUER,
+        "aud": AUDIENCE,
+        "sub": f"{SUBJECT_PREFIX}role:{role}",
+        "iat": "2026-08-17T10:00:00+00:00",
+        "exp": "2026-08-17T10:45:00+00:00",
+        "jti": f"jti-{index}",
+        "repository_id": REPOSITORY_ID,
+        "workflow_sha": WORKFLOW_SHA,
+        "job_workflow_ref": JOB_WORKFLOW_REF,
+    }
+    claims.update(claims_override or {})
+    if drop:
+        claims.pop(drop, None)
+    header = b64u(canonical({"alg": alg, "kid": kid, "typ": "JWT"}))
+    payload = b64u(canonical(claims))
+    signing_kid = sign_with or (kid if kid in PRIVATE else "platform-oidc")
+    if alg != "RS256":
+        return f"{header}.{payload}.{b64u(b'unsigned-bytes-of-plausible-shape')}"
+    return f"{header}.{payload}.{b64u(rsa_sign(signing_kid, f'{header}.{payload}'.encode()))}"
+
+
+ROLES = ["voter_a", "voter_b", "executor", "readback"]
+# policy-admin-x administers policy-0 and policy-2; policy-admin-y administers policy-1 and
+# policy-3. Both admin roots are OUTSIDE the set of principals' policy domains, so no
+# principal's policy is governed from inside the set being validated.
+POLICY_ADMIN = {0: "policy-admin-x", 1: "policy-admin-y", 2: "policy-admin-x", 3: "policy-admin-y"}
+
+
+def principal(role: str, index: int) -> dict:
+    principal_kid = f"principal-{role}"
+    custody_root = f"custody-{index}"
+    policy_domain = f"policy-{index}"
+    return {
+        "app_id": f"app-{index}",
+        "installation_id": f"inst-{index}",
+        "custody_domain": custody_root,
+        "policy_domain": policy_domain,
+        "token_scope": {
+            "repositories": ["bstBizEra/secb_pf"],
+            "permissions": {"contents": "read"},
+        },
+        "identity_attestation": signed(principal_kid, {
+            "purpose": "PRINCIPAL_IDENTITY",
+            "app_id": f"app-{index}",
+            "installation_id": f"inst-{index}",
+            "role": role,
+        }),
+        "custody_attestation": signed(custody_root, {
+            "purpose": "CUSTODY_BINDING",
+            "principal_kid": principal_kid,
+            "custody_root": custody_root,
+        }),
+        "policy_attestation": signed(POLICY_ADMIN[index], {
+            "purpose": "POLICY_BINDING",
+            "policy_domain": policy_domain,
+            "role": role,
+            "administered_by": POLICY_ADMIN[index],
+        }),
+        "revocation_receipt": signed("platform-oidc", {
+            "purpose": "REVOCATION_RECEIPT",
+            "principal_kid": principal_kid,
+            "reuse_result": "DENIED",
+            "revoked_at": "2026-08-17T10:20:00+00:00",
+            "reuse_attempted_at": "2026-08-17T10:21:00+00:00",
+        }),
+        "oidc": {"kid": "platform-oidc", "token": oidc_token(role, index)},
+    }
+
+
+def ballot(role: str, index: int, decision: str = "APPROVE") -> dict:
+    return signed(f"principal-{role}", {
+        "purpose": "BALLOT",
+        "principal": role,
+        "decision": decision,
+        "nonce": f"nonce-{index}",
+        "cast_at": "2026-08-17T10:05:00+00:00",
+    })
 
 
 def evidence() -> dict:
-    """A document that is internally sound and honestly caps at AIS3.
-
-    Four principals: two voters, one executor, one readback verifier. LOCAL_FIXTURE keys,
-    because that is the truth about a key set a test wrote.
-    """
-    roles = ["voter_a", "voter_b", "executor", "readback"]
+    """A document that is cryptographically sound and honestly caps at AIS3."""
+    ballots = [ballot("voter_a", 0), ballot("voter_b", 1)]
     return {
-        "schema": "secb.ais-production-evidence/v1",
+        "schema": "secb.ais-production-evidence/v2",
         "snapshot": deepcopy(SNAPSHOT),
+        "oidc_policy": {"audience": AUDIENCE, "subject_prefix": SUBJECT_PREFIX},
         "jwks": {
             "provenance": "LOCAL_FIXTURE",
             "issuer": GITHUB_ISSUER,
             "keys": deepcopy(JWKS_KEYS),
         },
-        "principals": {role: principal(role, i) for i, role in enumerate(roles)},
-        "ballots": [
-            {
-                "principal": "voter_a",
-                "snapshot_digest": sha256_digest(SNAPSHOT),
-                "decision": "APPROVE",
-                "cast_at": "2026-08-17T10:05:00+00:00",
-            },
-            {
-                "principal": "voter_b",
-                "snapshot_digest": sha256_digest(SNAPSHOT),
-                "decision": "APPROVE",
-                "cast_at": "2026-08-17T10:06:00+00:00",
-            },
-        ],
+        "principals": {role: principal(role, i) for i, role in enumerate(ROLES)},
+        "ballots": ballots,
         "roles": {"executor": "executor", "readback_verifier": "readback"},
-        "decision_receipt_digest": sha256_digest({"decision": "APPROVE"}),
+        "decision_receipt_digest": sha256_digest(ballots),
     }
+
+
+def rebuild_receipt(document: dict) -> None:
+    document["decision_receipt_digest"] = sha256_digest(document["ballots"])
 
 
 def run(document: dict, tmp_path: Path, **env_extra: str) -> subprocess.CompletedProcess:
@@ -187,6 +220,7 @@ def run(document: dict, tmp_path: Path, **env_extra: str) -> subprocess.Complete
     env = {
         **os.environ,
         "EVIDENCE": str(path),
+        "EVALUATE_AT": NOW,
         "PYTHONDONTWRITEBYTECODE": "1",
         **env_extra,
     }
@@ -203,180 +237,359 @@ def refuses(document: dict, tmp_path: Path, fragment: str, **env_extra: str) -> 
     return result.stderr
 
 
-# --------------------------------------------------------------------------- accept path
-
-
-def test_sound_fixture_is_accepted_and_caps_below_ais4(tmp_path):
-    """The fixture is well-formed, so it is NOT refused -- and it does not reach AIS4."""
-    result = run(evidence(), tmp_path)
+def accepts(document: dict, tmp_path: Path, **env_extra: str) -> dict:
+    result = run(document, tmp_path, **env_extra)
     assert result.returncode == 0, result.stderr
-    report = json.loads(result.stdout)
-    assert report["OBSERVED_LEVEL"] == "AIS3_CUSTODY_SEPARATED"
-    assert report["PRODUCTION_AIS_LEVEL"] == "NOT_OBSERVED"
-    assert report["unsatisfied"] == ["SIGNER_VERIFIED"]
-    assert report["confers_merge_authority"] is False
-    assert report["conjuncts"]["OIDC_BOUND"]["observed"] is True
+    return json.loads(result.stdout)
 
 
-def test_signature_verification_is_real_not_structural(tmp_path):
-    """Flip one byte of a signed token's payload: the signature must stop verifying.
+# ---------------------------------------------------------------- the v1 counterexample
 
-    Without this, every other test could pass against a verifier that only counts dots.
+
+def test_v1_counterexample_is_refused(tmp_path):
+    """The document v1 accepted and reported AIS4 for. Every element is present.
+
+    One authentic token copied across all four role records, fabricated distinct app,
+    custody and policy strings, ballots that are plain unsigned records, and a JWKS digest
+    the caller computed for itself. v2 must refuse it -- and the FIRST thing it refuses on
+    is the reused token, because that is the fact the copied signature never covered.
     """
     document = evidence()
-    token = document["principals"]["voter_a"]["oidc"]["token"]
-    header, payload, signature = token.split(".")
-    tampered = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
-    tampered["sub"] = "repo:bstBizEra/secb_pf:role:someone_else"
-    document["principals"]["voter_a"]["oidc"]["token"] = (
-        f"{header}.{b64u(canonical(tampered))}.{signature}"
-    )
+    one_token = document["principals"]["voter_a"]["oidc"]["token"]
+    for role in ROLES:
+        document["principals"][role]["oidc"]["token"] = one_token
+    document["ballots"] = [
+        {"principal": "voter_a", "snapshot_digest": SNAPSHOT_DIGEST, "decision": "APPROVE"},
+        {"principal": "voter_b", "snapshot_digest": SNAPSHOT_DIGEST, "decision": "APPROVE"},
+    ]
+    rebuild_receipt(document)
+    stderr = refuses(document, tmp_path, "was already presented by")
+    assert "One token copied across role records is one principal" in stderr
+
+
+def test_unsigned_ballots_alone_are_refused(tmp_path):
+    """Isolate the ballot half of the counterexample: tokens fine, ballots unsigned."""
+    document = evidence()
+    document["ballots"] = [
+        {"principal": "voter_a", "snapshot_digest": SNAPSHOT_DIGEST, "decision": "APPROVE"},
+        {"principal": "voter_b", "snapshot_digest": SNAPSHOT_DIGEST, "decision": "APPROVE"},
+    ]
+    rebuild_receipt(document)
+    refuses(document, tmp_path, "signed envelope has no payload object")
+
+
+def test_fabricated_domain_strings_without_attestations_are_refused(tmp_path):
+    """Distinct strings, no signature from the root they name."""
+    document = evidence()
+    document["principals"]["voter_b"]["custody_domain"] = "custody-invented"
+    refuses(document, tmp_path, "expected 'custody-invented'")
+
+
+# ------------------------------------------------------------------------- accept path
+
+
+def test_sound_document_reaches_ais3_and_not_ais4(tmp_path):
+    report = accepts(evidence(), tmp_path)
+    assert report["OBSERVED_LEVEL"] == "AIS3_CUSTODY_SEPARATED"
+    assert report["PRODUCTION_AIS_LEVEL"] == "NOT_OBSERVED"
+    assert report["ais4_reachable_here"] is False
+    assert report["confers_merge_authority"] is False
+    for conjunct in (
+        "SIGNED_WORKFLOW_CONTEXT", "PRINCIPAL_IDENTITY_ATTESTED", "CUSTODY_ATTESTED",
+        "POLICY_ATTESTED", "BALLOTS_SIGNED", "EFFECT_ROLE_SEPARATION",
+        "REVOCATION_RECEIPT_VERIFIED",
+    ):
+        assert report["conjuncts"][conjunct]["observed"] is True, conjunct
+    assert report["unsatisfied"] == ["DISCOVERY_EXACTLY_BOUND", "ISSUER_TRUST_ANCHOR"]
+
+
+def test_coverage_ledger_names_producer_and_authenticator_per_conjunct(tmp_path):
+    """Cryptographic Coverage Accounting is emitted, not asserted."""
+    report = accepts(evidence(), tmp_path)
+    ledger = report["coverage_ledger"]
+    for conjunct, entry in ledger.items():
+        assert entry["asserted_fact"]
+        assert entry["authoritative_producer"]
+        assert "authenticator" in entry
+    assert ledger["BALLOTS_SIGNED"]["authenticator"].startswith("PRINCIPAL-signed BALLOT")
+    assert ledger["CUSTODY_ATTESTED"]["authenticator"].startswith("CUSTODY_ROOT-signed")
+    # The two unauthenticated conjuncts are named, not hidden behind a rounded-up level.
+    accounting = report["coverage_accounting"]
+    assert accounting["complete"] is False
+    assert set(accounting["unauthenticated"]) == {"DISCOVERY_EXACTLY_BOUND", "ISSUER_TRUST_ANCHOR"}
+
+
+def test_issuer_trust_anchor_is_unsatisfiable_by_any_input(tmp_path):
+    """No env lever, and no document field, can satisfy the anchor.
+
+    v1 let `EXPECT_JWKS_DIGEST` stand in for a fetch, which proved only that two values
+    agreed -- and one caller can compute both. The lever is gone; these assertions keep it
+    gone.
+    """
+    document = evidence()
+    document["jwks"]["provenance"] = "ISSUER_DISCOVERY"
+    document["jwks"]["discovery"] = {
+        "jwks_uri": JWKS_URI,
+        "fetched_at": "2026-08-17T10:00:00+00:00",
+        "response_digest": sha256_digest(JWKS_KEYS),
+    }
+    report = accepts(document, tmp_path)
+    assert report["conjuncts"]["DISCOVERY_EXACTLY_BOUND"]["observed"] is True
+    assert report["conjuncts"]["ISSUER_TRUST_ANCHOR"]["observed"] is False
+    assert report["PRODUCTION_AIS_LEVEL"] == "NOT_OBSERVED"
+
+    for lever in ("EXPECT_JWKS_DIGEST", "ISSUER_TRUST_ANCHOR", "TRANCHE_B_COMPLETE",
+                  "FORCE_AIS4", "PRODUCTION_AIS_LEVEL"):
+        forced = accepts(document, tmp_path, **{lever: sha256_digest(JWKS_KEYS)})
+        assert forced["PRODUCTION_AIS_LEVEL"] == "NOT_OBSERVED", lever
+        assert forced["conjuncts"]["ISSUER_TRUST_ANCHOR"]["observed"] is False, lever
+
+
+# ------------------------------------------------------------------ signature coverage
+
+
+def test_signature_verification_is_real(tmp_path):
+    document = evidence()
+    payload = document["principals"]["voter_a"]["identity_attestation"]["payload"]
+    payload["app_id"] = "app-elsewhere"
+    document["principals"]["voter_a"]["app_id"] = "app-elsewhere"
     refuses(document, tmp_path, "signature does not verify")
 
 
 def test_padding_slack_forgery_is_refused(tmp_path):
-    """The signed block must match EXACTLY, not merely end with the right DigestInfo.
+    """A signature over a block with 0xab padding: correct DigestInfo, correct hash.
 
-    This document's signature is produced with the private key over a block whose padding
-    is 0xab instead of 0xff, so the recovered block carries a correct SHA-256 DigestInfo and
-    a correct hash in the correct position -- everything a verifier that SCANS for the
-    digest would accept. Slack anywhere in the padding is where Bleichenbacher-style
-    forgeries live, which is why the verifier rebuilds the expected block and compares the
-    whole thing. Weaken that comparison to a suffix check and this test is the one that
-    fails.
+    Everything a verifier that SCANS for the digest accepts. Weaken the whole-block compare
+    to `recovered.endswith(tail)` and this is the test that fails.
     """
     document = evidence()
-    header, payload, _ = document["principals"]["voter_a"]["oidc"]["token"].split(".")
-    message = f"{header}.{payload}".encode("ascii")
-    k = (N.bit_length() + 7) // 8
-    tail = SHA256_DIGESTINFO + hashlib.sha256(message).digest()
-    slack = b"\x00\x01" + b"\xab" * (k - len(tail) - 3) + b"\x00" + tail
-    forged = pow(int.from_bytes(slack, "big"), D, N).to_bytes(k, "big")
-    document["principals"]["voter_a"]["oidc"]["token"] = f"{header}.{payload}.{b64u(forged)}"
-    refuses(document, tmp_path, "does not verify against the declared key")
-
-
-def test_ais4_is_reachable_only_with_out_of_band_confirmation(tmp_path):
-    """The top rung must be reachable, or the ladder is decorative -- but only externally.
-
-    Same document twice. Without EXPECT_JWKS_DIGEST it caps at AIS3; with the digest
-    supplied out of band -- standing in for the job that actually fetched the key set -- it
-    reaches AIS4. That is the Tranche A/Tranche B boundary expressed as a test.
-    """
-    document = evidence()
-    document["jwks"]["provenance"] = "ISSUER_DISCOVERY"
-    document["jwks"]["discovery"] = {
-        "url": f"{GITHUB_ISSUER}/.well-known/jwks",
-        "fetched_at": "2026-08-17T10:00:00+00:00",
-        "response_digest": sha256_digest(JWKS_KEYS),
-    }
-
-    without = json.loads(run(document, tmp_path).stdout)
-    assert without["PRODUCTION_AIS_LEVEL"] == "NOT_OBSERVED"
-    assert without["unsatisfied"] == ["SIGNER_VERIFIED"]
-    assert "cannot confirm its own fetch" in without["conjuncts"]["SIGNER_VERIFIED"]["note"]
-
-    with_oob = json.loads(
-        run(document, tmp_path, EXPECT_JWKS_DIGEST=sha256_digest(JWKS_KEYS)).stdout
+    envelope = document["principals"]["voter_a"]["identity_attestation"]
+    envelope["signature"] = b64u(
+        rsa_sign("principal-voter_a", canonical(envelope["payload"]), padding=0xAB)
     )
-    assert with_oob["OBSERVED_LEVEL"] == "AIS4_INDEPENDENT_DOMAINS"
-    assert with_oob["PRODUCTION_AIS_LEVEL"] == "AIS4_INDEPENDENT_DOMAINS"
-    assert with_oob["unsatisfied"] == []
-    assert with_oob["confers_merge_authority"] is False
+    refuses(document, tmp_path, "signature does not verify")
 
 
-# ------------------------------------------------------- laundering and claimed levels
-
-
-def test_document_may_not_claim_its_own_level(tmp_path):
-    for field in ("production_ais_level", "observed_level", "claimed_level"):
-        document = evidence()
-        document[field] = "AIS4_INDEPENDENT_DOMAINS"
-        refuses(document, tmp_path, "the level is COMPUTED")
-
-
-def test_fixture_keys_may_not_be_presented_as_issuer_discovery(tmp_path):
+def test_purpose_confusion_is_refused(tmp_path):
+    """A validly signed BALLOT replayed where an identity attestation belongs."""
     document = evidence()
-    document["jwks"]["provenance"] = "ISSUER_DISCOVERY"
-    refuses(document, tmp_path, "no discovery record")
+    document["principals"]["voter_a"]["identity_attestation"] = ballot("voter_a", 99)
+    refuses(document, tmp_path, "must not be replayable as another")
 
 
-def test_discovery_record_must_digest_the_keys_it_accompanies(tmp_path):
+def test_attestation_bound_to_another_snapshot_is_refused(tmp_path):
     document = evidence()
-    document["jwks"]["provenance"] = "ISSUER_DISCOVERY"
-    document["jwks"]["discovery"] = {
-        "url": f"{GITHUB_ISSUER}/.well-known/jwks",
-        "fetched_at": "2026-08-17T10:00:00+00:00",
-        "response_digest": sha256_digest({"some": "other bytes"}),
-    }
-    refuses(document, tmp_path, "does not digest the key set")
+    stale = signed("principal-voter_a", {
+        "purpose": "PRINCIPAL_IDENTITY", "app_id": "app-0", "installation_id": "inst-0",
+        "role": "voter_a",
+    })
+    stale["payload"]["snapshot_digest"] = "sha256:" + "9" * 64
+    stale["signature"] = b64u(rsa_sign("principal-voter_a", canonical(stale["payload"])))
+    document["principals"]["voter_a"]["identity_attestation"] = stale
+    refuses(document, tmp_path, "is bound to snapshot")
 
 
-def test_out_of_band_digest_disagreement_is_refused_not_downgraded(tmp_path):
-    """A wrong out-of-band digest is a contradiction, not mere absence."""
+def test_wrong_key_role_for_a_purpose_is_refused(tmp_path):
+    """A custody root may not sign an identity attestation."""
     document = evidence()
-    document["jwks"]["provenance"] = "ISSUER_DISCOVERY"
-    document["jwks"]["discovery"] = {
-        "url": f"{GITHUB_ISSUER}/.well-known/jwks",
-        "fetched_at": "2026-08-17T10:00:00+00:00",
-        "response_digest": sha256_digest(JWKS_KEYS),
-    }
-    refuses(
-        document, tmp_path, "does not match the document",
-        EXPECT_JWKS_DIGEST="sha256:" + "0" * 64,
-    )
+    envelope = signed("custody-0", {
+        "purpose": "PRINCIPAL_IDENTITY", "app_id": "app-0", "installation_id": "inst-0",
+        "role": "voter_a",
+    })
+    document["principals"]["voter_a"]["identity_attestation"] = envelope
+    refuses(document, tmp_path, "must be signed by a PRINCIPAL")
 
 
-def test_discovery_url_outside_the_issuer_is_refused(tmp_path):
+def test_principal_may_not_attest_its_own_custody(tmp_path):
     document = evidence()
-    document["jwks"]["provenance"] = "ISSUER_DISCOVERY"
-    document["jwks"]["discovery"] = {
-        "url": "https://attacker.example/.well-known/jwks",
-        "fetched_at": "2026-08-17T10:00:00+00:00",
-        "response_digest": sha256_digest(JWKS_KEYS),
-    }
-    refuses(document, tmp_path, "not under the declared issuer")
+    document["principals"]["voter_a"]["custody_attestation"] = signed("principal-voter_a", {
+        "purpose": "CUSTODY_BINDING", "principal_kid": "principal-voter_a",
+        "custody_root": "custody-0",
+    })
+    refuses(document, tmp_path, "must be signed by a CUSTODY_ROOT")
 
 
-# ------------------------------------------------------------------ separation dimensions
-
-
-def test_shared_app_installation_is_refused(tmp_path):
+def test_two_kids_over_one_modulus_are_refused(tmp_path):
+    """The label-vs-substance error one layer down: two names, one key."""
     document = evidence()
-    document["principals"]["voter_b"]["app_id"] = document["principals"]["voter_a"]["app_id"]
-    document["principals"]["voter_b"]["installation_id"] = (
-        document["principals"]["voter_a"]["installation_id"]
-    )
-    refuses(document, tmp_path, "share an App/installation")
+    clone = deepcopy(jwks_key("principal-voter_a"))
+    clone["kid"] = "principal-voter_a-alias"
+    clone["owner"] = "voter_b"
+    document["jwks"]["keys"].append(clone)
+    refuses(document, tmp_path, "share the same modulus")
 
 
-def test_shared_custody_domain_is_refused(tmp_path):
+def test_two_principals_sharing_one_signing_key_are_refused(tmp_path):
     document = evidence()
-    document["principals"]["voter_b"]["custody_domain"] = "custody-0"
-    refuses(document, tmp_path, "share a credential custody domain")
+    document["principals"]["voter_b"]["identity_attestation"] = signed("principal-voter_a", {
+        "purpose": "PRINCIPAL_IDENTITY", "app_id": "app-1", "installation_id": "inst-1",
+        "role": "voter_b",
+    })
+    refuses(document, tmp_path, "One signing key is one principal")
+
+
+def test_key_without_an_owner_is_refused(tmp_path):
+    document = evidence()
+    document["jwks"]["keys"][0].pop("owner")
+    refuses(document, tmp_path, "an unowned key separates nothing")
+
+
+def test_unknown_key_role_is_refused(tmp_path):
+    document = evidence()
+    document["jwks"]["keys"][0]["key_role"] = "SUPERUSER"
+    refuses(document, tmp_path, "is not one of")
+
+
+# ------------------------------------------------------------------------ ballots
+
+def test_ballot_signed_by_another_principals_key_is_refused(tmp_path):
+    document = evidence()
+    forged = signed("principal-voter_a", {
+        "purpose": "BALLOT", "principal": "voter_b", "decision": "APPROVE",
+        "nonce": "nonce-7", "cast_at": "2026-08-17T10:07:00+00:00",
+    })
+    document["ballots"][1] = forged
+    rebuild_receipt(document)
+    refuses(document, tmp_path, "another principal's ballot")
+
+
+def test_replayed_nonce_is_refused(tmp_path):
+    document = evidence()
+    document["ballots"][1] = ballot("voter_b", 0)  # same nonce index as voter_a
+    rebuild_receipt(document)
+    refuses(document, tmp_path, "is replayed")
+
+
+def test_one_principal_casting_two_ballots_is_refused(tmp_path):
+    document = evidence()
+    document["ballots"] = [ballot("voter_a", 0), ballot("voter_a", 1)]
+    rebuild_receipt(document)
+    refuses(document, tmp_path, "cast more than one ballot")
+
+
+def test_decision_receipt_digest_must_bind_the_ballots(tmp_path):
+    """v1 made this field schema-required and never read it: decorative."""
+    document = evidence()
+    document["decision_receipt_digest"] = "sha256:" + "3" * 64
+    refuses(document, tmp_path, "does not digest the ballot set")
+
+
+def test_adding_a_ballot_without_updating_the_receipt_is_refused(tmp_path):
+    document = evidence()
+    document["ballots"].append(ballot("readback", 5))
+    refuses(document, tmp_path, "does not digest the ballot set")
+
+
+def test_single_approval_is_a_shortfall_not_a_contradiction(tmp_path):
+    document = evidence()
+    document["ballots"] = [ballot("voter_a", 0), ballot("voter_b", 1, decision="ABSTAIN")]
+    rebuild_receipt(document)
+    report = accepts(document, tmp_path)
+    assert "BALLOTS_SIGNED" in report["unsatisfied"]
+    assert report["coverage_ledger"]["BALLOTS_SIGNED"]["authenticator"] == "UNAUTHENTICATED"
+
+
+def test_ballot_from_an_unknown_principal_is_refused(tmp_path):
+    document = evidence()
+    ghost = signed("principal-readback", {
+        "purpose": "BALLOT", "principal": "ghost", "decision": "APPROVE",
+        "nonce": "nonce-8", "cast_at": "2026-08-17T10:08:00+00:00",
+    })
+    document["ballots"][1] = ghost
+    rebuild_receipt(document)
+    refuses(document, tmp_path, "is absent from the evidence")
+
+
+# ------------------------------------------------------------------------- policy
+
+
+def test_self_administered_policy_is_refused(tmp_path):
+    document = evidence()
+    document["principals"]["voter_a"]["policy_attestation"] = signed("policy-admin-x", {
+        "purpose": "POLICY_BINDING", "policy_domain": "policy-0", "role": "voter_a",
+        "administered_by": "policy-0",
+    })
+    refuses(document, tmp_path, "administered by its own domain")
+
+
+def test_reciprocal_policy_administration_is_refused(tmp_path):
+    """Unequal labels are not independence: A governs B and B governs A."""
+    document = evidence()
+    document["principals"]["voter_a"]["policy_attestation"] = signed("policy-admin-x", {
+        "purpose": "POLICY_BINDING", "policy_domain": "policy-0", "role": "voter_a",
+        "administered_by": "policy-1",
+    })
+    document["principals"]["voter_b"]["policy_attestation"] = signed("policy-admin-y", {
+        "purpose": "POLICY_BINDING", "policy_domain": "policy-1", "role": "voter_b",
+        "administered_by": "policy-0",
+    })
+    refuses(document, tmp_path, "administration is reciprocal")
+
+
+def test_all_administration_internal_to_the_set_is_refused(tmp_path):
+    document = evidence()
+    chain = {0: "policy-1", 1: "policy-2", 2: "policy-3", 3: "policy-0"}
+    for index, role in enumerate(ROLES):
+        document["principals"][role]["policy_attestation"] = signed(
+            POLICY_ADMIN[index], {
+                "purpose": "POLICY_BINDING", "policy_domain": f"policy-{index}", "role": role,
+                "administered_by": chain[index],
+            })
+    refuses(document, tmp_path, "no administration is external")
 
 
 def test_shared_policy_domain_is_refused(tmp_path):
     document = evidence()
     document["principals"]["voter_b"]["policy_domain"] = "policy-0"
-    document["principals"]["voter_b"]["policy_administered_by"] = "policy-2"
+    document["principals"]["voter_b"]["policy_attestation"] = signed("policy-admin-y", {
+        "purpose": "POLICY_BINDING", "policy_domain": "policy-0", "role": "voter_b",
+        "administered_by": "policy-admin-y",
+    })
     refuses(document, tmp_path, "share a policy domain")
 
 
-def test_self_administered_policy_is_refused(tmp_path):
+# ------------------------------------------------------------------------- separation
+
+
+def test_shared_app_installation_is_refused(tmp_path):
     document = evidence()
-    document["principals"]["voter_a"]["policy_administered_by"] = "policy-0"
-    refuses(document, tmp_path, "its own auditor")
+    document["principals"]["voter_b"] = principal("voter_b", 1)
+    document["principals"]["voter_b"]["app_id"] = "app-0"
+    document["principals"]["voter_b"]["identity_attestation"] = signed("principal-voter_b", {
+        "purpose": "PRINCIPAL_IDENTITY", "app_id": "app-0", "installation_id": "inst-1",
+        "role": "voter_b",
+    })
+    document["principals"]["voter_b"]["installation_id"] = "inst-0"
+    document["principals"]["voter_b"]["identity_attestation"] = signed("principal-voter_b", {
+        "purpose": "PRINCIPAL_IDENTITY", "app_id": "app-0", "installation_id": "inst-0",
+        "role": "voter_b",
+    })
+    refuses(document, tmp_path, "share an App/installation")
+
+
+def test_shared_custody_root_is_refused(tmp_path):
+    document = evidence()
+    document["principals"]["voter_b"]["custody_domain"] = "custody-0"
+    document["principals"]["voter_b"]["custody_attestation"] = signed("custody-0", {
+        "purpose": "CUSTODY_BINDING", "principal_kid": "principal-voter_b",
+        "custody_root": "custody-0",
+    })
+    refuses(document, tmp_path, "share a credential custody domain")
+
+
+def test_custody_attestation_for_the_wrong_key_is_refused(tmp_path):
+    document = evidence()
+    document["principals"]["voter_a"]["custody_attestation"] = signed("custody-0", {
+        "purpose": "CUSTODY_BINDING", "principal_kid": "principal-voter_b",
+        "custody_root": "custody-0",
+    })
+    refuses(document, tmp_path, "signed principal_kid")
 
 
 def test_executor_may_not_vote(tmp_path):
     document = evidence()
-    document["ballots"][1] = {
-        "principal": "executor",
-        "snapshot_digest": sha256_digest(SNAPSHOT),
-        "decision": "APPROVE",
-        "cast_at": "2026-08-17T10:06:00+00:00",
-    }
+    document["ballots"][1] = ballot("executor", 1)
+    rebuild_receipt(document)
     refuses(document, tmp_path, "also cast a ballot")
 
 
@@ -386,7 +599,182 @@ def test_executor_may_not_verify_its_own_readback(tmp_path):
     refuses(document, tmp_path, "also the readback verifier")
 
 
-# ------------------------------------------------------------------ scope and lifetime
+# ------------------------------------------------------------------------ OIDC in full
+
+
+def test_expired_token_is_refused(tmp_path):
+    refuses(evidence(), tmp_path, "expired at", EVALUATE_AT="2026-08-17T11:30:00+00:00")
+
+
+def test_not_yet_valid_token_is_refused(tmp_path):
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
+        "voter_a", 0, claims_override={"nbf": "2026-08-17T12:00:00+00:00"})
+    refuses(document, tmp_path, "not yet valid")
+
+
+def test_wrong_audience_is_refused(tmp_path):
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
+        "voter_a", 0, claims_override={"aud": "someone-else"})
+    refuses(document, tmp_path, "valid token for someone else")
+
+
+def test_subject_outside_the_repository_is_refused(tmp_path):
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
+        "voter_a", 0, claims_override={"sub": "repo:attacker/repo:role:voter_a"})
+    refuses(document, tmp_path, "is not under")
+
+
+def test_over_hour_token_lifetime_is_refused(tmp_path):
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
+        "voter_a", 0, claims_override={"exp": "2026-08-17T14:00:00+00:00"})
+    refuses(document, tmp_path, "over the 3600s ceiling")
+
+
+@pytest.mark.parametrize("claim", ["aud", "sub", "exp", "iat", "jti"])
+def test_each_required_claim_is_enforced(tmp_path, claim):
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token("voter_a", 0, drop=claim)
+    refuses(document, tmp_path, "missing required claims")
+
+
+def test_wrong_issuer_is_refused(tmp_path):
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
+        "voter_a", 0, claims_override={"iss": "https://token.actions.githubusercontent.com.evil"})
+    refuses(document, tmp_path, "is not exactly")
+
+
+@pytest.mark.parametrize("claim", ["repository_id", "workflow_sha", "job_workflow_ref"])
+def test_context_claim_disagreeing_with_the_snapshot_is_refused(tmp_path, claim):
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
+        "voter_a", 0, claims_override={claim: "bound-elsewhere"})
+    refuses(document, tmp_path, "but the snapshot says")
+
+
+def test_alg_none_is_refused(tmp_path):
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token("voter_a", 0, alg="none")
+    refuses(document, tmp_path, "algorithm-confusion")
+
+
+def test_oidc_signed_by_a_non_platform_key_is_refused(tmp_path):
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"] = {
+        "kid": "principal-voter_a",
+        "token": oidc_token("voter_a", 0, kid="principal-voter_a"),
+    }
+    refuses(document, tmp_path, "must be signed by a PLATFORM")
+
+
+def test_missing_evaluate_at_is_a_shortfall_not_a_pass(tmp_path):
+    """Without a clock, expiry is unevaluable -- so the conjunct is not observed."""
+    result = subprocess.run(
+        [sys.executable, str(TOOL)], capture_output=True, text=True, check=False,
+        env={
+            **os.environ,
+            "EVIDENCE": str(_write(tmp_path, evidence())),
+            "EVALUATE_AT": "",
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["OBSERVED_LEVEL"] == "AIS0_SELF_ASSERTED"
+    assert "SIGNED_WORKFLOW_CONTEXT" in report["unsatisfied"]
+
+
+def _write(tmp_path: Path, document: dict) -> Path:
+    path = tmp_path / "evidence.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+# ------------------------------------------------------------------------- discovery
+
+
+@pytest.mark.parametrize("uri", [
+    "https://token.actions.githubusercontent.com.attacker.example/.well-known/jwks",
+    "https://token.actions.githubusercontent.com@evil.example/.well-known/jwks",
+    "http://token.actions.githubusercontent.com/.well-known/jwks",
+    "https://token.actions.githubusercontent.com/.well-known/keys",
+])
+def test_lookalike_jwks_uris_are_refused(tmp_path, uri):
+    """Each of these passed v1's `startswith` check. Host and path are compared exactly."""
+    document = evidence()
+    document["jwks"]["provenance"] = "ISSUER_DISCOVERY"
+    document["jwks"]["discovery"] = {
+        "jwks_uri": uri,
+        "fetched_at": "2026-08-17T10:00:00+00:00",
+        "response_digest": sha256_digest(JWKS_KEYS),
+    }
+    refuses(document, tmp_path, "jwks_uri")
+
+
+def test_discovery_without_a_record_is_refused(tmp_path):
+    document = evidence()
+    document["jwks"]["provenance"] = "ISSUER_DISCOVERY"
+    refuses(document, tmp_path, "no discovery record")
+
+
+def test_discovery_digest_not_matching_the_keys_is_refused(tmp_path):
+    document = evidence()
+    document["jwks"]["provenance"] = "ISSUER_DISCOVERY"
+    document["jwks"]["discovery"] = {
+        "jwks_uri": JWKS_URI,
+        "fetched_at": "2026-08-17T10:00:00+00:00",
+        "response_digest": sha256_digest({"other": "bytes"}),
+    }
+    refuses(document, tmp_path, "does not digest the key set")
+
+
+# ------------------------------------------------------------------------ revocation
+
+
+def test_reuse_accepted_after_revocation_is_refused(tmp_path):
+    document = evidence()
+    document["principals"]["voter_a"]["revocation_receipt"] = signed("platform-oidc", {
+        "purpose": "REVOCATION_RECEIPT", "principal_kid": "principal-voter_a",
+        "reuse_result": "ACCEPTED", "revoked_at": "2026-08-17T10:20:00+00:00",
+        "reuse_attempted_at": "2026-08-17T10:21:00+00:00",
+    })
+    refuses(document, tmp_path, "does not deny reuse is a log entry")
+
+
+def test_reuse_attempted_before_revocation_is_refused(tmp_path):
+    document = evidence()
+    document["principals"]["voter_a"]["revocation_receipt"] = signed("platform-oidc", {
+        "purpose": "REVOCATION_RECEIPT", "principal_kid": "principal-voter_a",
+        "reuse_result": "DENIED", "revoked_at": "2026-08-17T10:20:00+00:00",
+        "reuse_attempted_at": "2026-08-17T10:19:00+00:00",
+    })
+    refuses(document, tmp_path, "at or before revocation")
+
+
+def test_self_signed_revocation_receipt_is_refused(tmp_path):
+    """The subject may not sign its own revocation evidence."""
+    document = evidence()
+    document["principals"]["voter_a"]["revocation_receipt"] = signed("principal-voter_a", {
+        "purpose": "REVOCATION_RECEIPT", "principal_kid": "principal-voter_a",
+        "reuse_result": "DENIED", "revoked_at": "2026-08-17T10:20:00+00:00",
+        "reuse_attempted_at": "2026-08-17T10:21:00+00:00",
+    })
+    refuses(document, tmp_path, "must be signed by a PLATFORM")
+
+
+def test_absent_revocation_receipt_is_a_shortfall(tmp_path):
+    document = evidence()
+    del document["principals"]["voter_a"]["revocation_receipt"]
+    report = accepts(document, tmp_path)
+    assert "REVOCATION_RECEIPT_VERIFIED" in report["unsatisfied"]
+    assert report["PRODUCTION_AIS_LEVEL"] == "NOT_OBSERVED"
+
+
+# ---------------------------------------------------------------------- scope, structure
 
 
 @pytest.mark.parametrize("repositories", [["*"], ["bstBizEra/*"]])
@@ -399,212 +787,41 @@ def test_wildcard_repository_scope_is_refused(tmp_path, repositories):
 def test_admin_permission_is_refused(tmp_path):
     document = evidence()
     document["principals"]["voter_a"]["token_scope"]["permissions"] = {"administration": "admin"}
-    refuses(document, tmp_path, "administrative principal")
+    refuses(document, tmp_path, "is administrative")
 
 
-def test_excessive_token_lifetime_is_refused(tmp_path):
-    document = evidence()
-    document["principals"]["voter_a"]["token_scope"]["expires_at"] = "2026-08-17T14:00:00+00:00"
-    refuses(document, tmp_path, "over the 3600s ceiling")
-
-
-def test_expiry_before_issue_is_refused(tmp_path):
-    document = evidence()
-    document["principals"]["voter_a"]["token_scope"]["expires_at"] = "2026-08-17T09:00:00+00:00"
-    refuses(document, tmp_path, "expires at or before it was issued")
-
-
-# --------------------------------------------------------------- snapshot and decisions
-
-
-def test_stale_snapshot_is_refused_against_an_expected_sha(tmp_path):
-    refuses(
-        evidence(), tmp_path, "is not the expected",
-        EXPECT_MAIN_SHA="0" * 40,
-    )
-
-
-def test_ballot_bound_to_a_different_snapshot_is_refused(tmp_path):
-    document = evidence()
-    document["ballots"][1]["snapshot_digest"] = "sha256:" + "1" * 64
-    refuses(document, tmp_path, "not a quorum")
-
-
-def test_snapshot_edit_invalidates_every_ballot_digest(tmp_path):
-    """Editing the snapshot must break the binding, not silently re-anchor it."""
-    document = evidence()
-    document["snapshot"]["main_sha"] = "a" * 40
-    refuses(document, tmp_path, "the snapshot digests to")
-
-
-def test_one_principal_may_not_cast_two_ballots(tmp_path):
-    document = evidence()
-    document["ballots"][1]["principal"] = "voter_a"
-    refuses(document, tmp_path, "cast more than one ballot")
-
-
-def test_ballot_from_an_unknown_principal_is_refused(tmp_path):
-    document = evidence()
-    document["ballots"][1]["principal"] = "ghost"
-    refuses(document, tmp_path, "absent from the evidence")
-
-
-def test_single_approval_does_not_satisfy_independent_decisions(tmp_path):
-    """Not a contradiction -- an honest shortfall. It reports, it does not refuse."""
-    document = evidence()
-    document["ballots"][1]["decision"] = "ABSTAIN"
-    result = run(document, tmp_path)
-    assert result.returncode == 0, result.stderr
-    report = json.loads(result.stdout)
-    assert report["PRODUCTION_AIS_LEVEL"] == "NOT_OBSERVED"
-    assert "INDEPENDENT_DECISIONS" in report["unsatisfied"]
-
-
-# ------------------------------------------------------------------------- revocation
-
-
-def test_reuse_accepted_after_revocation_is_refused(tmp_path):
-    document = evidence()
-    document["principals"]["voter_a"]["revocation"]["reuse_result"] = "ACCEPTED"
-    refuses(document, tmp_path, "does not deny reuse is a log entry")
-
-
-def test_reuse_attempted_before_revocation_is_refused(tmp_path):
-    document = evidence()
-    document["principals"]["voter_a"]["revocation"]["reuse_attempted_at"] = (
-        "2026-08-17T10:19:00+00:00"
-    )
-    refuses(document, tmp_path, "at or before revocation")
-
-
-def test_revocation_not_attempted_is_a_shortfall_not_a_contradiction(tmp_path):
-    document = evidence()
-    document["principals"]["voter_a"]["revocation"]["reuse_result"] = "NOT_ATTEMPTED"
-    result = run(document, tmp_path)
-    assert result.returncode == 0, result.stderr
-    report = json.loads(result.stdout)
-    assert "REVOCATION_BEHAVIOUR_OBSERVED" in report["unsatisfied"]
-    assert report["PRODUCTION_AIS_LEVEL"] == "NOT_OBSERVED"
-
-
-# ------------------------------------------------------------------------ token binding
-
-
-def test_alg_none_is_refused(tmp_path):
-    document = evidence()
-    document["principals"]["voter_a"]["oidc"]["token"] = jwt(
-        {"iss": GITHUB_ISSUER}, alg="none", sign=False
-    )
-    refuses(document, tmp_path, "algorithm-confusion")
-
-
-def test_hs256_against_the_rsa_key_set_is_refused(tmp_path):
-    document = evidence()
-    document["principals"]["voter_a"]["oidc"]["token"] = jwt(
-        {"iss": GITHUB_ISSUER}, alg="HS256", sign=False
-    )
-    refuses(document, tmp_path, "only RS256 is verified")
-
-
-def test_unknown_kid_is_refused(tmp_path):
-    document = evidence()
-    document["principals"]["voter_a"]["oidc"]["kid"] = "no-such-key"
-    refuses(document, tmp_path, "no key in the set matches kid")
-
-
-def test_token_kid_disagreeing_with_the_declared_key_is_refused(tmp_path):
-    document = evidence()
-    document["principals"]["voter_a"]["oidc"]["token"] = jwt({"iss": GITHUB_ISSUER}, kid="other")
-    refuses(document, tmp_path, "does not match the key")
-
-
-def test_wrong_issuer_in_the_signed_token_is_refused(tmp_path):
-    document = evidence()
-    claims = {
-        "iss": "https://attacker.example",
-        "repository_id": "1029384756",
-        "workflow_sha": WORKFLOW_SHA,
-        "job_workflow_ref": SNAPSHOT["job_workflow_ref"],
-    }
-    document["principals"]["voter_a"]["oidc"]["token"] = jwt(claims)
-    refuses(document, tmp_path, "is not the declared issuer")
-
-
-@pytest.mark.parametrize("claim", ["repository_id", "workflow_sha", "job_workflow_ref"])
-def test_token_claim_disagreeing_with_the_snapshot_is_refused(tmp_path, claim):
-    document = evidence()
-    claims = {
-        "iss": GITHUB_ISSUER,
-        "repository_id": "1029384756",
-        "workflow_sha": WORKFLOW_SHA,
-        "job_workflow_ref": SNAPSHOT["job_workflow_ref"],
-    }
-    claims[claim] = "bound-to-something-else"
-    document["principals"]["voter_a"]["oidc"]["token"] = jwt(claims)
-    refuses(document, tmp_path, "not this one")
-
-
-@pytest.mark.parametrize("claim", ["repository_id", "workflow_sha", "job_workflow_ref"])
-def test_missing_bound_claim_is_refused(tmp_path, claim):
-    document = evidence()
-    claims = {
-        "iss": GITHUB_ISSUER,
-        "repository_id": "1029384756",
-        "workflow_sha": WORKFLOW_SHA,
-        "job_workflow_ref": SNAPSHOT["job_workflow_ref"],
-    }
-    del claims[claim]
-    document["principals"]["voter_a"]["oidc"]["token"] = jwt(claims)
-    refuses(document, tmp_path, f"missing the {claim} claim")
-
-
-def test_weak_modulus_is_refused(tmp_path):
-    """A 1024-bit key with a correct signature over it still fails: strength is checked."""
-    document = evidence()
-    small_n = (1 << 1023) | 1
-    document["jwks"]["keys"][0]["n"] = b64u(small_n.to_bytes(128, "big"))
-    refuses(document, tmp_path, "under 2048 is not acceptable")
-
-
-def test_even_public_exponent_is_refused(tmp_path):
-    document = evidence()
-    document["jwks"]["keys"][0]["e"] = b64u((4).to_bytes(1, "big"))
-    refuses(document, tmp_path, "not an odd integer")
-
-
-def test_signature_of_the_wrong_length_is_refused(tmp_path):
-    document = evidence()
-    header, payload, _ = document["principals"]["voter_a"]["oidc"]["token"].split(".")
-    document["principals"]["voter_a"]["oidc"]["token"] = f"{header}.{payload}.{b64u(b'short')}"
-    refuses(document, tmp_path, "the modulus is")
-
-
-def test_malformed_token_shape_is_refused(tmp_path):
-    document = evidence()
-    document["principals"]["voter_a"]["oidc"]["token"] = "not.a.jws.at.all"
-    refuses(document, tmp_path, "compact JWS")
-
-
-# ------------------------------------------------------------------- structural refusals
+def test_document_may_not_claim_its_own_level(tmp_path):
+    for field in ("production_ais_level", "observed_level", "claimed_level"):
+        document = evidence()
+        document[field] = "AIS4_INDEPENDENT_DOMAINS"
+        refuses(document, tmp_path, "the level is COMPUTED")
 
 
 def test_wrong_schema_is_refused(tmp_path):
     document = evidence()
-    document["schema"] = "secb.agent-identity-registry/v1"
-    refuses(document, tmp_path, "expected 'secb.ais-production-evidence/v1'")
+    document["schema"] = "secb.ais-production-evidence/v1"
+    refuses(document, tmp_path, "expected 'secb.ais-production-evidence/v2'")
+
+
+def test_stale_snapshot_is_refused(tmp_path):
+    refuses(evidence(), tmp_path, "is not the expected", EXPECT_MAIN_SHA="0" * 40)
+
+
+def test_snapshot_edit_invalidates_every_attestation(tmp_path):
+    document = evidence()
+    document["snapshot"]["main_sha"] = "a" * 40
+    refuses(document, tmp_path, "is bound to snapshot")
 
 
 def test_single_principal_separates_nothing(tmp_path):
     document = evidence()
-    document["principals"] = {"only": document["principals"]["voter_a"]}
-    document["ballots"] = document["ballots"][:1]
+    document["principals"] = {"voter_a": document["principals"]["voter_a"]}
     refuses(document, tmp_path, "separates nothing")
 
 
-def test_missing_evidence_path_is_refused(tmp_path):
+def test_missing_evidence_path_is_refused():
     result = subprocess.run(
-        [sys.executable, str(TOOL)],
-        capture_output=True, text=True, check=False,
+        [sys.executable, str(TOOL)], capture_output=True, text=True, check=False,
         env={**os.environ, "EVIDENCE": "", "PYTHONDONTWRITEBYTECODE": "1"},
     )
     assert result.returncode == 2
@@ -613,11 +830,9 @@ def test_missing_evidence_path_is_refused(tmp_path):
 
 def test_unreadable_evidence_is_refused(tmp_path):
     result = subprocess.run(
-        [sys.executable, str(TOOL)],
-        capture_output=True, text=True, check=False,
+        [sys.executable, str(TOOL)], capture_output=True, text=True, check=False,
         env={
-            **os.environ,
-            "EVIDENCE": str(tmp_path / "absent.json"),
+            **os.environ, "EVIDENCE": str(tmp_path / "absent.json"),
             "PYTHONDONTWRITEBYTECODE": "1",
         },
     )
@@ -627,76 +842,38 @@ def test_unreadable_evidence_is_refused(tmp_path):
 
 def test_attestation_claiming_verification_without_a_verifier_is_refused(tmp_path):
     document = evidence()
-    document["attestation"] = {
-        "bundle_digest": "sha256:" + "2" * 64,
-        "signer_verified": True,
-    }
+    document["attestation"] = {"bundle_digest": "sha256:" + "2" * 64, "signer_verified": True}
     refuses(document, tmp_path, "no verified_by")
 
 
-def test_roles_naming_an_absent_principal_are_refused(tmp_path):
-    document = evidence()
-    document["roles"]["executor"] = "phantom"
-    refuses(document, tmp_path, "principals absent from the evidence")
+# ------------------------------------------------------------------------ the contract
 
 
-def test_missing_roles_block_is_a_shortfall_not_a_contradiction(tmp_path):
-    document = evidence()
-    del document["roles"]
-    result = run(document, tmp_path)
-    assert result.returncode == 0, result.stderr
-    report = json.loads(result.stdout)
-    assert "EFFECT_ROLE_SEPARATION" in report["unsatisfied"]
-
-
-# ------------------------------------------------------------------------- the contract
-
-
-def test_schema_file_declares_no_level_field():
-    """The schema must not offer a field a document could assert its level with."""
+def test_schema_declares_no_level_field_and_matches_v2():
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-    properties = schema["properties"]
+    assert schema["$id"] == "secb.ais-production-evidence/v2"
     for banned in ("ais_level", "level", "production_ais_level", "claimed_level"):
-        assert banned not in properties
-    assert schema["$id"] == "secb.ais-production-evidence/v1"
+        assert banned not in schema["properties"]
 
 
 def test_fixture_satisfies_every_required_field_the_schema_declares():
-    """Bind the schema to the verifier so they cannot drift apart silently.
-
-    Nothing validates documents against this schema at runtime -- NFR-12 keeps the gates
-    stdlib-only, and `jsonschema` is not stdlib. So the schema is a contract the verifier
-    enforces by hand, and the failure mode is drift: a required field nobody checks, or a
-    check for a field the schema never declared. This test walks the schema's `required`
-    lists against the accepted fixture, which is the cheap half of that gap.
-    SCHEMA_DECLARES != VERIFIER_ENFORCES, and this test is the only thing that notices.
-    """
+    """Bind schema to verifier: nothing validates documents against it at runtime."""
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     document = evidence()
     for field in schema["required"]:
         assert field in document, f"schema requires {field!r}; the fixture omits it"
-
     principal_schema = schema["properties"]["principals"]["additionalProperties"]
     for role, body in document["principals"].items():
         for field in principal_schema["required"]:
             assert field in body, f"{role}: schema requires {field!r}"
-        for field in principal_schema["properties"]["token_scope"]["required"]:
-            assert field in body["token_scope"], f"{role}.token_scope requires {field!r}"
-        for field in principal_schema["properties"]["revocation"]["required"]:
-            assert field in body["revocation"], f"{role}.revocation requires {field!r}"
-
-    for ballot in document["ballots"]:
-        for field in schema["properties"]["ballots"]["items"]["required"]:
-            assert field in ballot, f"ballot requires {field!r}"
 
 
-def test_tool_states_tranche_b_is_external(tmp_path):
-    report = json.loads(run(evidence(), tmp_path).stdout)
-    assert "EXTERNAL_AUTHORITY_REQUIRED" in report["tranche_b"]
-
-
-def test_no_input_can_mark_tranche_b_complete(tmp_path):
-    """Try the obvious levers. Each must leave PRODUCTION_AIS_LEVEL unmoved."""
-    for lever in ("TRANCHE_B", "TRANCHE_B_COMPLETE", "PRODUCTION_AIS_LEVEL", "FORCE_AIS4"):
-        report = json.loads(run(evidence(), tmp_path, **{lever: "AIS4_INDEPENDENT_DOMAINS"}).stdout)
-        assert report["PRODUCTION_AIS_LEVEL"] == "NOT_OBSERVED", lever
+def test_test_keys_are_distinct_and_not_pem():
+    """The fixture keys must be genuinely distinct, and must not be PEM blobs."""
+    raw = KEYS_PATH.read_text(encoding="utf-8")
+    assert "BEGIN RSA PRIVATE KEY" not in raw and "BEGIN PRIVATE KEY" not in raw
+    material = json.loads(raw)
+    moduli = {k["n_hex"] for k in material["keys"]}
+    assert len(moduli) == len(material["keys"]), "two test keys share a modulus"
+    for key in material["keys"]:
+        assert int(key["n_hex"], 16).bit_length() == 2048

@@ -1,48 +1,47 @@
 #!/usr/bin/env python3
-"""Verify production AIS evidence against `secb.ais-production-evidence/v1` (FWK-089, #158).
+"""Verify production AIS evidence against `secb.ais-production-evidence/v2` (FWK-089, #158).
 
-WHAT THIS IS. Tranche A of #158: the verifier. It reads a document describing an identity
-substrate and COMPUTES the highest level the evidence supports. It never reads a claimed
-level, because a document that can assert its own level makes every check below decorative.
+WHY v2 EXISTS. v1 verified RS256 correctly -- whole-block EMSA-PKCS1-v1_5 per RFC 8017, with
+padding slack rejected -- and was still unsound, because the signature covered the OIDC
+workflow context and NOTHING ELSE. Every separation it reported was a comparison of
+repository-authored STRINGS sitting next to that signature:
 
-WHAT THIS IS NOT. It does not provision an App, a custody domain, a policy domain, or a
-decision path, and running it green does not mean AIS4 was reached:
+    one authentic workflow token, copied across every role record
+    + fabricated distinct app / custody / policy strings
+    + unsigned APPROVE ballots
+    + a JWKS digest the caller computed and then supplied to itself
+    -> v1 reported AIS4
 
-    VERIFIER_AVAILABLE != SUBSTRATE_AVAILABLE != INDEPENDENCE_OBSERVED
+That is internally consistent evidence, not independently established separation. The rule
+that shapes this file:
 
-Tranche B -- separately administered Apps, distinct custody and policy domains, one real
-ceremony -- is external by construction. Repository code cannot mark it complete, so this
-tool has no flag, env var or input that does.
+    A VALID SIGNATURE OVER ONE PORTION OF A DOCUMENT MUST NOT LEND AUTHENTICITY TO
+    ADJACENT UNSIGNED FIELDS.
 
-THE EIGHT CONJUNCTS. AIS4_INDEPENDENT_DOMAINS requires ALL of:
+CRYPTOGRAPHIC COVERAGE ACCOUNTING. Every conjunct names the fact asserted, the producer
+authorised to assert it, and the signature binding that producer to this subject, this
+snapshot and this purpose. Promotion requires
 
-    OIDC_BOUND ^ DISTINCT_PLATFORM_PRINCIPALS ^ DISTINCT_CUSTODY_DOMAINS
-    ^ DISTINCT_POLICY_DOMAINS ^ INDEPENDENT_DECISIONS ^ EFFECT_ROLE_SEPARATION
-    ^ REVOCATION_BEHAVIOUR_OBSERVED ^ SIGNER_VERIFIED
+    ASSERTED_CONJUNCTS == AUTHENTICATED_CONJUNCTS == IDENTITY_BOUND_CONJUNCTS
+                       == CURRENT_SNAPSHOT_CONJUNCTS
 
-Each is evidenced separately and reported separately. A missing conjunct yields
-NOT_OBSERVED, never a rounded-up level.
+and the ledger is emitted so coverage can be audited rather than inferred. An asserted fact
+with no authenticator is reported `UNAUTHENTICATED` and never counted.
 
-TWO OUTCOMES, KEPT APART. Honest incompleteness and contradiction are different facts:
+WHAT NO DOCUMENT CAN DO HERE. AIS4 also requires ISSUER_TRUST_ANCHOR: proof that the key set
+really is the issuer's. That is a live fetch from the issuer, which this tool does not
+perform, and it cannot be delegated to a digest the caller supplies -- v1's
+`EXPECT_JWKS_DIGEST` proved only that two values agreed, and one caller can compute both. So
 
-    exit 0 + PRODUCTION_AIS_LEVEL: NOT_OBSERVED  -- the evidence is well-formed and does
-        not reach AIS4. A LOCAL_FIXTURE key set lands here: it is the truthful state of a
-        repository that has no production substrate.
-    exit 2 REFUSED                               -- the evidence contradicts itself, or
-        claims something it does not show (shared App presented as separate principals, a
-        fixture key set presented as issuer discovery, a signature that does not verify).
+    AIS4_NOT_REACHABLE_OFFLINE
 
-Collapsing the two would mean either that absence reads as failure, or -- far worse -- that
-a contradiction reads as mere absence.
+is a structural property of this tool. The ceiling here is AIS3, and the top rung is
+reachable only through Tranche B: separately administered Apps, distinct custody roots, one
+real ceremony. External by construction; nothing here can mark it complete.
 
-ON THE SIGNATURE CHECK. RS256 verification is `pow(sig, e, n)` plus a PKCS#1 v1.5 padding
-comparison: public-key arithmetic over public inputs, no secret material, so it is
-implementable under NFR-12 (stdlib only) without a dependency. Its limits are declared
-rather than left to a reader: RS256 only, no certificate chain, no revocation of the key
-itself, and no constant-time guarantee (irrelevant here -- everything it touches is
-public). What it proves is that the token was signed by the holder of the private key for
-`kid`. WHO that holder is comes from jwks.provenance, which is why a verifying signature
-over a LOCAL_FIXTURE key set does not satisfy SIGNER_VERIFIED.
+PURPOSE BINDING. Every signed payload carries a `purpose` and is accepted only for that
+purpose. Without it a signed ballot could be replayed as an identity attestation -- same key,
+same snapshot, different meaning.
 """
 from __future__ import annotations
 
@@ -52,14 +51,19 @@ import hashlib
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
+
+UTC = timezone.utc
 
 OK = 0
 FAIL = 2
 
-SCHEMA = "secb.ais-production-evidence/v1"
+SCHEMA = "secb.ais-production-evidence/v2"
 GITHUB_ISSUER = "https://token.actions.githubusercontent.com"
+GITHUB_ISSUER_HOST = "token.actions.githubusercontent.com"
+GITHUB_JWKS_PATH = "/.well-known/jwks"
 
 LADDER = [
     "AIS0_SELF_ASSERTED",
@@ -68,39 +72,46 @@ LADDER = [
     "AIS3_CUSTODY_SEPARATED",
     "AIS4_INDEPENDENT_DOMAINS",
 ]
+OFFLINE_CEILING = "AIS3_CUSTODY_SEPARATED"
 
 CONJUNCTS = (
-    "OIDC_BOUND",
-    "DISTINCT_PLATFORM_PRINCIPALS",
-    "DISTINCT_CUSTODY_DOMAINS",
-    "DISTINCT_POLICY_DOMAINS",
-    "INDEPENDENT_DECISIONS",
+    "SIGNED_WORKFLOW_CONTEXT",
+    "PRINCIPAL_IDENTITY_ATTESTED",
+    "CUSTODY_ATTESTED",
+    "POLICY_ATTESTED",
+    "BALLOTS_SIGNED",
     "EFFECT_ROLE_SEPARATION",
-    "REVOCATION_BEHAVIOUR_OBSERVED",
-    "SIGNER_VERIFIED",
+    "REVOCATION_RECEIPT_VERIFIED",
+    "DISCOVERY_EXACTLY_BOUND",
+    "ISSUER_TRUST_ANCHOR",
 )
 
-# Claims that must be present AND must agree with the snapshot. `workflow_sha` and
-# `job_workflow_ref` are what make a token specific to the code that ran, rather than to
-# the repository in general.
-BOUND_CLAIMS = {
-    "repository_id": "repository_id",
-    "workflow_sha": "workflow_sha",
-    "job_workflow_ref": "job_workflow_ref",
+# purpose -> the key_role permitted to sign it. Fixing the producer of each fact is the
+# point: otherwise whoever holds any key in the set can assert anything in the document.
+PURPOSE_SIGNERS = {
+    "PRINCIPAL_IDENTITY": "PRINCIPAL",
+    "CUSTODY_BINDING": "CUSTODY_ROOT",
+    "POLICY_BINDING": "POLICY_ADMIN_ROOT",
+    "BALLOT": "PRINCIPAL",
+    "REVOCATION_RECEIPT": "PLATFORM",
+    "OIDC": "PLATFORM",
 }
+KEY_ROLES = ("PRINCIPAL", "CUSTODY_ROOT", "POLICY_ADMIN_ROOT", "PLATFORM")
+
+REQUIRED_OIDC_CLAIMS = ("iss", "aud", "sub", "exp", "iat", "jti")
+BOUND_CLAIMS = ("repository_id", "workflow_sha", "job_workflow_ref")
 
 MAX_TOKEN_LIFETIME_SECONDS = 3600
 SHA256_DIGESTINFO = binascii.unhexlify("3031300d060960864801650304020105000420")
 
 
 class Refused(ValueError):
-    """The evidence contradicts itself or claims what it does not show."""
+    """The evidence contradicts itself, or claims what it does not authenticate."""
 
 
 def b64url(data: str) -> bytes:
-    pad = "=" * (-len(data) % 4)
     try:
-        return base64.urlsafe_b64decode(data + pad)
+        return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
     except (binascii.Error, ValueError) as exc:
         raise Refused(f"value is not base64url ({exc})") from exc
 
@@ -113,62 +124,227 @@ def digest(payload: object) -> str:
     return "sha256:" + hashlib.sha256(canonical(payload)).hexdigest()
 
 
-def parse_time(label: str, value: str) -> datetime:
+def parse_time(label: str, value: object) -> datetime:
+    if isinstance(value, bool):
+        raise Refused(f"{label}: {value!r} is not an instant")
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value, tz=UTC)
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError as exc:
         raise Refused(f"{label}: {value!r} is not an ISO-8601 instant ({exc})") from exc
+    if parsed.tzinfo is None:
+        raise Refused(f"{label}: {value!r} has no timezone; an instant without one is ambiguous")
+    return parsed
 
 
-def verify_rs256(token: str, key: dict) -> dict:
-    """Return the token's claims, or raise. The claims come from the SIGNED bytes only."""
-    parts = token.split(".")
+# --------------------------------------------------------------------------- primitives
+
+
+def verify_rs256(signing_input: bytes, signature: bytes, key: dict) -> None:
+    """RFC 8017 EMSA-PKCS1-v1_5 verification. Raises unless the block matches exactly."""
+    n = int.from_bytes(b64url(key["n"]), "big")
+    e = int.from_bytes(b64url(key["e"]), "big")
+    if n.bit_length() < 2048:
+        raise Refused(f"key {key['kid']}: modulus is {n.bit_length()} bits; under 2048 is refused")
+    if e < 3 or e % 2 == 0:
+        raise Refused(f"key {key['kid']}: public exponent {e} is not an odd integer >= 3")
+
+    k = (n.bit_length() + 7) // 8
+    if len(signature) != k:
+        raise Refused(f"key {key['kid']}: signature is {len(signature)} bytes; modulus is {k}")
+
+    tail = SHA256_DIGESTINFO + hashlib.sha256(signing_input).digest()
+    padding_length = k - len(tail) - 3
+    if padding_length < 8:
+        raise Refused(f"key {key['kid']}: modulus too small for a PKCS#1 v1.5 SHA-256 signature")
+    expected = b"\x00\x01" + b"\xff" * padding_length + b"\x00" + tail
+
+    recovered = pow(int.from_bytes(signature, "big"), e, n).to_bytes(k, "big")
+    # Whole-block comparison. A suffix scan leaves slack in the padding, and slack in the
+    # padding is where Bleichenbacher-style forgeries live.
+    if recovered != expected:
+        raise Refused(f"key {key['kid']}: signature does not verify")
+
+
+def key_for(keys: dict, kid: str, purpose: str) -> dict:
+    key = keys.get(kid)
+    if key is None:
+        raise Refused(f"no key in the set matches kid {kid!r}")
+    required = PURPOSE_SIGNERS[purpose]
+    if key["key_role"] != required:
+        raise Refused(
+            f"key {kid!r} has key_role {key['key_role']!r} but purpose {purpose} must be "
+            f"signed by a {required}"
+        )
+    return key
+
+
+def verify_signed(
+    label: str,
+    envelope: dict,
+    *,
+    purpose: str,
+    snapshot_digest: str,
+    keys: dict,
+    expect_owner: str | None = None,
+    expect_fields: dict | None = None,
+) -> dict:
+    """Verify one signed envelope and return its payload.
+
+    Order matters: the signature verifies; the signer holds the role authorised for this
+    purpose; the payload declares this purpose; the payload is bound to THIS snapshot; the
+    signed subject fields are the ones the caller expected. Every fact returned is covered by
+    the signature, which is why nothing here reads a field from outside the envelope.
+    """
+    payload = envelope.get("payload")
+    if not isinstance(payload, dict):
+        raise Refused(f"{label}: signed envelope has no payload object")
+    key = key_for(keys, envelope.get("kid", ""), purpose)
+    verify_rs256(canonical(payload), b64url(envelope.get("signature", "")), key)
+
+    if payload.get("purpose") != purpose:
+        raise Refused(
+            f"{label}: payload purpose is {payload.get('purpose')!r}, expected {purpose!r}. A "
+            "signature made for one purpose must not be replayable as another"
+        )
+    if payload.get("snapshot_digest") != snapshot_digest:
+        raise Refused(
+            f"{label}: payload is bound to snapshot {payload.get('snapshot_digest')!r}, not "
+            f"{snapshot_digest!r}. Evidence for another snapshot is another decision"
+        )
+    if expect_owner is not None and key["owner"] != expect_owner:
+        raise Refused(
+            f"{label}: signed by a key owned by {key['owner']!r}, expected {expect_owner!r}"
+        )
+    for field, expected in (expect_fields or {}).items():
+        if payload.get(field) != expected:
+            raise Refused(
+                f"{label}: signed {field} is {payload.get(field)!r} but the document says "
+                f"{expected!r}. The signed value is authoritative; the unsigned one is a claim"
+            )
+    return payload
+
+
+def load_keys(evidence: dict) -> dict:
+    """Index the key set by kid, refusing any set where two names share one key.
+
+    Checking `kid` uniqueness alone would repeat the very error v2 exists to fix, one layer
+    down: two kids over one modulus is ONE key holder wearing two names, and every
+    separation computed from it would be a comparison of labels again.
+    """
+    keys: dict[str, dict] = {}
+    by_material: dict[tuple[str, str], str] = {}
+    for key in evidence["jwks"]["keys"]:
+        kid = key["kid"]
+        if kid in keys:
+            raise Refused(f"duplicate kid {kid!r} in the key set")
+        if key.get("key_role") not in KEY_ROLES:
+            raise Refused(
+                f"key {kid!r}: key_role {key.get('key_role')!r} is not one of {KEY_ROLES}"
+            )
+        if not key.get("owner"):
+            raise Refused(f"key {kid!r}: owner is required -- an unowned key separates nothing")
+        material = (key["n"], key["e"])
+        if material in by_material:
+            raise Refused(
+                f"keys {by_material[material]!r} and {kid!r} share the same modulus. Two kids "
+                "over one key is one holder with two names, not two principals"
+            )
+        by_material[material] = kid
+        keys[kid] = key
+    return keys
+
+
+# ------------------------------------------------------------------------ OIDC, in full
+
+
+def validate_oidc(role: str, principal: dict, evidence: dict, keys: dict, now: datetime,
+                  seen_jti: dict) -> dict:
+    """Signature, exact issuer, audience, subject, expiry, lifetime and replay.
+
+    v1 read the signature, the issuer and three context claims. `aud`, `sub`, `exp`, `iat`
+    and `jti` were unread, so an authentic token minted for another audience, expired by any
+    margin, could be copied into every role record in the document.
+    """
+    oidc = principal["oidc"]
+    parts = oidc["token"].split(".")
     if len(parts) != 3:
-        raise Refused("oidc token is not a compact JWS (expected three dot-separated parts)")
+        raise Refused(f"{role}: oidc token is not a compact JWS")
     header_b64, payload_b64, signature_b64 = parts
 
     header = json.loads(b64url(header_b64))
     if header.get("alg") != "RS256":
         raise Refused(
-            f"token alg is {header.get('alg')!r}; only RS256 is verified here, and `none` "
-            "or an HMAC alg against an RSA key set is the classic algorithm-confusion "
-            "downgrade"
+            f"{role}: token alg is {header.get('alg')!r}; only RS256 is verified, and `none` "
+            "or an HMAC alg against an RSA key set is the classic algorithm-confusion downgrade"
         )
-    if header.get("kid") != key["kid"]:
-        raise Refused(f"token kid {header.get('kid')!r} does not match the key {key['kid']!r}")
+    if header.get("kid") != oidc["kid"]:
+        raise Refused(
+            f"{role}: token kid {header.get('kid')!r} disagrees with the declared {oidc['kid']!r}"
+        )
+    key = key_for(keys, oidc["kid"], "OIDC")
+    verify_rs256(f"{header_b64}.{payload_b64}".encode("ascii"), b64url(signature_b64), key)
+    claims = json.loads(b64url(payload_b64))
 
-    n = int.from_bytes(b64url(key["n"]), "big")
-    e = int.from_bytes(b64url(key["e"]), "big")
-    if n.bit_length() < 2048:
-        raise Refused(f"modulus is {n.bit_length()} bits; under 2048 is not acceptable")
-    if e < 3 or e % 2 == 0:
-        raise Refused(f"public exponent {e} is not an odd integer >= 3")
+    missing = [c for c in REQUIRED_OIDC_CLAIMS if c not in claims]
+    if missing:
+        raise Refused(f"{role}: signed token is missing required claims {missing}")
+    if claims["iss"] != GITHUB_ISSUER:
+        raise Refused(f"{role}: token iss {claims['iss']!r} is not exactly {GITHUB_ISSUER!r}")
 
-    signature = b64url(signature_b64)
-    k = (n.bit_length() + 7) // 8
-    if len(signature) != k:
-        raise Refused(f"signature is {len(signature)} bytes; the modulus is {k}")
+    policy = evidence["oidc_policy"]
+    audience = claims["aud"] if isinstance(claims["aud"], list) else [claims["aud"]]
+    if policy["audience"] not in audience:
+        raise Refused(
+            f"{role}: token aud {claims['aud']!r} does not include the required "
+            f"{policy['audience']!r}. A token minted for another audience is a valid token "
+            "for someone else"
+        )
+    if not str(claims["sub"]).startswith(policy["subject_prefix"]):
+        raise Refused(
+            f"{role}: token sub {claims['sub']!r} is not under {policy['subject_prefix']!r}"
+        )
 
-    # EMSA-PKCS1-v1_5: 0x00 0x01 || 0xff... || 0x00 || DigestInfo || H(m)
-    expected_hash = hashlib.sha256(f"{header_b64}.{payload_b64}".encode("ascii")).digest()
-    tail = SHA256_DIGESTINFO + expected_hash
-    padding_length = k - len(tail) - 3
-    if padding_length < 8:
-        raise Refused("modulus too small to hold a PKCS#1 v1.5 SHA-256 signature")
-    expected_em = b"\x00\x01" + b"\xff" * padding_length + b"\x00" + tail
+    issued = parse_time(f"{role}.iat", claims["iat"])
+    expires = parse_time(f"{role}.exp", claims["exp"])
+    if "nbf" in claims and parse_time(f"{role}.nbf", claims["nbf"]) > now:
+        raise Refused(f"{role}: token is not yet valid at {now.isoformat()}")
+    if expires <= issued:
+        raise Refused(f"{role}: token exp is at or before iat")
+    if (expires - issued).total_seconds() > MAX_TOKEN_LIFETIME_SECONDS:
+        raise Refused(
+            f"{role}: token lifetime is {int((expires - issued).total_seconds())}s, over the "
+            f"{MAX_TOKEN_LIFETIME_SECONDS}s ceiling"
+        )
+    if now >= expires:
+        raise Refused(
+            f"{role}: token expired at {expires.isoformat()}, evaluated at {now.isoformat()}"
+        )
 
-    recovered = pow(int.from_bytes(signature, "big"), e, n).to_bytes(k, "big")
-    # Whole-block comparison. Scanning for the DigestInfo instead of rebuilding the exact
-    # expected block is how Bleichenbacher-style forgeries get in: slack anywhere in the
-    # padding is slack an attacker can put chosen bytes into.
-    if recovered != expected_em:
-        raise Refused("oidc signature does not verify against the declared key")
+    if claims["jti"] in seen_jti:
+        raise Refused(
+            f"{role}: jti {claims['jti']!r} was already presented by {seen_jti[claims['jti']]!r}. "
+            "One token copied across role records is one principal, however many roles the "
+            "document names"
+        )
+    seen_jti[claims["jti"]] = role
 
-    return json.loads(b64url(payload_b64))
+    for claim in BOUND_CLAIMS:
+        if not claims.get(claim):
+            raise Refused(f"{role}: signed token is missing the {claim} claim")
+        if str(claims[claim]) != str(evidence["snapshot"][claim]):
+            raise Refused(
+                f"{role}: token {claim} is {claims[claim]!r} but the snapshot says "
+                f"{evidence['snapshot'][claim]!r}"
+            )
+    return claims
+
+
+# -------------------------------------------------------------------------- the checks
 
 
 def check_no_claimed_level(evidence: dict) -> None:
-    """A level is computed here or it is nothing."""
     banned = ("ais_level", "level", "production_ais_level", "claimed_level", "observed_level")
     present = [k for k in banned if k in evidence]
     if present:
@@ -186,247 +362,311 @@ def check_scope(role: str, scope: dict) -> None:
         if "*" in permission or "*" in access:
             raise Refused(f"{role}: permission {permission}={access!r} is a wildcard")
         if access == "admin":
-            raise Refused(
-                f"{role}: permission {permission}=admin. An administrative principal can "
-                "edit the policy that validates it, which is the separation this level is "
-                "supposed to establish"
-            )
-    issued = parse_time(f"{role}.issued_at", scope["issued_at"])
-    expires = parse_time(f"{role}.expires_at", scope["expires_at"])
-    lifetime = (expires - issued).total_seconds()
-    if lifetime <= 0:
-        raise Refused(f"{role}: token expires at or before it was issued")
-    if lifetime > MAX_TOKEN_LIFETIME_SECONDS:
-        raise Refused(
-            f"{role}: token lifetime is {int(lifetime)}s, over the "
-            f"{MAX_TOKEN_LIFETIME_SECONDS}s ceiling"
+            raise Refused(f"{role}: permission {permission}=admin is administrative")
+
+
+def check_discovery(evidence: dict) -> tuple[bool, str]:
+    """Exact issuer and jwks_uri binding. `startswith` is not host validation.
+
+    v1 accepted any URL beginning with the issuer string, which includes
+    `https://token.actions.githubusercontent.com.attacker.example/jwks` (suffix-extension
+    host) and `https://token.actions.githubusercontent.com@evil.example/jwks` (userinfo
+    trick). Both are refused here by parsing the URL and comparing the host exactly.
+    """
+    jwks = evidence["jwks"]
+    if jwks["provenance"] != "ISSUER_DISCOVERY":
+        return False, (
+            f"jwks.provenance is {jwks['provenance']}: the keys are repository-supplied, so "
+            "the signatures prove internal consistency and not an issuer"
         )
+    discovery = jwks.get("discovery")
+    if not discovery:
+        raise Refused("provenance is ISSUER_DISCOVERY with no discovery record")
+    if jwks["issuer"] != GITHUB_ISSUER:
+        return False, f"issuer {jwks['issuer']!r} is not exactly {GITHUB_ISSUER!r}"
 
-
-def check_oidc(evidence: dict) -> None:
-    """Every principal's token verifies and its signed claims agree with the snapshot."""
-    snapshot = evidence["snapshot"]
-    keys = {key["kid"]: key for key in evidence["jwks"]["keys"]}
-    issuer = evidence["jwks"]["issuer"]
-
-    for role, principal in sorted(evidence["principals"].items()):
-        oidc = principal["oidc"]
-        key = keys.get(oidc["kid"])
-        if key is None:
-            raise Refused(f"{role}: no key in the set matches kid {oidc['kid']!r}")
-        claims = verify_rs256(oidc["token"], key)
-
-        if claims.get("iss") != issuer:
-            raise Refused(
-                f"{role}: token iss {claims.get('iss')!r} is not the declared issuer "
-                f"{issuer!r}"
-            )
-        for claim, field in BOUND_CLAIMS.items():
-            if not claims.get(claim):
-                raise Refused(f"{role}: signed token is missing the {claim} claim")
-            if str(claims[claim]) != str(snapshot[field]):
-                raise Refused(
-                    f"{role}: token {claim} is {claims[claim]!r} but the snapshot says "
-                    f"{snapshot[field]!r}. A token bound to other code proves an execution "
-                    "context, not this one"
-                )
-
-
-def check_snapshot_freshness(evidence: dict, expected_main_sha: str) -> None:
-    if expected_main_sha and evidence["snapshot"]["main_sha"] != expected_main_sha:
+    parsed = urlparse(discovery["jwks_uri"])
+    if parsed.scheme != "https":
+        raise Refused(f"jwks_uri scheme {parsed.scheme!r} is not https")
+    if parsed.username or parsed.password or "@" in (parsed.netloc or ""):
         raise Refused(
-            f"snapshot main_sha {evidence['snapshot']['main_sha']} is not the expected "
-            f"{expected_main_sha}. Evidence for a superseded tree is historical, and "
-            "SUPERSEDED_FOR_CURRENT_ELIGIBILITY != VALID_FOR_THIS_DECISION"
+            f"jwks_uri {discovery['jwks_uri']!r} carries userinfo; the real host is what "
+            "follows the '@', which is how a prefix check gets fooled"
         )
+    if parsed.hostname != GITHUB_ISSUER_HOST:
+        raise Refused(f"jwks_uri host {parsed.hostname!r} is not exactly {GITHUB_ISSUER_HOST!r}")
+    if parsed.path != GITHUB_JWKS_PATH:
+        raise Refused(f"jwks_uri path {parsed.path!r} is not {GITHUB_JWKS_PATH!r}")
+    if discovery["response_digest"] != digest(jwks["keys"]):
+        raise Refused(
+            f"discovery response_digest {discovery['response_digest']} does not digest the "
+            f"key set it accompanies ({digest(jwks['keys'])})"
+        )
+    return True, f"issuer and jwks_uri bound exactly; keys digest {discovery['response_digest']}"
 
 
-def evaluate(evidence: dict, expected_main_sha: str, expected_jwks_digest: str = "") -> dict:
-    """Return {conjunct: (observed, note)}. Contradictions raise instead."""
+def evaluate(evidence: dict, expected_main_sha: str, evaluate_at: str) -> tuple[dict, dict]:
+    """Return (conjunct results, coverage ledger). Contradictions raise."""
     if evidence.get("schema") != SCHEMA:
         raise Refused(f"schema is {evidence.get('schema')!r}, expected {SCHEMA!r}")
     check_no_claimed_level(evidence)
-    check_snapshot_freshness(evidence, expected_main_sha)
+    if expected_main_sha and evidence["snapshot"]["main_sha"] != expected_main_sha:
+        raise Refused(
+            f"snapshot main_sha {evidence['snapshot']['main_sha']} is not the expected "
+            f"{expected_main_sha}"
+        )
+    now = parse_time("EVALUATE_AT", evaluate_at) if evaluate_at else None
 
     principals = evidence["principals"]
     if len(principals) < 2:
         raise Refused("a substrate with fewer than two principals separates nothing")
+    keys = load_keys(evidence)
+    snapshot_digest = digest(evidence["snapshot"])
 
     results: dict[str, tuple[bool, str]] = {}
+    ledger: dict[str, dict] = {}
 
-    # 1. OIDC_BOUND -- every token verifies and binds this snapshot.
-    check_oidc(evidence)
-    results["OIDC_BOUND"] = (True, "every principal's signed token binds this snapshot")
+    def record(conjunct: str, fact: str, producer: str, authenticator: str | None) -> None:
+        ledger[conjunct] = {
+            "asserted_fact": fact,
+            "authoritative_producer": producer,
+            "authenticator": authenticator or "UNAUTHENTICATED",
+            "bound_to_snapshot": authenticator is not None,
+        }
 
-    # 2. DISTINCT_PLATFORM_PRINCIPALS.
-    seen: dict[tuple[str, str], list[str]] = {}
-    for role, principal in principals.items():
-        seen.setdefault((principal["app_id"], principal["installation_id"]), []).append(role)
-    shared = {str(k): sorted(v) for k, v in seen.items() if len(v) > 1}
-    if shared:
-        raise Refused(
-            f"roles share an App/installation: {shared}. Distinct role NAMES over one "
-            "platform principal is a label, not a separation"
+    # 1. SIGNED_WORKFLOW_CONTEXT.
+    if now is None:
+        results["SIGNED_WORKFLOW_CONTEXT"] = (
+            False, "EVALUATE_AT was not supplied, so token expiry cannot be evaluated")
+        record("SIGNED_WORKFLOW_CONTEXT", "workflow execution context", "the issuer", None)
+    else:
+        seen_jti: dict[str, str] = {}
+        for role in sorted(principals):
+            validate_oidc(role, principals[role], evidence, keys, now, seen_jti)
+        results["SIGNED_WORKFLOW_CONTEXT"] = (
+            True, f"{len(principals)} tokens fully validated, {len(seen_jti)} distinct jti")
+        record("SIGNED_WORKFLOW_CONTEXT", "workflow execution context",
+               f"the issuer {GITHUB_ISSUER}", "PLATFORM-signed OIDC JWS, one distinct jti per role")
+
+    # 2. PRINCIPAL_IDENTITY_ATTESTED -- app/installation/role signed by the principal itself.
+    principal_keys: dict[str, str] = {}
+    for role, principal in sorted(principals.items()):
+        verify_signed(
+            f"{role}.identity_attestation", principal["identity_attestation"],
+            purpose="PRINCIPAL_IDENTITY", snapshot_digest=snapshot_digest, keys=keys,
+            expect_fields={
+                "app_id": principal["app_id"],
+                "installation_id": principal["installation_id"],
+                "role": role,
+            },
         )
-    results["DISTINCT_PLATFORM_PRINCIPALS"] = (True, f"{len(principals)} distinct App installations")
-
-    # 3. DISTINCT_CUSTODY_DOMAINS.
-    custody: dict[str, list[str]] = {}
-    for role, principal in principals.items():
-        custody.setdefault(principal["custody_domain"], []).append(role)
+        kid = principal["identity_attestation"]["kid"]
+        if kid in principal_keys:
+            raise Refused(
+                f"{role} and {principal_keys[kid]} signed their identity attestations with the "
+                f"same key {kid!r}. One signing key is one principal, whatever the labels say"
+            )
+        principal_keys[kid] = role
         check_scope(role, principal["token_scope"])
-    shared_custody = {k: sorted(v) for k, v in custody.items() if len(v) > 1}
+
+    seen_apps: dict[tuple, list[str]] = {}
+    for role, principal in principals.items():
+        seen_apps.setdefault(
+            (principal["app_id"], principal["installation_id"]), []).append(role)
+    shared = {str(k): sorted(v) for k, v in seen_apps.items() if len(v) > 1}
+    if shared:
+        raise Refused(f"roles share an App/installation: {shared}")
+    results["PRINCIPAL_IDENTITY_ATTESTED"] = (
+        True, f"{len(principals)} identity attestations, each signed by a distinct key")
+    record("PRINCIPAL_IDENTITY_ATTESTED", "app_id, installation_id, role",
+           "the principal itself", "PRINCIPAL-signed PRINCIPAL_IDENTITY attestation")
+
+    # 3. CUSTODY_ATTESTED -- the custody ROOT attests that it holds this principal's key.
+    custody_roots: dict[str, list[str]] = {}
+    for role, principal in sorted(principals.items()):
+        verify_signed(
+            f"{role}.custody_attestation", principal["custody_attestation"],
+            purpose="CUSTODY_BINDING", snapshot_digest=snapshot_digest, keys=keys,
+            expect_owner=principal["custody_domain"],
+            expect_fields={
+                "principal_kid": principal["identity_attestation"]["kid"],
+                "custody_root": principal["custody_domain"],
+            },
+        )
+        custody_roots.setdefault(principal["custody_domain"], []).append(role)
+    shared_custody = {k: sorted(v) for k, v in custody_roots.items() if len(v) > 1}
     if shared_custody:
         raise Refused(
-            f"roles share a credential custody domain: {shared_custody}. One runtime that "
-            "can read every private key is one principal wearing several hats"
+            f"roles share a credential custody domain: {shared_custody}. One root that can "
+            "read every private key is one principal wearing several hats"
         )
-    results["DISTINCT_CUSTODY_DOMAINS"] = (True, f"{len(custody)} distinct custody domains")
+    results["CUSTODY_ATTESTED"] = (
+        True, f"{len(custody_roots)} custody roots, each attesting exactly one principal key")
+    record("CUSTODY_ATTESTED", "which root holds the principal's private key",
+           "the custody root", "CUSTODY_ROOT-signed CUSTODY_BINDING attestation")
 
-    # 4. DISTINCT_POLICY_DOMAINS -- and nobody administers the policy that validates them.
-    policy: dict[str, list[str]] = {}
-    for role, principal in principals.items():
-        policy.setdefault(principal["policy_domain"], []).append(role)
-        if principal["policy_administered_by"] == principal["policy_domain"]:
-            raise Refused(
-                f"{role}: policy_administered_by equals its own policy_domain "
-                f"({principal['policy_domain']!r}). A principal that can edit the policy "
-                "validating its decisions is its own auditor"
-            )
-    shared_policy = {k: sorted(v) for k, v in policy.items() if len(v) > 1}
+    # 4. POLICY_ATTESTED -- an independent admin root signs it, non-reciprocally.
+    policy_domains: dict[str, list[str]] = {}
+    administered_by: dict[str, str] = {}
+    for role, principal in sorted(principals.items()):
+        payload = verify_signed(
+            f"{role}.policy_attestation", principal["policy_attestation"],
+            purpose="POLICY_BINDING", snapshot_digest=snapshot_digest, keys=keys,
+            expect_fields={"policy_domain": principal["policy_domain"], "role": role},
+        )
+        admin = payload["administered_by"]
+        if admin == principal["policy_domain"]:
+            raise Refused(f"{role}: policy is administered by its own domain {admin!r}")
+        administered_by[principal["policy_domain"]] = admin
+        policy_domains.setdefault(principal["policy_domain"], []).append(role)
+    shared_policy = {k: sorted(v) for k, v in policy_domains.items() if len(v) > 1}
     if shared_policy:
         raise Refused(f"roles share a policy domain: {shared_policy}")
-    results["DISTINCT_POLICY_DOMAINS"] = (True, f"{len(policy)} distinct, externally administered policy domains")
-
-    # 5. INDEPENDENT_DECISIONS -- distinct principals, one snapshot, computed digest.
-    expected_digest = digest(evidence["snapshot"])
-    ballots = evidence["ballots"]
-    voters = [ballot["principal"] for ballot in ballots]
-    unknown = sorted(set(voters) - set(principals))
-    if unknown:
-        raise Refused(f"ballots cast by principals absent from the evidence: {unknown}")
-    if len(set(voters)) != len(voters):
-        raise Refused(f"a principal cast more than one ballot: {sorted(voters)}")
-    for ballot in ballots:
-        if ballot["snapshot_digest"] != expected_digest:
+    for domain, admin in administered_by.items():
+        if administered_by.get(admin) == domain:
             raise Refused(
-                f"ballot by {ballot['principal']} is bound to {ballot['snapshot_digest']} "
-                f"but the snapshot digests to {expected_digest}. Independent decisions "
-                "about different snapshots are a coincidence, not a quorum"
+                f"policy administration is reciprocal: {domain!r} administers {admin!r} and "
+                "back again. Mutual administration is one administrator with two names, which "
+                "is why unequal labels are not independence"
             )
-    approvals = [b for b in ballots if b["decision"] == "APPROVE"]
-    if len(approvals) < 2:
-        results["INDEPENDENT_DECISIONS"] = (
-            False,
-            f"{len(approvals)} approving ballot(s) from distinct principals; two are the minimum",
+    external = sorted({a for a in administered_by.values() if a not in policy_domains})
+    if not external:
+        raise Refused(
+            "every policy administrator is itself one of the principals' policy domains, so no "
+            "administration is external to the set being validated"
         )
+    results["POLICY_ATTESTED"] = (
+        True,
+        f"{len(policy_domains)} policy domains, non-reciprocal, external admin root(s) {external}",
+    )
+    record("POLICY_ATTESTED", "which admin root governs the principal's policy",
+           "the policy admin root", "POLICY_ADMIN_ROOT-signed POLICY_BINDING attestation")
+
+    # 5. BALLOTS_SIGNED -- each ballot signed by its own principal's key, nonce-bound.
+    ballots = evidence["ballots"]
+    voters: list[str] = []
+    nonces: set[str] = set()
+    for index, ballot in enumerate(ballots):
+        payload = verify_signed(
+            f"ballot[{index}]", ballot, purpose="BALLOT",
+            snapshot_digest=snapshot_digest, keys=keys,
+        )
+        voter = payload["principal"]
+        if voter not in principals:
+            raise Refused(f"ballot[{index}]: principal {voter!r} is absent from the evidence")
+        expected_kid = principals[voter]["identity_attestation"]["kid"]
+        if ballot["kid"] != expected_kid:
+            raise Refused(
+                f"ballot[{index}]: signed by {ballot['kid']!r} but {voter!r}'s identity key is "
+                f"{expected_kid!r}. A ballot signed by another key is another principal's ballot"
+            )
+        if voter in voters:
+            raise Refused(f"ballot[{index}]: {voter!r} cast more than one ballot")
+        if payload["nonce"] in nonces:
+            raise Refused(f"ballot[{index}]: nonce {payload['nonce']!r} is replayed")
+        nonces.add(payload["nonce"])
+        voters.append(voter)
+
+    if evidence["decision_receipt_digest"] != digest(ballots):
+        raise Refused(
+            f"decision_receipt_digest {evidence['decision_receipt_digest']} does not digest the "
+            f"ballot set ({digest(ballots)}). A receipt nothing consumes is decorative, and one "
+            "that disagrees with the ballots is worse"
+        )
+    approvals = [b for b in ballots if b["payload"]["decision"] == "APPROVE"]
+    if len(approvals) < 2:
+        results["BALLOTS_SIGNED"] = (
+            False,
+            f"{len(approvals)} signed approving ballot(s); two distinct principals are the minimum",
+        )
+        record("BALLOTS_SIGNED", "the decision", "each voting principal", None)
     else:
-        results["INDEPENDENT_DECISIONS"] = (
-            True, f"{len(approvals)} distinct principals approved the same snapshot digest")
+        results["BALLOTS_SIGNED"] = (
+            True,
+            f"{len(approvals)} signed approvals from distinct principals, receipt digest bound",
+        )
+        record("BALLOTS_SIGNED", "the decision", "each voting principal",
+               "PRINCIPAL-signed BALLOT with nonce, digested by decision_receipt_digest")
 
     # 6. EFFECT_ROLE_SEPARATION.
     roles = evidence.get("roles") or {}
-    executor = roles.get("executor")
-    readback = roles.get("readback_verifier")
+    executor, readback = roles.get("executor"), roles.get("readback_verifier")
     if not executor or not readback:
         results["EFFECT_ROLE_SEPARATION"] = (
             False, "roles.executor and roles.readback_verifier are not both declared")
+        record("EFFECT_ROLE_SEPARATION", "who executes and who verifies", "the policy root", None)
     else:
-        missing = sorted({executor, readback} - set(principals))
-        if missing:
-            raise Refused(f"roles name principals absent from the evidence: {missing}")
+        absent = sorted({executor, readback} - set(principals))
+        if absent:
+            raise Refused(f"roles name principals absent from the evidence: {absent}")
         if executor in voters:
             raise Refused(
-                f"the executor {executor!r} also cast a ballot. An executor that votes on "
-                "its own effect provides no separation"
+                f"the executor {executor!r} also cast a ballot. An executor that votes on its "
+                "own effect provides no separation"
             )
         if executor == readback:
             raise Refused(
-                f"the executor {executor!r} is also the readback verifier. Verifying your "
-                "own landing is the failure Typed Multi-Path Readback exists to prevent"
+                f"the executor {executor!r} is also the readback verifier. Verifying your own "
+                "landing is the failure Typed Multi-Path Readback exists to prevent"
             )
         results["EFFECT_ROLE_SEPARATION"] = (
             True, f"executor {executor}, readback {readback}, neither a voter nor each other")
+        record("EFFECT_ROLE_SEPARATION", "who executes and who verifies", "the policy root",
+               "each principal's POLICY_ADMIN_ROOT-signed POLICY_BINDING attestation")
 
-    # 7. REVOCATION_BEHAVIOUR_OBSERVED.
-    not_denied = []
+    # 7. REVOCATION_RECEIPT_VERIFIED -- the PLATFORM signs the denial, not the document.
+    not_denied: list[str] = []
     for role, principal in sorted(principals.items()):
-        revocation = principal["revocation"]
-        if revocation["reuse_result"] == "ACCEPTED":
-            raise Refused(
-                f"{role}: reuse after revocation was ACCEPTED. Revocation that does not "
-                "deny reuse is a log entry"
-            )
-        if revocation["reuse_result"] != "DENIED":
+        receipt = principal.get("revocation_receipt")
+        if not receipt:
             not_denied.append(role)
             continue
-        revoked = parse_time(f"{role}.revoked_at", revocation["revoked_at"])
-        attempted = parse_time(f"{role}.reuse_attempted_at", revocation["reuse_attempted_at"])
+        payload = verify_signed(
+            f"{role}.revocation_receipt", receipt, purpose="REVOCATION_RECEIPT",
+            snapshot_digest=snapshot_digest, keys=keys,
+            expect_fields={"principal_kid": principal["identity_attestation"]["kid"]},
+        )
+        if payload["reuse_result"] == "ACCEPTED":
+            raise Refused(
+                f"{role}: reuse after revocation was ACCEPTED. Revocation that does not deny "
+                "reuse is a log entry"
+            )
+        if payload["reuse_result"] != "DENIED":
+            not_denied.append(role)
+            continue
+        revoked = parse_time(f"{role}.revoked_at", payload["revoked_at"])
+        attempted = parse_time(f"{role}.reuse_attempted_at", payload["reuse_attempted_at"])
         if attempted <= revoked:
             raise Refused(
-                f"{role}: reuse was attempted at or before revocation, so DENIED shows "
-                "nothing about revocation"
+                f"{role}: reuse was attempted at or before revocation, so DENIED shows nothing "
+                "about revocation"
             )
     if not_denied:
-        results["REVOCATION_BEHAVIOUR_OBSERVED"] = (
-            False, f"reuse-after-revocation not attempted for: {not_denied}")
+        results["REVOCATION_RECEIPT_VERIFIED"] = (
+            False, f"no verified reuse-after-revocation receipt for: {not_denied}")
+        record("REVOCATION_RECEIPT_VERIFIED", "reuse after revocation was denied",
+               "the platform", None)
     else:
-        results["REVOCATION_BEHAVIOUR_OBSERVED"] = (
-            True, "every principal's reuse after revocation was observed DENIED")
+        results["REVOCATION_RECEIPT_VERIFIED"] = (
+            True, "every principal has a PLATFORM-signed receipt showing reuse DENIED")
+        record("REVOCATION_RECEIPT_VERIFIED", "reuse after revocation was denied",
+               "the platform", "PLATFORM-signed REVOCATION_RECEIPT")
 
-    # 8. SIGNER_VERIFIED -- signatures verified above; this is about key PROVENANCE.
-    jwks = evidence["jwks"]
-    if jwks["provenance"] == "ISSUER_DISCOVERY":
-        discovery = jwks.get("discovery")
-        if not discovery:
-            raise Refused(
-                "jwks.provenance is ISSUER_DISCOVERY with no discovery record. An "
-                "undocumented fetch is indistinguishable from a key the repository chose"
-            )
-        if jwks["issuer"] != GITHUB_ISSUER:
-            results["SIGNER_VERIFIED"] = (
-                False, f"issuer {jwks['issuer']!r} is not {GITHUB_ISSUER!r}")
-        elif not discovery["url"].startswith(GITHUB_ISSUER):
-            raise Refused(
-                f"discovery url {discovery['url']!r} is not under the declared issuer "
-                f"{GITHUB_ISSUER!r}"
-            )
-        elif discovery["response_digest"] != digest(jwks["keys"]):
-            raise Refused(
-                f"discovery response_digest {discovery['response_digest']} does not digest "
-                f"the key set it accompanies ({digest(jwks['keys'])}). A record describing "
-                "other bytes than the keys in hand describes a different fetch"
-            )
-        elif not expected_jwks_digest:
-            # The hole this closes: every field of a discovery record is writable by
-            # whoever writes the document, so a fixture could fabricate a fetch it never
-            # made and walk itself to AIS4. The fetch must therefore be confirmed
-            # OUT OF BAND -- by the job that actually performed it -- exactly as the shadow
-            # queue confirms a receipt against a digest passed through `needs` rather than
-            # through the artifact. DOCUMENT_SAYS_FETCHED != FETCH_INDEPENDENTLY_CONFIRMED.
-            results["SIGNER_VERIFIED"] = (
-                False,
-                "discovery record is self-reported and EXPECT_JWKS_DIGEST was not supplied "
-                "out of band; a document cannot confirm its own fetch",
-            )
-        elif expected_jwks_digest != discovery["response_digest"]:
-            raise Refused(
-                f"out-of-band jwks digest {expected_jwks_digest} does not match the "
-                f"document's {discovery['response_digest']}"
-            )
-        else:
-            results["SIGNER_VERIFIED"] = (
-                True,
-                f"keys fetched from {discovery['url']} at {discovery['fetched_at']}, "
-                f"response {discovery['response_digest']} confirmed out of band",
-            )
-    else:
-        results["SIGNER_VERIFIED"] = (
-            False,
-            "jwks.provenance is LOCAL_FIXTURE: the signatures verify against a key set the "
-            "repository supplied, which proves internal consistency and not an issuer. "
-            "SIGNATURE_VERIFIES != ISSUER_ESTABLISHED",
-        )
+    # 8. DISCOVERY_EXACTLY_BOUND.
+    bound, note = check_discovery(evidence)
+    results["DISCOVERY_EXACTLY_BOUND"] = (bound, note)
+    record("DISCOVERY_EXACTLY_BOUND", "the key set is the issuer's published set", "the issuer",
+           "exact issuer + jwks_uri host/path + response digest" if bound else None)
+
+    # 9. ISSUER_TRUST_ANCHOR -- unsatisfiable here, by construction rather than by omission.
+    results["ISSUER_TRUST_ANCHOR"] = (
+        False,
+        "a live fetch from the issuer is required and this tool performs none. It cannot be "
+        "delegated to a caller-supplied digest: one caller can compute and present both sides, "
+        "so agreement proves arithmetic, not provenance",
+    )
+    record("ISSUER_TRUST_ANCHOR", "the key set really is the issuer's",
+           "an independent fetcher outside this repository", None)
 
     attestation = evidence.get("attestation")
     if attestation and attestation["signer_verified"] and not attestation.get("verified_by"):
@@ -435,18 +675,17 @@ def evaluate(evidence: dict, expected_main_sha: str, expected_jwks_digest: str =
             "security value until signature, timestamp and signer are independently checked"
         )
 
-    return results
+    return results, ledger
 
 
-def observed_level(results: dict[str, tuple[bool, str]]) -> str:
-    """Highest rung whose evidence is present. Never rounds up."""
-    if not results["OIDC_BOUND"][0]:
+def observed_level(results: dict) -> str:
+    if not results["SIGNED_WORKFLOW_CONTEXT"][0]:
         return LADDER[0]
     level = "AIS1_WORKFLOW_BOUND"
-    if not results["DISTINCT_PLATFORM_PRINCIPALS"][0]:
+    if not results["PRINCIPAL_IDENTITY_ATTESTED"][0]:
         return level
     level = "AIS2_PLATFORM_PRINCIPALS"
-    if not results["DISTINCT_CUSTODY_DOMAINS"][0]:
+    if not results["CUSTODY_ATTESTED"][0]:
         return level
     level = "AIS3_CUSTODY_SEPARATED"
     if all(results[name][0] for name in CONJUNCTS):
@@ -462,10 +701,10 @@ def main(argv: list[str]) -> int:
         return FAIL
     try:
         evidence = json.loads(Path(path).read_text(encoding="utf-8"))
-        results = evaluate(
+        results, ledger = evaluate(
             evidence,
             env.get("EXPECT_MAIN_SHA", "").strip(),
-            env.get("EXPECT_JWKS_DIGEST", "").strip(),
+            env.get("EVALUATE_AT", "").strip(),
         )
     except (OSError, json.JSONDecodeError) as exc:
         print(f"REFUSED (closed): evidence unreadable or unparseable ({exc})", file=sys.stderr)
@@ -478,24 +717,29 @@ def main(argv: list[str]) -> int:
         return FAIL
 
     level = observed_level(results)
-    reached = level == "AIS4_INDEPENDENT_DOMAINS"
+    authenticated = [c for c in CONJUNCTS if ledger[c]["authenticator"] != "UNAUTHENTICATED"]
     print(json.dumps({
-        "schema": "secb.ais-production-observation/v1",
+        "schema": "secb.ais-production-observation/v2",
         "OBSERVED_LEVEL": level,
-        "PRODUCTION_AIS_LEVEL": level if reached else "NOT_OBSERVED",
-        "conjuncts": {name: {
-            "observed": results[name][0],
-            "note": results[name][1],
-        } for name in CONJUNCTS},
-        "unsatisfied": [name for name in CONJUNCTS if not results[name][0]],
+        "PRODUCTION_AIS_LEVEL": level if level == LADDER[4] else "NOT_OBSERVED",
+        "offline_ceiling": OFFLINE_CEILING,
+        "ais4_reachable_here": False,
+        "conjuncts": {c: {"observed": results[c][0], "note": results[c][1]} for c in CONJUNCTS},
+        "unsatisfied": [c for c in CONJUNCTS if not results[c][0]],
+        "coverage_ledger": ledger,
+        "coverage_accounting": {
+            "asserted": len(CONJUNCTS),
+            "authenticated": len(authenticated),
+            "unauthenticated": [c for c in CONJUNCTS if c not in authenticated],
+            "complete": len(authenticated) == len(CONJUNCTS),
+        },
         "tranche_b": "EXTERNAL_AUTHORITY_REQUIRED -- no input to this tool can mark it complete",
         "not_proven": [
-            "that a verifier reaching AIS4 on some document means this repository has one",
-            "that a verifying signature establishes an issuer; that is jwks.provenance",
-            "that a discovery record proves a fetch happened; only the out-of-band "
-            "EXPECT_JWKS_DIGEST, supplied by the job that fetched, can confirm that",
+            "that the key set is the issuer's; that needs a live fetch this tool cannot do",
+            "that a signature over one field authenticates any adjacent unsigned field",
+            "that distinct identifier STRINGS are distinct security domains -- only distinct "
+            "signing keys with attestations from distinct roots evidence that",
             "that RS256 verification here covers certificate chains or key revocation",
-            "that conformance to the schema is sufficient; the conjuncts are evidenced",
         ],
         "confers_merge_authority": False,
     }, indent=2, sort_keys=True))
