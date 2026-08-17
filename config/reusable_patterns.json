@@ -1,6 +1,6 @@
 {
   "schema": "secb.reusable-pattern-ledger/v1",
-  "_purpose": "SECB-WP-FWK-090. The durable home for reusable patterns established across FWK-079..089, which until now existed only in pull-request comments -- ungreppable by the next agent and unverifiable by any tool. Each entry declares HOW it is guarded, and scripts/check_pattern_ledger.py refuses any entry whose declared guard disagrees with this tree. See docs/00-governance/REUSABLE_PATTERN_LEDGER.md for the contract. PENDING_MERGE requires DUAL-TREE binding: the cited guard must be absent from this tree AND readable at a pinned pending_head. Entries whose pending head is not fetchable where the gate runs are PROSE_ONLY with the head recorded in the note -- an unverifiable claim is not a weaker claim.",
+  "_purpose": "SECB-WP-FWK-090. The durable home for reusable patterns established across FWK-079..089, which until now existed only in pull-request comments -- ungreppable by the next agent and unverifiable by any tool. Each entry declares HOW it is guarded, and scripts/check_pattern_ledger.py refuses any entry whose declared guard disagrees with this tree. See docs/00-governance/REUSABLE_PATTERN_LEDGER.md for the contract. PENDING_MERGE requires DUAL-TREE binding: the cited guard must be absent from this tree AND readable at a pinned pending_head. Entries whose pending head is not fetchable where the gate runs are PROSE_ONLY with the head recorded in the note -- an unverifiable claim is not a weaker claim. FWK-092 extends this ledger with `promoted_refusals`: the review-to-guard lifecycle, checked by scripts/check_review_preflight.py. Each record must carry the evidence its activation_state claims -- a record cannot reach PRE_REVIEW_ACTIVE by relabelling, and missing source, fixture, mutation, command or residual-judgement declaration fails closed. This is an extension, not a second registry: the patterns above and the refusals here share one file and one validator boundary.",
   "patterns": [
     {
       "id": "RP-001",
@@ -431,6 +431,103 @@
       },
       "guard": "PROSE_ONLY",
       "note": "check_budget.py prints a PASS at 0/N when stdin is empty; a zero-byte receipt has a perfectly valid SHA-256. Both launder absence into evidence. Filed, not yet fixed."
+    }
+  ],
+  "test_roots": [
+    "tests",
+    "docs/06-agent-orchestration/skill-router/SECB-WP-ENGLOOP-MVP-001 — Sandbox Evidence"
+  ],
+  "promoted_refusals": [
+    {
+      "refusal_id": "RF-001",
+      "name": "A cited guard must be COLLECTED, not merely defined",
+      "origin": {
+        "pr": 161,
+        "comment": 5319244186,
+        "refused_head": "47f6e8eb161ca15999fae4a44ba74eaa94f44730"
+      },
+      "counterexample": "A ledger citation naming a real module and a real top-level `def test_x` that pytest never collects -- because the path lies outside the collected roots, or the name is not a collected node ID. The AST check in revision 3 accepts it; collection does not.",
+      "guard_predicate": "for every citation: normalised POSIX repository-relative path ^ confined to test_roots ^ f'{path}::{test}' present in `pytest --collect-only` output (allowing a parametrised suffix)",
+      "authoritative_source": "pytest --collect-only node IDs; docs.pytest.org collection rules",
+      "positive_fixture": "tests/test_review_preflight.py::test_a_collected_citation_passes",
+      "negative_fixtures": [
+        "tests/test_review_preflight.py::test_a_defined_but_uncollected_citation_is_refused",
+        "tests/test_review_preflight.py::test_a_citation_outside_the_test_roots_is_refused",
+        "tests/test_review_preflight.py::test_an_absolute_or_escaping_citation_is_refused",
+        "tests/test_review_preflight.py::test_an_unnormalised_citation_is_refused",
+        "tests/test_review_preflight.py::test_a_citation_naming_a_helper_is_refused"
+      ],
+      "mutation": "Replace node_id_collected() with a constant True: EXACTLY TWO tests fail -- test_a_defined_but_uncollected_citation_is_refused and test_a_citation_naming_a_helper_is_refused -- and the path/normalisation/confinement tests keep passing. Both failures depend on collection specifically, which is what proves the collection predicate load-bearing rather than a restatement of the path rules. Recorded as two because the first draft of this field claimed one: the mutation was run, disagreed, and the RECORD was corrected rather than the observation.",
+      "pre_review_command": "python3 scripts/check_review_preflight.py",
+      "guard_strength": "MECHANICAL",
+      "residual_judgement": "Whether the collected test is SEMANTICALLY adequate for the pattern it claims to guard. Collection proves it runs; only review can say it checks the right thing.",
+      "activation_state": "PRE_REVIEW_ACTIVE",
+      "effective_commit": "34bc9b86760b",
+      "observations": {
+        "opportunities": 0,
+        "caught_pre_review": 0,
+        "escaped_to_review": 0,
+        "false_positives": 0
+      }
+    },
+    {
+      "refusal_id": "RF-002",
+      "name": "An OIDC subject contract must be one the issuer can mint",
+      "origin": {
+        "pr": 159,
+        "comment": 5318696053,
+        "refused_head": "f84514ea8491d7ca98b982b195e155ff9174b199"
+      },
+      "counterexample": "A verifier requiring `repo:<repo>:role:<role>`. `role` is not a supported claim key, so no issuer configuration can mint it; the fixture signs the invented shape with repository-held keys and passes. FIXTURE_ACCEPTS != ISSUER_CAN_MINT.",
+      "guard_predicate": "template keys subset of the documented supported set ^ configuration readback present and bound ^ environment subjects name an environment in the readback ^ subject consistency and principal binding evaluated as SEPARATE predicates",
+      "authoritative_source": "docs.github.com/actions/reference/openid-connect-reference; GET /repos/{owner}/{repo}/actions/oidc/customization/sub",
+      "residual_judgement": "Whether the chosen producible binding actually separates the principals in this organisation, and whether an observed-issued-token fixture is representative.",
+      "activation_state": "COUNTEREXAMPLE_REPRODUCED",
+      "phase": 2,
+      "blocked_on": "the counterexamples live in tests/test_ais_production_evidence.py on unmerged #159; promoting here would cite a guard absent from this tree, which is the phantom citation RF-001 exists to refuse"
+    },
+    {
+      "refusal_id": "RF-003",
+      "name": "A credential-minting job must not be reachable from an automatic trigger",
+      "origin": {
+        "pr": 159,
+        "comment": 5319244186,
+        "refused_head": "b0dbf6c65573000000000000000000000000000a"
+      },
+      "counterexample": "A workflow granting `id-token: write` under `pull_request` with a path filter. The filter matches the PR's cumulative diff, not the current commit, so unrelated synchronisations mint credentials. PR_PATH_FILTER_MATCH != CURRENT_COMMIT_TOUCHED_PATH.",
+      "guard_predicate": "for every job granting id-token: write -- the reachable trigger set contains only workflow_dispatch, unless a machine-readable policy authorises the exact event",
+      "authoritative_source": "docs.github.com/en/actions/reference/security/secure-use",
+      "residual_judgement": "Whether an exact automatic event is ever warranted for this repo.",
+      "activation_state": "COUNTEREXAMPLE_REPRODUCED",
+      "phase": 3
+    },
+    {
+      "refusal_id": "RF-004",
+      "name": "PR scope is measured merge-base relative",
+      "origin": {
+        "pr": 159,
+        "comment": 5318971305,
+        "refused_head": "7081b68a8aa81ec8f6dbf06ee8f928deb700be7d"
+      },
+      "counterexample": "`git diff origin/main HEAD` for a branch behind main counts main's own changes as reversals by the branch: it reported 7 files / 2625 lines and a budget FAIL where the three-dot form reports 4 / 2445. DIFF_VS_TIP != DIFF_VS_MERGE_BASE.",
+      "guard_predicate": "every PR scope measurement uses three-dot base...head semantics",
+      "authoritative_source": "git-diff(1) three-dot semantics; ci.yml's own invocation",
+      "residual_judgement": "None -- this class is fully mechanical once encoded.",
+      "activation_state": "COUNTEREXAMPLE_REPRODUCED",
+      "phase": 3
+    },
+    {
+      "refusal_id": "RF-005",
+      "name": "A receipt binds a head, a base and a toolchain epoch",
+      "origin": {
+        "pr": 166,
+        "comment": 5319513960,
+        "refused_head": "383fc9b3bf7b6717350da521a897b65553c07cf8"
+      },
+      "counterexample": "Two instances observed rather than one: a receipt offered for a superseded head (b0dbf6c after d2a1b8bb), and a cohort digest binding test_set_epoch while the receipt's declared identity omitted it -- authoritative and invisible at once.",
+      "residual_judgement": "Whether a superseded receipt retains value as historical evidence, which it usually does: SUPERSEDED_FOR_CURRENT_ELIGIBILITY != INVALID_HISTORICAL_EVIDENCE.",
+      "activation_state": "OBSERVED",
+      "phase": 3
     }
   ]
 }
