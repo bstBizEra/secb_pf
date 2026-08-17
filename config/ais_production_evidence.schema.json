@@ -1,0 +1,167 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.ais-production-evidence/v1",
+  "title": "AIS4 production evidence contract",
+  "description": "SECB-WP-FWK-089, issue #158. Describes evidence that MIGHT support AIS4_INDEPENDENT_DOMAINS. It is the Tranche A half of the work package: the shape a verifier can check, not a substrate. VERIFIER_AVAILABLE != SUBSTRATE_AVAILABLE != INDEPENDENCE_OBSERVED. No document conforming to this schema provisions an App, a custody domain or a policy domain, and conformance is necessary rather than sufficient -- the eight promotion conjuncts are evidenced individually by scripts/check_ais_production_evidence.py, which computes the observed level and never reads a claimed one. A document that ASSERTS its own level is refused rather than believed, so no level field exists here to assert it with.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "snapshot", "jwks", "principals", "ballots", "decision_receipt_digest"],
+  "properties": {
+    "schema": { "const": "secb.ais-production-evidence/v1" },
+
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The immutable thing every principal must be bound to. Independent decisions about DIFFERENT snapshots are not a quorum, they are a coincidence.",
+      "required": ["repository_id", "main_sha", "workflow_sha", "job_workflow_ref"],
+      "properties": {
+        "repository_id": { "type": "string", "minLength": 1 },
+        "main_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "workflow_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "job_workflow_ref": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "jwks": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The key set the OIDC signatures are checked against, and -- separately -- where that key set came from. A signature that verifies against a key the repository supplied proves the document is internally consistent, not that an issuer signed it. Hence provenance is a required, declared field: LOCAL_FIXTURE is honest and caps the level; claiming ISSUER_DISCOVERY without a discovery record is laundering and is refused.",
+      "required": ["provenance", "issuer", "keys"],
+      "properties": {
+        "provenance": { "enum": ["ISSUER_DISCOVERY", "LOCAL_FIXTURE"] },
+        "issuer": { "type": "string", "minLength": 1 },
+        "discovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Required when provenance is ISSUER_DISCOVERY. Records the fetch that produced the keys, so the claim is checkable rather than asserted.",
+          "required": ["url", "fetched_at", "response_digest"],
+          "properties": {
+            "url": { "type": "string", "pattern": "^https://" },
+            "fetched_at": { "type": "string", "minLength": 20 },
+            "response_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          }
+        },
+        "keys": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kid", "kty", "alg", "n", "e"],
+            "properties": {
+              "kid": { "type": "string", "minLength": 1 },
+              "kty": { "const": "RSA" },
+              "alg": { "const": "RS256" },
+              "n": { "type": "string", "minLength": 1, "description": "base64url modulus" },
+              "e": { "type": "string", "minLength": 1, "description": "base64url exponent" }
+            }
+          }
+        }
+      }
+    },
+
+    "principals": {
+      "type": "object",
+      "minProperties": 2,
+      "description": "Role name -> principal evidence. The role NAME is a label and proves nothing; every separation dimension below is a separate field precisely so that one cannot stand in for another.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["app_id", "installation_id", "custody_domain", "policy_domain", "policy_administered_by", "token_scope", "revocation", "oidc"],
+        "properties": {
+          "app_id": { "type": "string", "minLength": 1 },
+          "installation_id": { "type": "string", "minLength": 1 },
+          "custody_domain": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Who holds the private key. Two principals whose credentials are readable by one runtime share a custody domain however many Apps they have."
+          },
+          "policy_domain": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Which trust policy governs this principal."
+          },
+          "policy_administered_by": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The policy domain that ADMINISTERS this principal's policy. Must not be this principal's own policy_domain: a principal that edits the policy validating its own decisions is its own auditor."
+          },
+          "token_scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["repositories", "permissions", "issued_at", "expires_at"],
+            "properties": {
+              "repositories": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+              "permissions": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string" } },
+              "issued_at": { "type": "string", "minLength": 20 },
+              "expires_at": { "type": "string", "minLength": 20 }
+            }
+          },
+          "revocation": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Revocation must be OBSERVED denied, not inferred from an API accepting a revoke call. REVOKE_ACCEPTED != REUSE_DENIED.",
+            "required": ["challenge_id", "revoked_at", "reuse_attempted_at", "reuse_result"],
+            "properties": {
+              "challenge_id": { "type": "string", "minLength": 1 },
+              "revoked_at": { "type": "string", "minLength": 20 },
+              "reuse_attempted_at": { "type": "string", "minLength": 20 },
+              "reuse_result": { "enum": ["DENIED", "ACCEPTED", "NOT_ATTEMPTED"] }
+            }
+          },
+          "oidc": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kid", "token"],
+            "properties": {
+              "kid": { "type": "string", "minLength": 1 },
+              "token": { "type": "string", "minLength": 1, "description": "Compact JWS. Claims are read from the token, never from a parallel copy: a decoded-claims field beside the token is a second source of truth that can disagree with the signed one." }
+            }
+          }
+        }
+      }
+    },
+
+    "ballots": {
+      "type": "array",
+      "minItems": 2,
+      "description": "Independently executed decisions. Each names the principal that cast it and the snapshot digest it was cast against.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["principal", "snapshot_digest", "decision", "cast_at"],
+        "properties": {
+          "principal": { "type": "string", "minLength": 1 },
+          "snapshot_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "decision": { "enum": ["APPROVE", "REJECT", "ABSTAIN"] },
+          "cast_at": { "type": "string", "minLength": 20 }
+        }
+      }
+    },
+
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Which principal performs each effect. Separate from `principals` so that effect separation is checkable: an executor that also votes, or that also verifies its own readback, collapses the separation the ballots are supposed to provide.",
+      "required": ["executor", "readback_verifier"],
+      "properties": {
+        "executor": { "type": "string", "minLength": 1 },
+        "readback_verifier": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "decision_receipt_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional. Generation has no security value until signature, timestamp and signer identity are independently verified, so an unverified attestation contributes nothing and an attestation presented as verified without a verifier record is refused.",
+      "required": ["bundle_digest", "signer_verified"],
+      "properties": {
+        "bundle_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "signer_verified": { "type": "boolean" },
+        "verified_by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
