@@ -1,0 +1,52 @@
+{
+  "schema": "secb.github-oidc-issued-claims-fixture/v1",
+  "provenance": {
+    "workflow_run_url": "https://github.com/bstBizEra/secb_pf/actions/runs/32059511164",
+    "workflow_job_id": "95477326495",
+    "pull_request": 159,
+    "pull_request_head_sha": "b0dbf6c6557321ecc4f2720a865074221cb9c208",
+    "claims_record_digest": "sha256:9fc574860d8a35e12b3fc1077284bdcd55c87085da7e1414a7d19f8a269d3742",
+    "compact_jwt_retained": false,
+    "derivation": "Exact allowlisted claims record read back from the successful GitHub Actions job log; the compact JWT was masked before output and was not retained."
+  },
+  "record": {
+    "claims": {
+      "actor": "bstBizEra",
+      "actor_id": "230689381",
+      "aud": "secb-pf:oidc-observation",
+      "base_ref": "main",
+      "event_name": "pull_request",
+      "exp": 1786994546,
+      "head_ref": "feat/secb-wp-fwk-089-ais-production-evidence",
+      "iat": 1786994246,
+      "iss": "https://token.actions.githubusercontent.com",
+      "job_workflow_ref": "bstBizEra/secb_pf/.github/workflows/oidc-issued-claims.yml@refs/pull/159/merge",
+      "job_workflow_sha": "86a30e2c8d32de3cc90a24d6daa9f935160bdffd",
+      "jti": "9649403f-c9e8-4feb-b758-cff544292ecd",
+      "nbf": 1786993946,
+      "ref": "refs/pull/159/merge",
+      "ref_type": "branch",
+      "repository": "bstBizEra/secb_pf",
+      "repository_id": "1328913339",
+      "repository_owner": "bstBizEra",
+      "repository_owner_id": "230689381",
+      "repository_visibility": "private",
+      "run_attempt": "1",
+      "run_id": "32059511164",
+      "run_number": "1",
+      "sha": "86a30e2c8d32de3cc90a24d6daa9f935160bdffd",
+      "sub": "repo:bstBizEra@230689381/secb_pf@1328913339:pull_request",
+      "workflow": "OIDC — issued-claim observation",
+      "workflow_ref": "bstBizEra/secb_pf/.github/workflows/oidc-issued-claims.yml@refs/pull/159/merge",
+      "workflow_sha": "86a30e2c8d32de3cc90a24d6daa9f935160bdffd"
+    },
+    "schema": "secb.github-oidc-issued-claims-observation/v1",
+    "source": {
+      "event_name": "pull_request",
+      "repository": "bstBizEra/secb_pf",
+      "run_attempt": "1",
+      "run_id": "32059511164",
+      "sha": "86a30e2c8d32de3cc90a24d6daa9f935160bdffd"
+    }
+  }
+}
