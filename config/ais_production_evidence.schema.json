@@ -1,11 +1,11 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "secb.ais-production-evidence/v2",
-  "title": "AIS4 production evidence contract (v2 -- every asserted fact carries its own signature)",
-  "description": "SECB-WP-FWK-089, issue #158. v1 of this contract was refused in review: its single OIDC signature covered the workflow execution context, while app_id, installation_id, custody domain, policy domain and the ballots sat beside it as repository-authored strings. One authentic token copied across role records, plus fabricated distinct identifiers and unsigned APPROVE records, satisfied every separation check. The governing rule of v2: A VALID SIGNATURE OVER ONE PORTION OF A DOCUMENT MUST NOT LEND AUTHENTICITY TO ADJACENT UNSIGNED FIELDS. Therefore every separation dimension is carried by a signed attestation from the role authorised to produce that fact -- the principal attests its own identity, the CUSTODY ROOT attests custody, an EXTERNAL POLICY ADMIN ROOT attests policy, the PLATFORM attests revocation, and each voter signs its own ballot. Distinct identifier STRINGS evidence nothing; distinct signing KEYS with attestations from distinct roots do. Conformance here is necessary and not sufficient: scripts/check_ais_production_evidence.py computes the observed level from nine conjuncts and emits a coverage ledger naming, per conjunct, the asserted fact, its authoritative producer and the authenticator binding them. No level field exists in this schema, because a document that can assert its own level makes every check decorative. AIS4 additionally requires ISSUER_TRUST_ANCHOR -- a live fetch proving the key set is the issuer's -- which no offline document can supply and no caller-provided digest can stand in for.",
+  "title": "AIS4 production evidence contract (v2, revision 3 -- complete provenance path from producer to verdict)",
+  "description": "SECB-WP-FWK-089, issue #158. v1 of this contract was refused in review: its single OIDC signature covered the workflow execution context, while app_id, installation_id, custody domain, policy domain and the ballots sat beside it as repository-authored strings. One authentic token copied across role records, plus fabricated distinct identifiers and unsigned APPROVE records, satisfied every separation check. The governing rule of v2: A VALID SIGNATURE OVER ONE PORTION OF A DOCUMENT MUST NOT LEND AUTHENTICITY TO ADJACENT UNSIGNED FIELDS. Therefore every separation dimension is carried by a signed attestation from the role authorised to produce that fact -- the principal attests its own identity, the CUSTODY ROOT attests custody, an EXTERNAL POLICY ADMIN ROOT attests policy, the PLATFORM attests revocation, and each voter signs its own ballot. Distinct identifier STRINGS evidence nothing; distinct signing KEYS with attestations from distinct roots do. Revision 3 closes four provenance edges the second review found still open: the policy signer must BE the administrator it names (a root vouching for another root is hearsay); the executor/readback assignment is itself signed by an external administering root; `sub` is matched segment-exactly rather than by prefix; and a token whose `iat` is after the evaluation instant is refused. Conformance here is necessary and not sufficient: scripts/check_ais_production_evidence.py computes the observed level from nine conjuncts and emits a coverage ledger naming, per conjunct, the asserted fact, its authoritative producer and the authenticator binding them. No level field exists in this schema, because a document that can assert its own level makes every check decorative. AIS4 additionally requires ISSUER_TRUST_ANCHOR -- a live fetch proving the key set is the issuer's -- which no offline document can supply and no caller-provided digest can stand in for.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "snapshot", "oidc_policy", "jwks", "principals", "ballots", "roles", "decision_receipt_digest"],
+  "required": ["schema", "snapshot", "oidc_policy", "jwks", "principals", "ballots", "role_assignment", "decision_receipt_digest"],
 
   "definitions": {
     "signed_envelope": {
@@ -18,7 +18,7 @@
           "type": "object",
           "required": ["purpose", "snapshot_digest"],
           "properties": {
-            "purpose": { "enum": ["PRINCIPAL_IDENTITY", "CUSTODY_BINDING", "POLICY_BINDING", "BALLOT", "REVOCATION_RECEIPT"] },
+            "purpose": { "enum": ["PRINCIPAL_IDENTITY", "CUSTODY_BINDING", "POLICY_BINDING", "BALLOT", "REVOCATION_RECEIPT", "ROLE_ASSIGNMENT"] },
             "snapshot_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
           }
         },
@@ -47,11 +47,11 @@
     "oidc_policy": {
       "type": "object",
       "additionalProperties": false,
-      "description": "What the tokens must have been minted FOR. v1 never read `aud` or `sub`, so an authentic token issued for any audience or any repository satisfied it.",
-      "required": ["audience", "subject_prefix"],
+      "description": "What the tokens must have been minted FOR. v1 never read `aud` or `sub` at all; v2 read `sub` with a raw PREFIX test, which accepted any longer repository name starting with the expected one AND bound no role -- so one principal's token satisfied every role record sharing the prefix. The subject is now matched segment-exactly against [repo, subject_repository, role, <the principal's role>].",
+      "required": ["audience", "subject_repository"],
       "properties": {
         "audience": { "type": "string", "minLength": 1 },
-        "subject_prefix": { "type": "string", "minLength": 1 }
+        "subject_repository": { "type": "string", "minLength": 1, "description": "owner/name, compared exactly as the second segment of `sub`" }
       }
     },
 
@@ -162,15 +162,9 @@
       }
     },
 
-    "roles": {
-      "type": "object",
-      "additionalProperties": false,
-      "description": "Which principal performs each effect. An executor that votes provides no separation, and an executor that verifies its own readback is the failure multi-path readback exists to prevent.",
-      "required": ["executor", "readback_verifier"],
-      "properties": {
-        "executor": { "type": "string", "minLength": 1 },
-        "readback_verifier": { "type": "string", "minLength": 1 }
-      }
+    "role_assignment": {
+      "allOf": [{ "$ref": "#/definitions/signed_envelope" }],
+      "description": "Who executes and who verifies -- SIGNED. In v2 this was an unsigned `roles` object, so the separation was only as trustworthy as whoever wrote the file: naming a compliant executor costs nothing when nobody signs the naming. The signer must be a POLICY_ADMIN_ROOT whose owner is (a) not one of the principals' own policy domains, and (b) an administrator of at least one of them -- an assignment signed from inside the set it governs is self-assignment with an extra step, and one signed by a root with no authority over the subjects is not authority at all. The payload carries `executor` and `readback_verifier`, and the verifier reads them from the signed payload rather than from any unsigned copy."
     },
 
     "decision_receipt_digest": {

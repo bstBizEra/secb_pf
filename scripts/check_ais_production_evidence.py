@@ -94,6 +94,7 @@ PURPOSE_SIGNERS = {
     "POLICY_BINDING": "POLICY_ADMIN_ROOT",
     "BALLOT": "PRINCIPAL",
     "REVOCATION_RECEIPT": "PLATFORM",
+    "ROLE_ASSIGNMENT": "POLICY_ADMIN_ROOT",
     "OIDC": "PLATFORM",
 }
 KEY_ROLES = ("PRINCIPAL", "CUSTODY_ROOT", "POLICY_ADMIN_ROOT", "PLATFORM")
@@ -301,13 +302,27 @@ def validate_oidc(role: str, principal: dict, evidence: dict, keys: dict, now: d
             f"{policy['audience']!r}. A token minted for another audience is a valid token "
             "for someone else"
         )
-    if not str(claims["sub"]).startswith(policy["subject_prefix"]):
+    # Structured, segment-exact. A raw prefix test accepts any longer repository whose
+    # name merely STARTS with the expected one ("secb_pf" under a prefix of "secb"), and it
+    # never binds the token to the ROLE presenting it -- so one principal's token satisfies
+    # every role record that carries the same prefix. Both are closed by comparing segments.
+    segments = str(claims["sub"]).split(":")
+    expected = ["repo", policy["subject_repository"], "role", role]
+    if segments != expected:
         raise Refused(
-            f"{role}: token sub {claims['sub']!r} is not under {policy['subject_prefix']!r}"
+            f"{role}: token sub {claims['sub']!r} does not match exactly "
+            f"{':'.join(expected)!r}. A prefix match binds neither the repository nor the "
+            "role, so one token would satisfy every role record sharing that prefix"
         )
 
     issued = parse_time(f"{role}.iat", claims["iat"])
     expires = parse_time(f"{role}.exp", claims["exp"])
+    if issued > now:
+        raise Refused(
+            f"{role}: token iat {issued.isoformat()} is after the evaluation instant "
+            f"{now.isoformat()}. A token issued in the future is either a clock forgery or "
+            "evidence about a run that has not happened"
+        )
     if "nbf" in claims and parse_time(f"{role}.nbf", claims["nbf"]) > now:
         raise Refused(f"{role}: token is not yet valid at {now.isoformat()}")
     if expires <= issued:
@@ -515,6 +530,14 @@ def evaluate(evidence: dict, expected_main_sha: str, evaluate_at: str) -> tuple[
             expect_fields={"policy_domain": principal["policy_domain"], "role": role},
         )
         admin = payload["administered_by"]
+        signer_owner = keys[principal["policy_attestation"]["kid"]]["owner"]
+        if signer_owner != admin:
+            raise Refused(
+                f"{role}: policy attestation names administrator {admin!r} but is signed by a "
+                f"key owned by {signer_owner!r}. A signature from one admin root asserting "
+                "that ANOTHER root governs this principal is hearsay: the signer must be the "
+                "producer of the fact it asserts"
+            )
         if admin == principal["policy_domain"]:
             raise Refused(f"{role}: policy is administered by its own domain {admin!r}")
         administered_by[principal["policy_domain"]] = admin
@@ -588,17 +611,41 @@ def evaluate(evidence: dict, expected_main_sha: str, evaluate_at: str) -> tuple[
         record("BALLOTS_SIGNED", "the decision", "each voting principal",
                "PRINCIPAL-signed BALLOT with nonce, digested by decision_receipt_digest")
 
-    # 6. EFFECT_ROLE_SEPARATION.
-    roles = evidence.get("roles") or {}
-    executor, readback = roles.get("executor"), roles.get("readback_verifier")
-    if not executor or not readback:
+    # 6. EFFECT_ROLE_SEPARATION -- the ASSIGNMENT itself must be signed.
+    # v2 read executor/readback from an unsigned `roles` object. The separation was then only
+    # as trustworthy as whoever wrote the file: naming a compliant executor costs nothing when
+    # nobody signs the naming. The assignment is now a signed envelope from a POLICY_ADMIN_ROOT
+    # that is EXTERNAL to the principals' own policy domains -- authority over the derived
+    # decision, not merely a record of it.
+    assignment = evidence.get("role_assignment")
+    if not assignment:
         results["EFFECT_ROLE_SEPARATION"] = (
-            False, "roles.executor and roles.readback_verifier are not both declared")
-        record("EFFECT_ROLE_SEPARATION", "who executes and who verifies", "the policy root", None)
+            False, "role_assignment is absent; who executes and who verifies is unattested")
+        record("EFFECT_ROLE_SEPARATION", "who executes and who verifies",
+               "an external policy admin root", None)
+        voters_note = None
     else:
+        payload = verify_signed(
+            "role_assignment", assignment, purpose="ROLE_ASSIGNMENT",
+            snapshot_digest=snapshot_digest, keys=keys,
+        )
+        signer_owner = keys[assignment["kid"]]["owner"]
+        if signer_owner in policy_domains:
+            raise Refused(
+                f"role_assignment is signed by {signer_owner!r}, which is one of the "
+                "principals' own policy domains. An assignment signed from inside the set it "
+                "governs is self-assignment with an extra step"
+            )
+        if signer_owner not in external:
+            raise Refused(
+                f"role_assignment is signed by {signer_owner!r}, which administers none of "
+                f"these principals' policies (external roots: {external}). A signer with no "
+                "authority over the subjects has no authority over their role assignment"
+            )
+        executor, readback = payload["executor"], payload["readback_verifier"]
         absent = sorted({executor, readback} - set(principals))
         if absent:
-            raise Refused(f"roles name principals absent from the evidence: {absent}")
+            raise Refused(f"role_assignment names principals absent from the evidence: {absent}")
         if executor in voters:
             raise Refused(
                 f"the executor {executor!r} also cast a ballot. An executor that votes on its "
@@ -610,9 +657,12 @@ def evaluate(evidence: dict, expected_main_sha: str, evaluate_at: str) -> tuple[
                 "landing is the failure Typed Multi-Path Readback exists to prevent"
             )
         results["EFFECT_ROLE_SEPARATION"] = (
-            True, f"executor {executor}, readback {readback}, neither a voter nor each other")
-        record("EFFECT_ROLE_SEPARATION", "who executes and who verifies", "the policy root",
-               "each principal's POLICY_ADMIN_ROOT-signed POLICY_BINDING attestation")
+            True,
+            f"executor {executor}, readback {readback}, assigned by external root {signer_owner}",
+        )
+        record("EFFECT_ROLE_SEPARATION", "who executes and who verifies",
+               f"external policy admin root {signer_owner}",
+               "POLICY_ADMIN_ROOT-signed ROLE_ASSIGNMENT, snapshot-bound")
 
     # 7. REVOCATION_RECEIPT_VERIFIED -- the PLATFORM signs the denial, not the document.
     not_denied: list[str] = []

@@ -43,7 +43,7 @@ WORKFLOW_SHA = "7e478d714ef57f624de2ccddc5733697f06fb119"
 JOB_WORKFLOW_REF = "bstBizEra/secb_pf/.github/workflows/ci.yml@refs/heads/main"
 REPOSITORY_ID = "1029384756"
 AUDIENCE = "bstBizEra"
-SUBJECT_PREFIX = "repo:bstBizEra/secb_pf:"
+SUBJECT_REPOSITORY = "bstBizEra/secb_pf"
 NOW = "2026-08-17T10:30:00+00:00"
 
 SHA256_DIGESTINFO = binascii.unhexlify("3031300d060960864801650304020105000420")
@@ -114,7 +114,7 @@ def oidc_token(role: str, index: int, *, claims_override: dict | None = None,
     claims = {
         "iss": GITHUB_ISSUER,
         "aud": AUDIENCE,
-        "sub": f"{SUBJECT_PREFIX}role:{role}",
+        "sub": f"repo:{SUBJECT_REPOSITORY}:role:{role}",
         "iat": "2026-08-17T10:00:00+00:00",
         "exp": "2026-08-17T10:45:00+00:00",
         "jti": f"jti-{index}",
@@ -197,7 +197,7 @@ def evidence() -> dict:
     return {
         "schema": "secb.ais-production-evidence/v2",
         "snapshot": deepcopy(SNAPSHOT),
-        "oidc_policy": {"audience": AUDIENCE, "subject_prefix": SUBJECT_PREFIX},
+        "oidc_policy": {"audience": AUDIENCE, "subject_repository": SUBJECT_REPOSITORY},
         "jwks": {
             "provenance": "LOCAL_FIXTURE",
             "issuer": GITHUB_ISSUER,
@@ -205,7 +205,11 @@ def evidence() -> dict:
         },
         "principals": {role: principal(role, i) for i, role in enumerate(ROLES)},
         "ballots": ballots,
-        "roles": {"executor": "executor", "readback_verifier": "readback"},
+        "role_assignment": signed("policy-admin-x", {
+            "purpose": "ROLE_ASSIGNMENT",
+            "executor": "executor",
+            "readback_verifier": "readback",
+        }),
         "decision_receipt_digest": sha256_digest(ballots),
     }
 
@@ -263,8 +267,25 @@ def test_v1_counterexample_is_refused(tmp_path):
         {"principal": "voter_b", "snapshot_digest": SNAPSHOT_DIGEST, "decision": "APPROVE"},
     ]
     rebuild_receipt(document)
+    stderr = refuses(document, tmp_path, "does not match exactly")
+    # It no longer even reaches the jti replay guard: the copied token's `sub` names voter_a,
+    # so presenting it as another role fails the role binding first. Revision 3 refuses this
+    # document one edge EARLIER than revision 2 did, which is the improvement -- the token is
+    # rejected for not belonging to the role, not merely for having been seen twice.
+    assert "binds neither the repository nor the" in stderr
+
+
+def test_same_jti_across_two_principals_is_refused(tmp_path):
+    """Replay detection, now that the sub binding catches the naive copy first.
+
+    Two tokens with correct per-role `sub` values but ONE jti: the same minted token
+    presented twice, which is one principal however many roles the document names.
+    """
+    document = evidence()
+    document["principals"]["voter_b"]["oidc"]["token"] = oidc_token(
+        "voter_b", 1, claims_override={"jti": "jti-0"})
     stderr = refuses(document, tmp_path, "was already presented by")
-    assert "One token copied across role records is one principal" in stderr
+    assert "is one principal" in stderr
 
 
 def test_unsigned_ballots_alone_are_refused(tmp_path):
@@ -504,37 +525,49 @@ def test_ballot_from_an_unknown_principal_is_refused(tmp_path):
 
 
 def test_self_administered_policy_is_refused(tmp_path):
+    """A domain whose administrator is itself, with the signature to match."""
     document = evidence()
+    document["principals"]["voter_a"]["policy_domain"] = "policy-admin-x"
     document["principals"]["voter_a"]["policy_attestation"] = signed("policy-admin-x", {
-        "purpose": "POLICY_BINDING", "policy_domain": "policy-0", "role": "voter_a",
-        "administered_by": "policy-0",
+        "purpose": "POLICY_BINDING", "policy_domain": "policy-admin-x", "role": "voter_a",
+        "administered_by": "policy-admin-x",
     })
     refuses(document, tmp_path, "administered by its own domain")
 
 
 def test_reciprocal_policy_administration_is_refused(tmp_path):
-    """Unequal labels are not independence: A governs B and B governs A."""
+    """Unequal labels are not independence: x governs y and y governs x."""
     document = evidence()
-    document["principals"]["voter_a"]["policy_attestation"] = signed("policy-admin-x", {
-        "purpose": "POLICY_BINDING", "policy_domain": "policy-0", "role": "voter_a",
-        "administered_by": "policy-1",
+    document["principals"]["voter_a"]["policy_domain"] = "policy-admin-x"
+    document["principals"]["voter_a"]["policy_attestation"] = signed("policy-admin-y", {
+        "purpose": "POLICY_BINDING", "policy_domain": "policy-admin-x", "role": "voter_a",
+        "administered_by": "policy-admin-y",
     })
-    document["principals"]["voter_b"]["policy_attestation"] = signed("policy-admin-y", {
-        "purpose": "POLICY_BINDING", "policy_domain": "policy-1", "role": "voter_b",
-        "administered_by": "policy-0",
+    document["principals"]["voter_b"]["policy_domain"] = "policy-admin-y"
+    document["principals"]["voter_b"]["policy_attestation"] = signed("policy-admin-x", {
+        "purpose": "POLICY_BINDING", "policy_domain": "policy-admin-y", "role": "voter_b",
+        "administered_by": "policy-admin-x",
     })
     refuses(document, tmp_path, "administration is reciprocal")
 
 
 def test_all_administration_internal_to_the_set_is_refused(tmp_path):
+    """A 3-cycle: x governed by y, y by z, z by x. No reciprocity, still no outside.
+
+    Every signature is valid and every signer IS the administrator it names, so gap 1 and the
+    reciprocity check both pass -- and the set still audits only itself.
+    """
     document = evidence()
-    chain = {0: "policy-1", 1: "policy-2", 2: "policy-3", 3: "policy-0"}
-    for index, role in enumerate(ROLES):
-        document["principals"][role]["policy_attestation"] = signed(
-            POLICY_ADMIN[index], {
-                "purpose": "POLICY_BINDING", "policy_domain": f"policy-{index}", "role": role,
-                "administered_by": chain[index],
-            })
+    cycle = {"policy-admin-x": "policy-admin-y",
+             "policy-admin-y": "policy-admin-z",
+             "policy-admin-z": "policy-admin-x"}
+    document["principals"] = {r: document["principals"][r] for r in ("voter_a", "voter_b", "executor")}
+    for role, domain in zip(("voter_a", "voter_b", "executor"), cycle):
+        document["principals"][role]["policy_domain"] = domain
+        document["principals"][role]["policy_attestation"] = signed(cycle[domain], {
+            "purpose": "POLICY_BINDING", "policy_domain": domain, "role": role,
+            "administered_by": cycle[domain],
+        })
     refuses(document, tmp_path, "no administration is external")
 
 
@@ -595,7 +628,9 @@ def test_executor_may_not_vote(tmp_path):
 
 def test_executor_may_not_verify_its_own_readback(tmp_path):
     document = evidence()
-    document["roles"]["readback_verifier"] = "executor"
+    document["role_assignment"] = signed("policy-admin-x", {
+        "purpose": "ROLE_ASSIGNMENT", "executor": "executor", "readback_verifier": "executor",
+    })
     refuses(document, tmp_path, "also the readback verifier")
 
 
@@ -624,7 +659,7 @@ def test_subject_outside_the_repository_is_refused(tmp_path):
     document = evidence()
     document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
         "voter_a", 0, claims_override={"sub": "repo:attacker/repo:role:voter_a"})
-    refuses(document, tmp_path, "is not under")
+    refuses(document, tmp_path, "does not match exactly")
 
 
 def test_over_hour_token_lifetime_is_refused(tmp_path):
@@ -862,6 +897,7 @@ def test_fixture_satisfies_every_required_field_the_schema_declares():
     document = evidence()
     for field in schema["required"]:
         assert field in document, f"schema requires {field!r}; the fixture omits it"
+    assert "roles" not in document, "the unsigned roles object must not come back"
     principal_schema = schema["properties"]["principals"]["additionalProperties"]
     for role, body in document["principals"].items():
         for field in principal_schema["required"]:
@@ -877,3 +913,122 @@ def test_test_keys_are_distinct_and_not_pem():
     assert len(moduli) == len(material["keys"]), "two test keys share a modulus"
     for key in material["keys"]:
         assert int(key["n_hex"], 16).bit_length() == 2048
+
+
+# ============================================================================
+# Cryptographic Coverage Closure -- one counterexample per unresolved binding
+# from the revision-2 review. Each builds a document that revision 2 ACCEPTED
+# and asserts it is now refused. A closed edge with no counterexample is a
+# claim about the code, not a property of it.
+# ============================================================================
+
+
+def test_closure_1_policy_signer_must_be_the_administrator_it_names(tmp_path):
+    """Gap 1: signer identity was never matched to the signed `administered_by`.
+
+    policy-admin-y signs an attestation asserting that policy-admin-x administers voter_a.
+    Both are legitimate POLICY_ADMIN_ROOT keys and the signature verifies, so revision 2
+    accepted it -- an admin root vouching for another root's authority, which is hearsay.
+    """
+    document = evidence()
+    document["principals"]["voter_a"]["policy_attestation"] = signed("policy-admin-y", {
+        "purpose": "POLICY_BINDING", "policy_domain": "policy-0", "role": "voter_a",
+        "administered_by": "policy-admin-x",
+    })
+    stderr = refuses(document, tmp_path, "is signed by a key owned by")
+    assert "hearsay" in stderr
+
+
+def test_closure_2a_role_assignment_must_be_signed(tmp_path):
+    """Gap 2: executor/readback came from an unsigned object.
+
+    Absence is a shortfall rather than a contradiction -- but it must stop the conjunct,
+    which is what revision 2 failed to do while reporting the separation as observed.
+    """
+    document = evidence()
+    del document["role_assignment"]
+    report = accepts(document, tmp_path)
+    assert report["conjuncts"]["EFFECT_ROLE_SEPARATION"]["observed"] is False
+    assert report["coverage_ledger"]["EFFECT_ROLE_SEPARATION"]["authenticator"] == "UNAUTHENTICATED"
+    assert report["PRODUCTION_AIS_LEVEL"] == "NOT_OBSERVED"
+
+
+def test_closure_2b_role_assignment_signed_from_inside_the_set_is_refused(tmp_path):
+    """Gap 2, the sharper half: a signature is not authority.
+
+    A POLICY_ADMIN_ROOT key is used, so purpose and role checks pass -- but its owner is one
+    of the principals' own policy domains, making the assignment self-assignment with an
+    extra step.
+    """
+    document = evidence()
+    for key in document["jwks"]["keys"]:
+        if key["kid"] == "policy-admin-z":
+            key["owner"] = "policy-0"          # a real, distinct key placed inside the set
+    document["role_assignment"] = signed("policy-admin-z", {
+        "purpose": "ROLE_ASSIGNMENT", "executor": "executor", "readback_verifier": "readback",
+    })
+    refuses(document, tmp_path, "self-assignment with an extra step")
+
+
+def test_closure_2c_role_assignment_signer_needs_authority_over_the_subjects(tmp_path):
+    """Gap 2, third edge: an external root that administers none of these principals."""
+    document = evidence()
+    document["role_assignment"] = signed("policy-admin-w", {
+        "purpose": "ROLE_ASSIGNMENT", "executor": "executor", "readback_verifier": "readback",
+    })
+    refuses(document, tmp_path, "no authority over their role assignment")
+
+
+def test_closure_3a_sub_prefix_extension_is_refused(tmp_path):
+    """Gap 3: `startswith` on `sub` accepted a longer repository name.
+
+    A token for `bstBizEra/secb_pf_shadow` passes any prefix test written against
+    `repo:bstBizEra/secb_pf` -- a different repository entirely.
+    """
+    document = evidence()
+    document["oidc_policy"]["subject_repository"] = "bstBizEra/secb_pf"
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
+        "voter_a", 0, claims_override={"sub": "repo:bstBizEra/secb_pf_shadow:role:voter_a"})
+    refuses(document, tmp_path, "does not match exactly")
+
+
+def test_closure_3b_token_for_another_role_is_refused(tmp_path):
+    """Gap 3, the half that mattered more: a prefix binds no role.
+
+    An authentic token whose `sub` names the executor, presented in voter_a's record. Same
+    repository, same audience, valid signature, unique jti -- and revision 2 accepted it,
+    because the prefix it checked stopped before the role segment.
+    """
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
+        "voter_a", 0, claims_override={"sub": f"repo:{SUBJECT_REPOSITORY}:role:executor"})
+    stderr = refuses(document, tmp_path, "does not match exactly")
+    assert "binds neither the repository nor the" in stderr
+
+
+def test_closure_4_future_issued_token_is_refused(tmp_path):
+    """Gap 4: `iat` in the future passed, because only `exp` was compared to the clock.
+
+    A token issued an hour after the evaluation instant, still unexpired, is either a clock
+    forgery or evidence about a run that has not happened.
+    """
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
+        "voter_a", 0, claims_override={
+            "iat": "2026-08-17T11:30:00+00:00", "exp": "2026-08-17T12:00:00+00:00"})
+    stderr = refuses(document, tmp_path, "is after the evaluation instant")
+    assert "has not happened" in stderr
+
+
+def test_closure_coverage_ledger_has_no_unauthenticated_derived_conjunct(tmp_path):
+    """Every conjunct except the two structurally external ones is authenticated.
+
+    This is the ledger assertion the four gaps would each have broken: EFFECT_ROLE_SEPARATION
+    was reported observed while resting on unsigned text, which is exactly a COVERAGE_GAP
+    that a nearby-signature ledger cannot see.
+    """
+    report = accepts(evidence(), tmp_path)
+    unauthenticated = set(report["coverage_accounting"]["unauthenticated"])
+    assert unauthenticated == {"DISCOVERY_EXACTLY_BOUND", "ISSUER_TRUST_ANCHOR"}
+    assert report["coverage_ledger"]["EFFECT_ROLE_SEPARATION"]["authenticator"].startswith(
+        "POLICY_ADMIN_ROOT-signed ROLE_ASSIGNMENT")
