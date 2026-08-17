@@ -15,13 +15,33 @@ So the ledger is machine-readable and each entry declares HOW it is guarded, and
 refuses any entry whose declared guard disagrees with what is actually in the tree:
 
     MECHANICAL    every cited test must EXIST here. A phantom citation is refused.
-    PENDING_MERGE at least one cited test must be ABSENT here, and an open PR must be named.
-                  If all of them are already present, the classification is stale -- also
-                  refused, because a ledger that under-claims decays into one nobody trusts.
+    PENDING_MERGE DUAL-TREE binding. The cited test must be ABSENT from this tree AND
+                  PRESENT at a PINNED pending head. Both trees are read.
     PROSE_ONLY    no test may be cited. An entry that cites a guard while calling itself
                   prose hides the drift in the opposite direction.
 
 Both directions are checked, because either one silently turns the ledger into decoration.
+
+WHY PENDING_MERGE NEEDS TWO TREES. The first version of this tool proved only
+
+    TEST_ABSENT_HERE ^ PR_NUMBER_NAMED
+
+and called that a pending guard. It is not one:
+
+    TEST_ABSENT_HERE ^ PR_NUMBER_NAMED
+    != TEST_PRESENT_IN_PINNED_PENDING_HEAD
+    != GUARD_WILL_LAND
+
+An invented PR citing an invented test satisfied it indefinitely, and the shipped ledger proved
+the point by accident: four entries said their guards "arrive with #159", which was true of that
+PR's revision-3 head and FALSE of the revision-2 head a reviewer checked -- the cited tests did
+not exist there at all. The defect was citing a PR NUMBER rather than a TREE. A pull request's
+head moves, so its number never identified content. `pending_head` is now a required pinned SHA
+and the guard must be readable AT it.
+
+An unresolvable pinned head is REFUSED, not waived: a claim that cannot be checked where the
+gate runs is not a weaker claim, it is an unchecked one. Where the pending object is not
+fetchable, the honest classification is PROSE_ONLY with the head recorded in the note.
 
 WHAT IT DELIBERATELY DOES NOT DO. It does not judge whether a cited test actually exercises
 the pattern it claims to guard -- only a human reviewer can say that. It reports the guarded
@@ -32,6 +52,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -56,13 +77,29 @@ class Refused(ValueError):
     """The ledger contradicts the tree, or an entry is not a pattern."""
 
 
+def defines_test(source: str, name: str) -> bool:
+    return re.search(rf"^def {re.escape(name)}\b", source, re.M) is not None
+
+
 def test_exists(root: Path, citation: dict) -> bool:
-    """True when the cited file exists AND defines the cited test."""
+    """True when the cited file exists in the working tree AND defines the cited test."""
     path = root / citation["file"]
     if not path.is_file():
         return False
-    source = path.read_text(encoding="utf-8")
-    return re.search(rf"^def {re.escape(citation['test'])}\b", source, re.M) is not None
+    return defines_test(path.read_text(encoding="utf-8"), citation["test"])
+
+
+def blob_at(root: Path, head: str, file: str) -> str | None:
+    """The file's contents at a pinned commit, or None when unresolvable.
+
+    Read through git rather than the filesystem: the pending head is by definition not
+    checked out, and its content is the only thing that can show a guard WILL land.
+    """
+    result = subprocess.run(
+        ["git", "cat-file", "-p", f"{head}:{file}"],
+        cwd=root, capture_output=True, text=True, check=False,
+    )
+    return result.stdout if result.returncode == 0 else None
 
 
 def check_entry(root: Path, entry: dict, seen: dict) -> tuple[bool, list[str]]:
@@ -121,18 +158,40 @@ def check_entry(root: Path, entry: dict, seen: dict) -> tuple[bool, list[str]]:
             )
         return True, [f"{identifier}: {len(present)} guard(s) present"]
 
-    # PENDING_MERGE
+    # PENDING_MERGE -- dual-tree binding.
     if not entry.get("pending_pr"):
         raise Refused(f"{identifier}: PENDING_MERGE requires pending_pr")
+    head = entry.get("pending_head", "")
+    if not re.fullmatch(r"[0-9a-f]{40}", head):
+        raise Refused(
+            f"{identifier}: PENDING_MERGE requires pending_head as a full 40-hex SHA. A PR "
+            "NUMBER does not identify content -- its head moves, so the same citation can be "
+            "true of one revision and false of another"
+        )
     if not absent:
         raise Refused(
             f"{identifier}: declared PENDING_MERGE against PR #{entry['pending_pr']}, but every "
             "cited test is already present. The classification is stale -- promote it to "
             "MECHANICAL. A ledger that under-claims decays into one nobody trusts"
         )
+    for citation in citations:
+        source = blob_at(root, head, citation["file"])
+        if source is None:
+            raise Refused(
+                f"{identifier}: pending_head {head[:12]} cannot be resolved here (or it has no "
+                f"{citation['file']}). A claim that cannot be checked where the gate runs is "
+                "not a weaker claim, it is an unchecked one. Fetch the head, or reclassify as "
+                "PROSE_ONLY and record the head in the note"
+            )
+        if not defines_test(source, citation["test"]):
+            raise Refused(
+                f"{identifier}: {citation['test']} is NOT defined in {citation['file']} at "
+                f"pending_head {head[:12]}. TEST_ABSENT_HERE ^ PR_NUMBER_NAMED != "
+                "TEST_PRESENT_IN_PINNED_PENDING_HEAD"
+            )
     return False, [
-        f"{identifier}: pending PR #{entry['pending_pr']}, "
-        f"{len(absent)} guard(s) not yet in this tree"
+        f"{identifier}: pending PR #{entry['pending_pr']} at {head[:12]}, "
+        f"{len(absent)} guard(s) present there and absent here"
     ]
 
 

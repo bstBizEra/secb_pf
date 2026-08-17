@@ -1,6 +1,6 @@
 {
   "schema": "secb.reusable-pattern-ledger/v1",
-  "_purpose": "SECB-WP-FWK-090. The durable home for reusable patterns established across FWK-079..089, which until now existed only in pull-request comments -- ungreppable by the next agent and unverifiable by any tool. Each entry declares HOW it is guarded, and scripts/check_pattern_ledger.py refuses any entry whose declared guard disagrees with this tree. See docs/00-governance/REUSABLE_PATTERN_LEDGER.md for the contract.",
+  "_purpose": "SECB-WP-FWK-090. The durable home for reusable patterns established across FWK-079..089, which until now existed only in pull-request comments -- ungreppable by the next agent and unverifiable by any tool. Each entry declares HOW it is guarded, and scripts/check_pattern_ledger.py refuses any entry whose declared guard disagrees with this tree. See docs/00-governance/REUSABLE_PATTERN_LEDGER.md for the contract. PENDING_MERGE requires DUAL-TREE binding: the cited guard must be absent from this tree AND readable at a pinned pending_head. Entries whose pending head is not fetchable where the gate runs are PROSE_ONLY with the head recorded in the note -- an unverifiable claim is not a weaker claim.",
   "patterns": [
     {
       "id": "RP-001",
@@ -319,22 +319,8 @@
       "origin": {
         "pr": 159
       },
-      "guard": "PENDING_MERGE",
-      "pending_pr": 159,
-      "tests": [
-        {
-          "file": "tests/test_ais_production_evidence.py",
-          "test": "test_closure_1_policy_signer_must_be_the_administrator_it_names"
-        },
-        {
-          "file": "tests/test_ais_production_evidence.py",
-          "test": "test_closure_2c_role_assignment_signer_needs_authority_over_the_subjects"
-        },
-        {
-          "file": "tests/test_ais_production_evidence.py",
-          "test": "test_closure_coverage_ledger_has_no_unauthenticated_derived_conjunct"
-        }
-      ]
+      "guard": "PROSE_ONLY",
+      "note": "Guard not claimed here. It exists at PR #159 head f84514ea8491d7ca98b982b195e155ff9174b199 (f84514ea8491), but a PENDING_MERGE claim requires the pinned head to be READABLE where the gate runs, and a pull request's branch objects are not fetched by the checkout that validates this ledger. Claiming PENDING_MERGE without that read would prove only TEST_ABSENT_HERE ^ PR_NUMBER_NAMED, which is the defect this field was corrected for. Promote to MECHANICAL when the PR lands. Cited guards: tests/test_ais_production_evidence.py::test_closure_1_policy_signer_must_be_the_administrator_it_names, tests/test_ais_production_evidence.py::test_closure_2c_role_assignment_signer_needs_authority_over_the_subjects, tests/test_ais_production_evidence.py::test_closure_coverage_ledger_has_no_unauthenticated_derived_conjunct"
     },
     {
       "id": "RP-022",
@@ -343,18 +329,8 @@
       "origin": {
         "pr": 159
       },
-      "guard": "PENDING_MERGE",
-      "pending_pr": 159,
-      "tests": [
-        {
-          "file": "tests/test_ais_production_evidence.py",
-          "test": "test_v1_counterexample_is_refused"
-        },
-        {
-          "file": "tests/test_ais_production_evidence.py",
-          "test": "test_purpose_confusion_is_refused"
-        }
-      ]
+      "guard": "PROSE_ONLY",
+      "note": "Guard not claimed here. It exists at PR #159 head f84514ea8491d7ca98b982b195e155ff9174b199 (f84514ea8491), but a PENDING_MERGE claim requires the pinned head to be READABLE where the gate runs, and a pull request's branch objects are not fetched by the checkout that validates this ledger. Claiming PENDING_MERGE without that read would prove only TEST_ABSENT_HERE ^ PR_NUMBER_NAMED, which is the defect this field was corrected for. Promote to MECHANICAL when the PR lands. Cited guards: tests/test_ais_production_evidence.py::test_v1_counterexample_is_refused, tests/test_ais_production_evidence.py::test_purpose_confusion_is_refused"
     },
     {
       "id": "RP-023",
@@ -363,18 +339,8 @@
       "origin": {
         "pr": 159
       },
-      "guard": "PENDING_MERGE",
-      "pending_pr": 159,
-      "tests": [
-        {
-          "file": "tests/test_ais_production_evidence.py",
-          "test": "test_closure_2b_role_assignment_signed_from_inside_the_set_is_refused"
-        },
-        {
-          "file": "tests/test_ais_production_evidence.py",
-          "test": "test_closure_2c_role_assignment_signer_needs_authority_over_the_subjects"
-        }
-      ]
+      "guard": "PROSE_ONLY",
+      "note": "Guard not claimed here. It exists at PR #159 head f84514ea8491d7ca98b982b195e155ff9174b199 (f84514ea8491), but a PENDING_MERGE claim requires the pinned head to be READABLE where the gate runs, and a pull request's branch objects are not fetched by the checkout that validates this ledger. Claiming PENDING_MERGE without that read would prove only TEST_ABSENT_HERE ^ PR_NUMBER_NAMED, which is the defect this field was corrected for. Promote to MECHANICAL when the PR lands. Cited guards: tests/test_ais_production_evidence.py::test_closure_2b_role_assignment_signed_from_inside_the_set_is_refused, tests/test_ais_production_evidence.py::test_closure_2c_role_assignment_signer_needs_authority_over_the_subjects"
     },
     {
       "id": "RP-024",
@@ -383,14 +349,8 @@
       "origin": {
         "pr": 159
       },
-      "guard": "PENDING_MERGE",
-      "pending_pr": 159,
-      "tests": [
-        {
-          "file": "tests/test_ais_production_evidence.py",
-          "test": "test_issuer_trust_anchor_is_unsatisfiable_by_any_input"
-        }
-      ]
+      "guard": "PROSE_ONLY",
+      "note": "Guard not claimed here. It exists at PR #159 head f84514ea8491d7ca98b982b195e155ff9174b199 (f84514ea8491), but a PENDING_MERGE claim requires the pinned head to be READABLE where the gate runs, and a pull request's branch objects are not fetched by the checkout that validates this ledger. Claiming PENDING_MERGE without that read would prove only TEST_ABSENT_HERE ^ PR_NUMBER_NAMED, which is the defect this field was corrected for. Promote to MECHANICAL when the PR lands. Cited guards: tests/test_ais_production_evidence.py::test_issuer_trust_anchor_is_unsatisfiable_by_any_input"
     },
     {
       "id": "RP-025",

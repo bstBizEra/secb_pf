@@ -18,6 +18,8 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "scripts" / "check_pattern_ledger.py"
 LEDGER_PATH = ROOT / "config" / "reusable_patterns.json"
@@ -25,6 +27,60 @@ LEDGER_PATH = ROOT / "config" / "reusable_patterns.json"
 SHIPPED = json.loads(LEDGER_PATH.read_text(encoding="utf-8"))
 # A citation that certainly resolves: this file, this test.
 REAL = {"file": "tests/test_pattern_ledger.py", "test": "test_the_shipped_ledger_validates"}
+
+
+HEAD_SHA = subprocess.run(
+    ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False
+).stdout.strip()
+
+
+def git(*args: str, cwd: Path) -> str:
+    result = subprocess.run(
+        ["git", "-c", "user.email=ledger@secb.local", "-c", "user.name=ledger", *args],
+        cwd=cwd, capture_output=True, text=True, check=True,
+    )
+    return result.stdout.strip()
+
+
+@pytest.fixture
+def two_tree_repo(tmp_path):
+    """A repo where the cited guard exists at ONE pinned commit and not in the worktree.
+
+    Three commits, mirroring what #159 actually looked like: a revision WITHOUT the guard, a
+    revision WITH it, and a head where it is absent again. That is the only way to test dual-tree
+    binding honestly -- a fixture that merely asserts two booleans would pass a validator that
+    reads one tree.
+    """
+    repo = tmp_path / "repo"
+    (repo / "tests").mkdir(parents=True)
+    git("init", "-q", "-b", "main", str(repo), cwd=tmp_path)
+    target = repo / "tests" / "test_guard.py"
+
+    target.write_text("def test_something_else():\n    pass\n", encoding="utf-8")
+    git("add", "-A", cwd=repo); git("commit", "-qm", "without the guard", cwd=repo)
+    without = git("rev-parse", "HEAD", cwd=repo)
+
+    target.write_text(
+        "def test_something_else():\n    pass\n\n\ndef test_landed_guard():\n    pass\n",
+        encoding="utf-8")
+    git("add", "-A", cwd=repo); git("commit", "-qm", "with the guard", cwd=repo)
+    with_guard = git("rev-parse", "HEAD", cwd=repo)
+
+    target.write_text("def test_something_else():\n    pass\n", encoding="utf-8")
+    git("add", "-A", cwd=repo); git("commit", "-qm", "guard removed again", cwd=repo)
+
+    return {"root": repo, "without": without, "with_guard": with_guard,
+            "citation": {"file": "tests/test_guard.py", "test": "test_landed_guard"}}
+
+
+def run_in(root: Path, ledger: dict, tmp_path: Path) -> subprocess.CompletedProcess:
+    path = tmp_path / "fixture-ledger.json"
+    path.write_text(json.dumps(ledger), encoding="utf-8")
+    return subprocess.run(
+        [sys.executable, str(TOOL)], capture_output=True, text=True, check=False,
+        env={**os.environ, "LEDGER": str(path), "REPO_ROOT": str(root),
+             "PYTHONDONTWRITEBYTECODE": "1"},
+    )
 
 
 def run(ledger: dict, tmp_path: Path) -> subprocess.CompletedProcess:
@@ -112,7 +168,7 @@ def test_a_pending_claim_whose_tests_all_exist_is_refused(tmp_path):
     Under-claiming is checked because it decays the ledger as surely as over-claiming: entries
     that say "not yet enforced" long after they are enforced train readers to ignore the field.
     """
-    stale = one(guard="PENDING_MERGE", pending_pr=159, tests=[REAL])
+    stale = one(guard="PENDING_MERGE", pending_pr=159, pending_head=HEAD_SHA, tests=[REAL])
     stderr = refuses(stale, tmp_path, "classification is stale")
     assert "promote it to MECHANICAL" in stderr
 
@@ -226,3 +282,83 @@ def test_no_shipped_entry_claims_more_than_its_guard_class():
             assert not entry.get("tests"), f"{entry['id']} is prose but cites tests"
         else:
             assert entry.get("tests"), f"{entry['id']} claims {entry['guard']} with no tests"
+
+
+# ============================================================================
+# Dual-tree binding for PENDING_MERGE. The first version of this tool proved
+#     TEST_ABSENT_HERE ^ PR_NUMBER_NAMED
+# and called it a pending guard, which an invented PR citing an invented test
+# satisfied indefinitely. The shipped ledger proved it by accident: four entries
+# said their guards arrived with #159, true of that PR's revision-3 head and
+# FALSE of the revision-2 head a reviewer checked. Citing a PR NUMBER instead of
+# a TREE was the defect -- a head moves, so the number never identified content.
+# ============================================================================
+
+
+def test_a_pending_claim_present_at_the_pinned_head_and_absent_here_is_accepted(
+        two_tree_repo, tmp_path):
+    """The class is usable: absent from the worktree, readable at the pinned head."""
+    fixture = two_tree_repo
+    ledger = one(guard="PENDING_MERGE", pending_pr=159,
+                 pending_head=fixture["with_guard"], tests=[fixture["citation"]])
+    result = run_in(fixture["root"], ledger, tmp_path)
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["by_guard_class"] == {"PENDING_MERGE": 1}
+    assert report["mechanically_guarded"] == 0, "a pending guard is not a present guard"
+    assert fixture["with_guard"][:12] in " ".join(report["notes"])
+
+
+def test_a_pending_claim_whose_test_is_absent_at_the_pinned_head_is_refused(
+        two_tree_repo, tmp_path):
+    """The active counterexample, hermetically: the pinned tree does not define the test.
+
+    This is exactly the shipped-ledger failure -- a real PR, a real file at that commit, and no
+    such test in it. The old check passed because it never opened the pending tree.
+    """
+    fixture = two_tree_repo
+    ledger = one(guard="PENDING_MERGE", pending_pr=159,
+                 pending_head=fixture["without"], tests=[fixture["citation"]])
+    stderr = run_in(fixture["root"], ledger, tmp_path).stderr
+    assert "is NOT defined in" in stderr
+    assert "TEST_PRESENT_IN_PINNED_PENDING_HEAD" in stderr
+
+
+def test_an_unresolvable_pending_head_is_refused_not_waived(two_tree_repo, tmp_path):
+    """An unchecked claim is not a weaker claim."""
+    fixture = two_tree_repo
+    ledger = one(guard="PENDING_MERGE", pending_pr=159, pending_head="0" * 40,
+                 tests=[fixture["citation"]])
+    stderr = run_in(fixture["root"], ledger, tmp_path).stderr
+    assert "cannot be resolved here" in stderr
+    assert "it is an unchecked one" in stderr
+
+
+def test_a_pending_claim_without_a_pinned_head_is_refused(tmp_path):
+    """A PR number does not identify content."""
+    ledger = one(guard="PENDING_MERGE", pending_pr=159,
+                 tests=[{"file": "tests/test_nope.py", "test": "test_x"}])
+    stderr = refuses(ledger, tmp_path, "requires pending_head as a full 40-hex SHA")
+    assert "its head moves" in stderr
+
+
+def test_an_abbreviated_pending_head_is_refused(tmp_path):
+    ledger = one(guard="PENDING_MERGE", pending_pr=159, pending_head="f84514ea8491",
+                 tests=[{"file": "tests/test_nope.py", "test": "test_x"}])
+    refuses(ledger, tmp_path, "full 40-hex SHA")
+
+
+def test_no_shipped_entry_claims_pending_without_a_readable_head():
+    """Shipped state: the four #159 entries are PROSE_ONLY, with the head in the note.
+
+    A pull request's branch objects are not fetched by the checkout that validates this ledger,
+    so PENDING_MERGE could not be proven here -- and an unprovable claim is reclassified rather
+    than asserted. The pinned head stays in the note so a human can promote it on merge.
+    """
+    pending = [e for e in SHIPPED["patterns"] if e["guard"] == "PENDING_MERGE"]
+    assert pending == [], "a shipped PENDING_MERGE entry must have a resolvable pinned head"
+    referenced = [e for e in SHIPPED["patterns"]
+                  if "f84514ea8491d7ca98b982b195e155ff9174b199" in e.get("note", "")]
+    assert len(referenced) == 4, "the four #159 patterns must record the head they will land at"
+    for entry in referenced:
+        assert not entry.get("tests"), f"{entry['id']} is prose but cites tests"
