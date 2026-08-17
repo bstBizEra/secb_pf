@@ -104,6 +104,7 @@ REASON_AXES = {
     "EVIDENCE_PROMOTABLE":              ("PROCEEDED", "OBSERVED",     "PASS"),
     "REQUIRED_GATE_FAILURE":            ("REFUSED",   "OBSERVED",     "FAIL"),
     "CROSS_REVISION_ASSEMBLY":          ("REFUSED",   "NOT_OBSERVED", "NOT_EVALUATED"),
+    "SUBJECT_SELECTION_UNBOUND":         ("REFUSED",   "NOT_OBSERVED", "NOT_EVALUATED"),
     "MEASUREMENT_INCOMPLETE":           ("REFUSED",   "INCOMPLETE",   "NOT_EVALUATED"),
     "MEASUREMENT_NOT_TERMINAL":         ("REFUSED",   "INCOMPLETE",   "NOT_EVALUATED"),
     "ARTIFACT_NOT_VERIFIED":            ("REFUSED",   "NOT_OBSERVED", "NOT_EVALUATED"),
@@ -639,15 +640,21 @@ def promote(receipt: dict, observed: dict) -> dict:
         COMPLETE_MEASUREMENT + VERIFIED_ARTIFACT + REQUIRED_GATE_FAILURE
           = EVIDENCE_NOT_PROMOTABLE
 
-    The binding is **one revision**. Evidence may not be assembled across revisions: a
-    measurement from one head plus a green gate from the next describes a tree nobody
-    tested. GitHub requires its checks to pass on the latest commit for the same reason.
+    Provenance and eligibility bind different roles under dispatch. `measuring_head` names
+    the revision whose workflow produced the receipt; `subject_head` names the single queue
+    entry whose required checks determine eligibility. Evidence may not be assembled across
+    SUBJECT revisions: a measurement of one subject plus gates from another describes a tree
+    nobody tested. The measurer remains bound as provenance and never substitutes for subject.
     """
     persistence = receipt.get("persistence", {})
     measuring_head = persistence.get("measuring_pr_head")
+    prefixes = receipt.get("prefixes") or []
+    subject_head = prefixes[0].get("head_sha") if len(prefixes) == 1 else None
     findings = {
         "schema": "secb.evidence-promotion/v1",
-        "measuring_pr_head": measuring_head,
+        "measuring_head": measuring_head,
+        "measuring_pr_head": measuring_head,  # compatibility alias; provenance only
+        "subject_head": subject_head,
         "cohort_digest": receipt.get("cohort_digest"),
         "confers_merge_authority": False,
     }
@@ -656,12 +663,18 @@ def promote(receipt: dict, observed: dict) -> dict:
         findings.update(verdict=verdict, why=why, execution_eligibility="NOT_ELIGIBLE")
         return findings
 
-    if observed.get("rollup_head_sha") != measuring_head:
+    if len(prefixes) != 1 or not subject_head:
+        return refuse(
+            "SUBJECT_SELECTION_UNBOUND",
+            f"promotion requires exactly one cursor-bound subject; receipt carries {len(prefixes)}. "
+            "A multi-entry cohort needs an explicit ordinal before one rollup can bind it",
+        )
+    if observed.get("rollup_head_sha") != subject_head:
         return refuse(
             "CROSS_REVISION_ASSEMBLY",
-            f"the check rollup is for {observed.get('rollup_head_sha')} and the measurement "
-            f"for {measuring_head}. A measurement from one revision plus a gate result from "
-            "another describes a tree nobody tested",
+            f"the check rollup is for {observed.get('rollup_head_sha')} and the measured "
+            f"subject is {subject_head}. The measuring head {measuring_head} is provenance, "
+            "not the subject whose checks determine eligibility",
         )
     if receipt.get("measurement_status") != "COMPLETE":
         return refuse("MEASUREMENT_INCOMPLETE",
@@ -695,7 +708,9 @@ def promote(receipt: dict, observed: dict) -> dict:
         verdict="EVIDENCE_PROMOTABLE",
         execution_eligibility="ELIGIBLE",
         binding={
+            "measuring_head": measuring_head,
             "measuring_pr_head": measuring_head,
+            "subject_head": subject_head,
             "workflow_ref": persistence.get("workflow_ref"),
             "base_sha": receipt.get("base_sha"),
             "base_tree": persistence.get("base_tree"),
