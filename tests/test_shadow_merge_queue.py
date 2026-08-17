@@ -899,7 +899,7 @@ def test_the_hook_refuses_a_push_over_the_declared_budget(tmp_path, hook_repo):
     """
     result = run_hook("BUDGET: max_files=1 max_lines=1\n", tmp_path, hook_repo)
     assert result.returncode == 1
-    assert "exceeds its declared budget" in result.stderr
+    assert "BUDGET_EXCEEDED" in result.stderr
 
 
 def test_the_hook_allows_a_push_within_budget(tmp_path, hook_repo):
@@ -958,3 +958,54 @@ def test_measurement_is_gated_on_typed_admission():
     assert "needs.admission.outputs.admission == 'ADMISSION_PASS'" in workflow
     assert "ADMISSION_FAILED" in workflow
     assert workflow.index("admission:") < workflow.index("  measure:")
+
+
+# --- infrastructure faults are not policy verdicts -------------------------------
+
+
+def test_a_missing_base_ref_is_unavailable_not_over_budget(tmp_path, hook_repo):
+    """`origin/main missing` ≠ `BUDGET_EXCEEDED`.
+
+    The first version piped `git diff` straight into the checker, so an absent ref produced
+    empty input and the hook reported a budget violation. Measured in CI on a shallow
+    checkout: an infrastructure fault rendered as a policy verdict, which would send a
+    contributor to shrink a diff that was never the problem.
+    """
+    body = tmp_path / "b.txt"
+    body.write_text("BUDGET: max_files=9 max_lines=99999\n", encoding="utf-8")
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=hook_repo, capture_output=True,
+                         text=True).stdout.strip()
+    result = subprocess.run(
+        ["bash", str(HOOK)], input=f"refs/heads/x {sha} refs/heads/x {sha}\n",
+        capture_output=True, text=True, cwd=hook_repo, timeout=120,
+        env={"PATH": "/usr/bin:/bin", "BUDGET_BODY_FILE": str(body),
+             "BUDGET_BASE_REF": "origin/main"},
+    )
+    assert result.returncode == 1
+    assert "REQUIRED_REF_UNAVAILABLE" in result.stderr
+    assert "not a budget verdict" in result.stderr
+    assert "BUDGET_EXCEEDED" not in result.stderr
+
+
+def test_a_renamed_default_branch_reports_unavailable(tmp_path, hook_repo):
+    body = tmp_path / "b.txt"
+    body.write_text("BUDGET: max_files=9 max_lines=99999\n", encoding="utf-8")
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=hook_repo, capture_output=True,
+                         text=True).stdout.strip()
+    result = subprocess.run(
+        ["bash", str(HOOK)], input=f"refs/heads/x {sha} refs/heads/x {sha}\n",
+        capture_output=True, text=True, cwd=hook_repo, timeout=120,
+        env={"PATH": "/usr/bin:/bin", "BUDGET_BODY_FILE": str(body),
+             "BUDGET_BASE_REF": "trunk"},
+    )
+    assert result.returncode == 1
+    assert "REQUIRED_REF_UNAVAILABLE" in result.stderr
+    assert "renamed default branch" in result.stderr
+
+
+def test_an_over_budget_push_is_named_as_a_budget_verdict(tmp_path, hook_repo):
+    """The policy path must be distinguishable from the infrastructure path."""
+    result = run_hook("BUDGET: max_files=1 max_lines=1\n", tmp_path, hook_repo)
+    assert result.returncode == 1
+    assert "BUDGET_EXCEEDED" in result.stderr
+    assert "REQUIRED_REF_UNAVAILABLE" not in result.stderr

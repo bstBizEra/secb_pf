@@ -42,10 +42,34 @@ while read -r _local_ref local_sha _remote_ref _remote_sha; do
     exit 1
   fi
 
-  if ! git diff --numstat "$BASE...$local_sha" \
+  # An infrastructure failure is NOT a policy verdict.
+  #
+  #   origin/main missing  !=  BUDGET_EXCEEDED
+  #
+  # The first version piped `git diff` straight into the checker, so when the ref was absent
+  # the diff failed, the checker saw empty input, and the hook reported "exceeds its declared
+  # budget". Measured in CI: a shallow checkout produced exactly that -- a missing ref
+  # rendered as a budget violation. The diff is now run and checked SEPARATELY, and an
+  # unavailable ref is reported as unavailable.
+  if ! git rev-parse --verify --quiet "$BASE" >/dev/null; then
+    echo "pre-push REFUSED: REQUIRED_REF_UNAVAILABLE -- '$BASE' cannot be resolved." >&2
+    echo "  This is an infrastructure fault, not a budget verdict. A shallow clone, a" >&2
+    echo "  renamed default branch, or a remote not named 'origin' all land here." >&2
+    echo "  Set BUDGET_BASE_REF to a ref that exists; do not read this as within budget." >&2
+    exit 1
+  fi
+
+  if ! NUMSTAT="$(git diff --numstat "$BASE...$local_sha" 2>&1)"; then
+    echo "pre-push REFUSED: DIFF_COMMAND_FAILED against '$BASE'." >&2
+    echo "  $NUMSTAT" >&2
+    echo "  Reported as a diff failure, NOT as BUDGET_EXCEEDED." >&2
+    exit 1
+  fi
+
+  if ! printf '%s\n' "$NUMSTAT" \
        | BUDGET_TEXT="$BUDGET_TEXT" python3 scripts/check_budget.py; then
-    echo "pre-push REFUSED: $local_sha exceeds its declared budget against $BASE." >&2
-    echo "  Re-declare the budget in the pull-request body FIRST, then push." >&2
+    echo "pre-push REFUSED: BUDGET_EXCEEDED -- $local_sha is over its declared budget" >&2
+    echo "  against $BASE. Re-declare the budget in the pull-request body FIRST." >&2
     exit 1
   fi
 done
