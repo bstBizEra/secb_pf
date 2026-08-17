@@ -417,7 +417,7 @@ def test_cohort_identity_excludes_who_measured_it(repo):
     identity = receipt(repo)["cohort_identity"]
     assert set(identity["includes"]) == {
         "base_sha", "base_tree", "ordered_pr_heads", "merge_method", "test_command_digest",
-        "git_version", "python_version"}
+        "test_set_epoch", "git_version", "python_version"}
     for excluded in ("measuring_pr_head", "run_id", "workflow_ref"):
         assert excluded in identity["excludes"]
 
@@ -1280,3 +1280,82 @@ def _unused_dispatch_path_is_not_claimed_as_verified():
         "until this PR merges, and the dispatch input contract would then be unexercised"
     )
     assert "REMOVE ONCE THE FIRST ARTIFACT IS PROVEN" in text
+
+
+# --- CI collection-boundary identity ---------------------------------------------
+
+
+def shadow_queue_module():
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import importlib
+    return importlib.import_module("check_shadow_merge_queue")
+
+
+def test_default_collection_boundary_is_byte_identical_to_ci():
+    """QUEUE_TESTS_SUBSET_OF_CI -> QUEUE_TEST_SET_IDENTICAL_TO_CI."""
+    module = shadow_queue_module()
+    lines = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8").splitlines()
+    start = next(
+        index for index, line in enumerate(lines)
+        if "python -m pytest -p no:cacheprovider -q" in line
+    )
+    ci_command_parts = []
+    for line in lines[start:]:
+        part = line.strip()
+        if part.endswith("\\"):
+            part = part[:-1].rstrip()
+        ci_command_parts.append(part)
+        if part == "tests/":
+            break
+    assert " ".join(ci_command_parts) == module.DEFAULT_TEST
+
+
+def test_canonical_command_names_the_router_evidence_and_tests_roots():
+    import shlex
+    module = shadow_queue_module()
+    classification = module.classify_test_set(module.DEFAULT_TEST)
+    assert shlex.split(module.DEFAULT_TEST)[-2:] == [
+        "docs/06-agent-orchestration/skill-router/"
+        "SECB-WP-ENGLOOP-MVP-001 — Sandbox Evidence/test_router.py",
+        "tests/",
+    ]
+    assert classification == {
+        "test_set_epoch": "CI_EXPLICIT_ROOTS_V1",
+        "ci_test_set_equivalent": True,
+        "test_scope": "router FIT evidence + tests/",
+    }
+
+
+def test_legacy_subset_receipts_remain_named_but_are_not_ci_equivalent():
+    module = shadow_queue_module()
+    classification = module.classify_test_set(module.LEGACY_TEST)
+    assert classification["test_set_epoch"] == "LEGACY_TESTS_DIR_ONLY_V0"
+    assert classification["ci_test_set_equivalent"] is False
+    assert "omitted" in classification["test_scope"]
+
+
+def test_an_arbitrary_override_cannot_claim_ci_test_set_equivalence():
+    module = shadow_queue_module()
+    classification = module.classify_test_set("pytest")
+    assert classification["test_set_epoch"] == "NON_CANONICAL_OVERRIDE"
+    assert classification["ci_test_set_equivalent"] is False
+
+
+def test_test_set_epoch_is_part_of_cohort_identity():
+    module = shadow_queue_module()
+    document = {
+        "base_sha": "a" * 40,
+        "merge_method": "SQUASH",
+        "prefixes": [],
+        "persistence": {"base_tree": "b" * 40},
+        "environment": {
+            "test_command_digest": "sha256:same",
+            "test_set_epoch": module.CANONICAL_TEST_SET_EPOCH,
+            "git": "2.54.0",
+            "python": "3.13.0",
+        },
+    }
+    canonical = module.canonical_cohort(document)
+    document["environment"]["test_set_epoch"] = module.LEGACY_TEST_SET_EPOCH
+    assert module.canonical_cohort(document) != canonical
