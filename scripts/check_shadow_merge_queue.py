@@ -39,7 +39,7 @@ Contract:
     QUEUE          comma-separated refs, in queue order      (required)
     BASE           base ref                                  (default origin/main)
     MERGE_METHOD   SQUASH | MERGE | REBASE                    (default SQUASH)
-    TEST_COMMAND   command run at each prefix                 (default pytest)
+    TEST_COMMAND   command run at each prefix                 (default canonical CI set)
     TIME_BUDGET    seconds before the run stops honestly      (default 600)
 
 Exit codes:
@@ -67,7 +67,16 @@ OK = 0
 FAIL = 2
 
 REPO_MERGE_METHOD = "SQUASH"
-DEFAULT_TEST = "python3 -m pytest -p no:cacheprovider -q tests/"
+ROUTER_TEST = (
+    '"docs/06-agent-orchestration/skill-router/'
+    'SECB-WP-ENGLOOP-MVP-001 — Sandbox Evidence/test_router.py"'
+)
+CANONICAL_TEST = f"python -m pytest -p no:cacheprovider -q {ROUTER_TEST} tests/"
+LEGACY_TEST = "python3 -m pytest -p no:cacheprovider -q tests/"
+CANONICAL_TEST_SET_EPOCH = "CI_EXPLICIT_ROOTS_V1"
+LEGACY_TEST_SET_EPOCH = "LEGACY_TESTS_DIR_ONLY_V0"
+DEFAULT_TEST = CANONICAL_TEST
+
 
 
 # --- reason integrity ---------------------------------------------------------
@@ -144,14 +153,41 @@ def digest(text: str) -> str:
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def classify_test_set(test_command: str) -> dict:
+    """Name the collection boundary without upgrading an override to CI equivalence.
+
+    Ordinals 1..13 used LEGACY_TEST and omitted the 20 router FIT tests stored under
+    docs/. Their receipts remain valid for that recorded subset, but they are not the
+    same cohort as a receipt covering CI's two explicit roots.
+    """
+    if test_command == CANONICAL_TEST:
+        return {
+            "test_set_epoch": CANONICAL_TEST_SET_EPOCH,
+            "ci_test_set_equivalent": True,
+            "test_scope": "router FIT evidence + tests/",
+        }
+    if test_command == LEGACY_TEST:
+        return {
+            "test_set_epoch": LEGACY_TEST_SET_EPOCH,
+            "ci_test_set_equivalent": False,
+            "test_scope": "historical tests/ subset; router FIT evidence omitted",
+        }
+    return {
+        "test_set_epoch": "NON_CANONICAL_OVERRIDE",
+        "ci_test_set_equivalent": False,
+        "test_scope": "caller-supplied command; no equivalence to CI asserted",
+    }
+
+
 def environment_digest(test_command: str) -> dict:
-    """A pass is only meaningful against the environment that produced it."""
+    """A pass is only meaningful against the environment and test set that produced it."""
     return {
         "python": platform.python_version(),
         "platform": platform.system(),
         "git": git("--version").split()[-1],
         "test_command": test_command,
         "test_command_digest": digest(test_command),
+        **classify_test_set(test_command),
     }
 
 
@@ -172,6 +208,7 @@ def canonical_cohort(receipt: dict) -> str:
         persistence.get("base_tree", ""),
         receipt.get("merge_method", ""),
         environment.get("test_command_digest", ""),
+        f"test_set_epoch={environment.get('test_set_epoch', '')}",
         f"git={environment.get('git', '')}",
         f"python={environment.get('python', '')}",
         *heads,
