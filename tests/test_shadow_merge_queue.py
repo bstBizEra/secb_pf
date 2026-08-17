@@ -1175,3 +1175,59 @@ def test_an_unmodelled_state_is_not_admissible(repo):
     findings = computed_state(repo, "some_new_state")
     assert findings["verdict"] == "COMPUTED_STATE_UNRECOGNISED"
     assert findings["admissibility"] == "NOT_ADMISSIBLE"
+
+
+# --- terminal cohort closure ------------------------------------------------------
+
+
+def test_a_drained_cohort_is_terminal_not_a_producer_fault(repo):
+    """`QUEUE_COMPLETE` is the end of the work, not a failure of the measurer.
+
+    Without this, #148's merge empties the committed cohort and the next run refuses with
+    `QUEUE is required` — a red check on a pull request that did nothing wrong, and the
+    fifth instance of a correct stop carrying the wrong subsystem's reason.
+    """
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)], capture_output=True, text=True, timeout=60, cwd=repo,
+        env={"PATH": "/usr/bin:/bin", "QUEUE": "", "COHORT_COMPLETE": "true"},
+    )
+    assert result.returncode == OK, result.stderr
+    findings = json.loads(result.stdout)
+    assert findings["verdict"] == "QUEUE_COMPLETE_TERMINAL"
+    assert findings["measurement_status"] == "NOT_REQUIRED"
+    assert findings["policy"] == "NOT_EVALUATED"
+    assert "end of the work" in findings["why"]
+    assert findings["confers_merge_authority"] is False
+
+
+def test_an_empty_queue_without_the_completion_flag_is_still_refused(repo):
+    """An accidental empty queue must not be read as a completed one."""
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)], capture_output=True, text=True, timeout=60, cwd=repo,
+        env={"PATH": "/usr/bin:/bin", "QUEUE": ""},
+    )
+    assert result.returncode == FAIL
+    assert "QUEUE is required" in result.stderr
+    assert "intentionally drained" in result.stderr
+
+
+def test_the_terminal_verdict_is_publishable_evidence():
+    """The workflow must treat it as a finding, not discard it as an error."""
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    assert "QUEUE_COMPLETE_TERMINAL" in text
+    findings_block = text.split("FINDINGS = {")[1].split("}")[0]
+    assert "QUEUE_COMPLETE_TERMINAL" in findings_block
+
+
+def test_the_dispatch_path_is_not_claimed_as_verified():
+    """`workflow_dispatch` cannot run until the workflow is on the default branch.
+
+    So `DISPATCH_PATH_VERIFIED` is unreachable while #150 is open, and the workflow must not
+    imply otherwise by retiring the trigger it still depends on.
+    """
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    assert "pull_request:" in text, (
+        "the bootstrap trigger is still required: removing it makes the workflow unrunnable "
+        "until this PR merges, and the dispatch input contract would then be unexercised"
+    )
+    assert "REMOVE ONCE THE FIRST ARTIFACT IS PROVEN" in text

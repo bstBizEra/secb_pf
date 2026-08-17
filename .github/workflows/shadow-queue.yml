@@ -124,7 +124,10 @@ jobs:
           # committed cohort is a snapshot and goes stale the moment the queue drains an
           # entry -- which is the first thing the framework's own merge did to it.
           if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # The committed cohort. When it empties, COHORT_COMPLETE marks the drain as
+            # terminal rather than letting an empty queue read as a producer fault.
             echo "queue=origin/feat/secb-wp-fwk-082-control-execution-graph" >> "$GITHUB_OUTPUT"
+            echo "cohort_complete=false" >> "$GITHUB_OUTPUT"
             echo "base=origin/main" >> "$GITHUB_OUTPUT"
             echo "retention=90" >> "$GITHUB_OUTPUT"
             echo "mode=BOOTSTRAP_COMMITTED_COHORT" >> "$GITHUB_OUTPUT"
@@ -132,6 +135,7 @@ jobs:
             echo "queue=${{ inputs.queue }}" >> "$GITHUB_OUTPUT"
             echo "base=${{ inputs.base }}" >> "$GITHUB_OUTPUT"
             echo "retention=${{ inputs.retention_days }}" >> "$GITHUB_OUTPUT"
+            echo "cohort_complete=false" >> "$GITHUB_OUTPUT"
             echo "mode=DISPATCH_CALLER_COHORT" >> "$GITHUB_OUTPUT"
           fi
 
@@ -148,6 +152,7 @@ jobs:
           SYNTHETIC_MERGE_SHA: ${{ github.sha }}
           MEASURING_WORKFLOW_SHA: ${{ github.workflow_sha }}
           COHORT_MODE: ${{ steps.cohort.outputs.mode }}
+          COHORT_COMPLETE: ${{ steps.cohort.outputs.cohort_complete }}
         # The receipt is written OUTSIDE the worktree. Redirecting into the repository
         # creates the file before python starts, so the tool's own dirty-tree preflight saw
         # an untracked receipt.json and refused -- the observer perturbing the observed, the
@@ -192,7 +197,8 @@ jobs:
           import json, os, pathlib, sys
           path = pathlib.Path(os.environ["RECEIPT"])
           TERMINAL = {"QUEUE_DRAINS_AS_ORDERED"}
-          FINDINGS = {"QUEUE_NOT_DRAINABLE_AS_ORDERED", "QUEUE_DRAINABILITY_UNPROVEN",
+          FINDINGS = {"QUEUE_COMPLETE_TERMINAL",
+                      "QUEUE_NOT_DRAINABLE_AS_ORDERED", "QUEUE_DRAINABILITY_UNPROVEN",
                       "INTEGRATION_FAILED", "MEASUREMENT_CONTAMINATED",
                       "MERGE_METHOD_MISMATCH"}
           outcome = "PRODUCER_ERROR"

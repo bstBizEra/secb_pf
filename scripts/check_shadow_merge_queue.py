@@ -816,7 +816,26 @@ def main(argv: list[str]) -> int:
 
     queue = [r.strip() for r in env.get("QUEUE", "").split(",") if r.strip()]
     if not queue:
-        print("REFUSED (closed): QUEUE is required, in queue order", file=sys.stderr)
+        # An empty cohort has two very different causes and they must not share a reason.
+        # A drained queue is the SUCCESSFUL end of the work, not a producer fault: reporting
+        # PRODUCER_ERROR there would redden a check on a pull request that did nothing wrong,
+        # which is the wrong-subsystem diagnosis this repository has now made four times.
+        if env.get("COHORT_COMPLETE") == "true":
+            print(json.dumps({
+                "schema": "secb.shadow-merge-queue-receipt/v1",
+                "verdict": "QUEUE_COMPLETE_TERMINAL",
+                "measurement_status": "NOT_REQUIRED",
+                "execution": "REFUSED", "measurement": "NOT_OBSERVED",
+                "policy": "NOT_EVALUATED",
+                "why": ("the cohort is drained: every entry has landed and been verified. "
+                        "There is nothing left to measure, which is the end of the work "
+                        "rather than a failure of the producer"),
+                "confers_merge_authority": False,
+            }, indent=2, sort_keys=True))
+            return OK
+        print("REFUSED (closed): QUEUE is required, in queue order. If the cohort is "
+              "intentionally drained, set COHORT_COMPLETE=true so a completed queue is not "
+              "reported as a producer fault", file=sys.stderr)
         return FAIL
     try:
         # Destructive-worktree preflight (SECB-WP-FWK-074): this tool never touches the
