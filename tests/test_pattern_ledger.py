@@ -185,6 +185,43 @@ def test_a_mechanical_entry_with_no_tests_is_refused(tmp_path):
     refuses(one(guard="MECHANICAL"), tmp_path, "cites no tests")
 
 
+def test_a_non_test_helper_cannot_satisfy_a_mechanical_guard(tmp_path):
+    """A definition is not a collected test merely because Python can find its name."""
+    ledger = one(guard="MECHANICAL", tests=[
+        {"file": "scripts/check_pattern_ledger.py", "test": "defines_test"}])
+    stderr = refuses(ledger, tmp_path, "not a pytest test function name")
+    assert "DEF_PRESENT" not in stderr  # verdict is structural, not a decorative slogan
+
+
+def test_an_absolute_or_traversing_citation_cannot_escape_the_repository(tmp_path):
+    absolute = str((ROOT / "tests" / "test_pattern_ledger.py").resolve())
+    refuses(
+        one(guard="MECHANICAL", tests=[
+            {"file": absolute, "test": "test_the_shipped_ledger_validates"}]),
+        tmp_path, "must be repository-relative",
+    )
+    refuses(
+        one(guard="MECHANICAL", tests=[
+            {"file": "../tests/test_pattern_ledger.py",
+             "test": "test_the_shipped_ledger_validates"}]),
+        tmp_path, "attempts path traversal",
+    )
+
+
+def test_a_helper_inside_a_test_module_is_not_a_test_identity(tmp_path):
+    ledger = one(guard="MECHANICAL", tests=[
+        {"file": "tests/test_pattern_ledger.py", "test": "run"}])
+    refuses(ledger, tmp_path, "not a pytest test function name")
+
+
+def test_pending_and_mechanical_use_the_same_citation_boundary(tmp_path):
+    ledger = one(
+        guard="PENDING_MERGE", pending_pr=159, pending_head="0" * 40,
+        tests=[{"file": "/tmp/test_guard.py", "test": "test_guard"}],
+    )
+    refuses(ledger, tmp_path, "must be repository-relative")
+
+
 def test_a_pending_entry_without_a_pr_is_refused(tmp_path):
     ledger = one(guard="PENDING_MERGE",
                  tests=[{"file": "tests/test_nope.py", "test": "test_x"}])
