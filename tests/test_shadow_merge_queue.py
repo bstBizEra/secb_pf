@@ -1136,3 +1136,42 @@ def test_prefix_match_does_not_release_the_suffix(tmp_path, repo):
     assert findings["NEXT_PREFIX_STILL_VALID"] is None, (
         "an unproven postcondition must not advance the queue"
     )
+
+
+# --- computed-state admissibility -------------------------------------------------
+
+
+def computed_state(repo, value) -> dict:
+    env = {"PATH": "/usr/bin:/bin", "COMPUTED_STATE": "" if value is None else str(value)}
+    result = subprocess.run([sys.executable, str(SCRIPT)], capture_output=True, text=True,
+                            timeout=60, cwd=repo, env=env)
+    assert result.stdout, result.stderr
+    return json.loads(result.stdout)
+
+
+@pytest.mark.parametrize("value", ["unknown", "", "null"])
+def test_unknown_is_admissible_as_neither_permission_nor_refusal(repo, value):
+    """`UNKNOWN` ≠ `CLEAN` and `UNKNOWN` ≠ `CONFLICT`.
+
+    Before a merge GitHub may report `mergeable_state: unknown` while it computes a test
+    merge. Reading that as clean would proceed on no evidence; reading it as a conflict
+    would stop on no evidence.
+    """
+    findings = computed_state(repo, value)
+    assert findings["verdict"] == "COMPUTED_STATE_UNKNOWN"
+    assert findings["admissibility"] == "NOT_ADMISSIBLE"
+    assert "neither permission nor refusal" in findings["why"]
+
+
+def test_a_known_state_is_advisory_only(repo):
+    """Even `clean` is a hint about a test merge, not authority."""
+    findings = computed_state(repo, "clean")
+    assert findings["admissibility"] == "ADVISORY_ONLY"
+    assert findings["confers_merge_authority"] is False
+    assert "not authority" in findings["why"]
+
+
+def test_an_unmodelled_state_is_not_admissible(repo):
+    findings = computed_state(repo, "some_new_state")
+    assert findings["verdict"] == "COMPUTED_STATE_UNRECOGNISED"
+    assert findings["admissibility"] == "NOT_ADMISSIBLE"

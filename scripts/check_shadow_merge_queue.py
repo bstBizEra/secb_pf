@@ -419,6 +419,39 @@ def measure(base: str, queue: list[str], method: str, test_command: str,
 
 # --- compare-and-swap handoff -------------------------------------------------
 
+# --- computed-state admissibility ---------------------------------------------
+#
+#     UNKNOWN != CLEAN        UNKNOWN != CONFLICT
+#
+# Before a merge GitHub may report `mergeable: null` / `mergeable_state: unknown` while it
+# computes a test merge. That is the absence of an answer, and it is admissible neither as
+# permission nor as refusal. What makes an execution valid is not a computed-state guess:
+#
+#     authorized CAS request + merge endpoint ACCEPTED + full tree readback MATCH
+#       -> EXECUTION_VALID
+#
+# The atomic endpoint decides; the postcondition is verified separately.
+COMPUTED_STATES = {"clean", "dirty", "blocked", "behind", "unstable", "has_hooks", "unknown"}
+
+
+def classify_computed_state(state: str | None) -> dict:
+    if state is None or str(state).lower() in ("unknown", "null", ""):
+        return {"admissibility": "NOT_ADMISSIBLE",
+                "verdict": "COMPUTED_STATE_UNKNOWN",
+                "why": ("mergeable_state is unknown -- the platform has not finished "
+                        "computing a test merge. Absence of an answer is neither permission "
+                        "nor refusal; send the pinned CAS request and let the atomic endpoint "
+                        "decide, then verify the tree")}
+    state = str(state).lower()
+    if state not in COMPUTED_STATES:
+        return {"admissibility": "NOT_ADMISSIBLE", "verdict": "COMPUTED_STATE_UNRECOGNISED",
+                "why": f"{state!r} is not a state this control models"}
+    return {"admissibility": "ADVISORY_ONLY", "verdict": f"COMPUTED_STATE_{state.upper()}",
+            "why": ("a computed state is a hint about a test merge, not authority. Execution "
+                    "validity comes from the CAS request, the endpoint's acceptance and the "
+                    "tree readback")}
+
+
 def validate_handoff(receipt: dict, observed: dict) -> dict:
     """Grade an executed merge against the prefix that was simulated.
 
@@ -684,6 +717,12 @@ def promote(receipt: dict, observed: dict) -> dict:
 
 def main(argv: list[str]) -> int:
     env = dict(os.environ)
+
+    if env.get("COMPUTED_STATE") is not None:
+        findings = classify_computed_state(env.get("COMPUTED_STATE"))
+        findings["confers_merge_authority"] = False
+        print(json.dumps(findings, indent=2, sort_keys=True))
+        return OK if findings["admissibility"] == "ADVISORY_ONLY" else FAIL
 
     if env.get("WATERMARK_SNAPSHOT"):
         try:
