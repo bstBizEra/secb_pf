@@ -474,6 +474,52 @@ def validate_handoff(receipt: dict, observed: dict) -> dict:
     return findings
 
 
+def classify_watermark(snapshot: dict, evidence: dict) -> dict:
+    """Order a disagreement in time, which the cursor cannot do.
+
+        evidence.created_at > snapshot.observed_at
+          → LATE_ARRIVAL_AFTER_SNAPSHOT   ≠ REPLAY
+
+    Two independent axes. The **cursor** checks whether evidence is bound to the right
+    ordinal, commit and tree; the **watermark** checks whether it existed when the snapshot
+    was taken. Evidence can be perfectly bound and simply newer than the observer, which is
+    not a replay and not a defect -- it is a reader who looked before it arrived.
+
+    Measured: four state reports in this session disagreed with the repository because they
+    were taken seconds before a push. Each was correct at its watermark.
+    """
+    observed_at = snapshot.get("observed_at")
+    through = snapshot.get("observed_through_comment_id")
+    if not observed_at and not through:
+        return {"verdict": "SNAPSHOT_UNWATERMARKED",
+                "why": ("a snapshot with neither observed_at nor "
+                        "observed_through_comment_id cannot be ordered against anything, so "
+                        "a disagreement with it is unclassifiable")}
+    created_at = evidence.get("created_at")
+    comment_id = evidence.get("comment_id")
+    # Either axis orders it: a timestamp, or a monotonic comment id. Requiring the
+    # timestamp would have rejected evidence ordered only by comment id -- which is the
+    # watermark form this session actually used.
+    if not created_at and not comment_id:
+        return {"verdict": "EVIDENCE_UNTIMED",
+                "why": "the evidence carries neither created_at nor comment_id to order"}
+    if observed_at and created_at and created_at > observed_at:
+        return {"verdict": "LATE_ARRIVAL_AFTER_SNAPSHOT",
+                "why": (f"the evidence appeared at {created_at}, after the snapshot's "
+                        f"watermark {observed_at}. The snapshot was correct when taken; the "
+                        "evidence is not a replay"),
+                "is_replay": False, "snapshot_was_valid_at_watermark": True}
+    if through and comment_id and comment_id > through:
+        return {"verdict": "LATE_ARRIVAL_AFTER_SNAPSHOT",
+                "why": (f"comment {evidence['comment_id']} follows the snapshot's watermark "
+                        f"{through}"),
+                "is_replay": False, "snapshot_was_valid_at_watermark": True}
+    return {"verdict": "CONTEMPORANEOUS_OR_EARLIER",
+            "why": ("the evidence predates the snapshot's watermark, so a disagreement is "
+                    "NOT explained by ordering -- check the cursor axis instead"),
+            "is_replay": None}
+
+
 # --- evidence promotion --------------------------------------------------------
 
 def promote(receipt: dict, observed: dict) -> dict:
@@ -560,6 +606,18 @@ def promote(receipt: dict, observed: dict) -> dict:
 
 def main(argv: list[str]) -> int:
     env = dict(os.environ)
+
+    if env.get("WATERMARK_SNAPSHOT"):
+        try:
+            snapshot = json.loads(Path(env["WATERMARK_SNAPSHOT"]).read_text(encoding="utf-8"))
+            evidence = json.loads(Path(env["WATERMARK_EVIDENCE"]).read_text(encoding="utf-8"))
+        except (OSError, KeyError, json.JSONDecodeError) as exc:
+            print(f"REFUSED (closed): WATERMARK_SNAPSHOT and WATERMARK_EVIDENCE required "
+                  f"({exc})", file=sys.stderr)
+            return FAIL
+        findings = classify_watermark(snapshot, evidence)
+        print(json.dumps(findings, indent=2, sort_keys=True))
+        return OK
 
     if env.get("PROMOTE_OBSERVED"):
         try:

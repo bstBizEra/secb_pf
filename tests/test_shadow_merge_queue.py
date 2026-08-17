@@ -783,3 +783,61 @@ def test_evidence_from_another_cohort_is_rejected(tmp_path, repo):
 def test_a_cursor_without_an_ordinal_is_unbound(tmp_path, repo):
     findings = cursor_handoff(tmp_path, repo, ordinal=None)
     assert findings["verdict"] == "READBACK_UNBOUND"
+
+
+# --- observation watermark ordering ---------------------------------------------
+
+
+def watermark(tmp_path, repo, snapshot: dict, evidence: dict) -> dict:
+    sp, ep = tmp_path / "snap.json", tmp_path / "ev.json"
+    sp.write_text(json.dumps(snapshot), encoding="utf-8")
+    ep.write_text(json.dumps(evidence), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)], capture_output=True, text=True, timeout=120,
+        cwd=repo, env={"PATH": "/usr/bin:/bin", "WATERMARK_SNAPSHOT": str(sp),
+                       "WATERMARK_EVIDENCE": str(ep)},
+    )
+    assert result.stdout, result.stderr
+    return json.loads(result.stdout)
+
+
+def test_evidence_after_the_watermark_is_late_arrival_not_replay(tmp_path, repo):
+    """Four state reports this session disagreed with the repository for this reason.
+
+    Each was correct when taken; the push landed seconds later. That is an ordering fact,
+    not a replay, and the two must not be conflated.
+    """
+    findings = watermark(tmp_path, repo,
+                         {"observed_at": "2026-08-17T10:00:00Z"},
+                         {"created_at": "2026-08-17T10:00:20Z"})
+    assert findings["verdict"] == "LATE_ARRIVAL_AFTER_SNAPSHOT"
+    assert findings["is_replay"] is False
+    assert findings["snapshot_was_valid_at_watermark"] is True
+
+
+def test_a_comment_id_watermark_orders_the_same_way(tmp_path, repo):
+    findings = watermark(tmp_path, repo,
+                         {"observed_through_comment_id": 5312812873},
+                         {"comment_id": 5312813920})
+    assert findings["verdict"] == "LATE_ARRIVAL_AFTER_SNAPSHOT"
+    assert findings["is_replay"] is False
+
+
+def test_evidence_before_the_watermark_is_not_explained_by_ordering(tmp_path, repo):
+    """Then the disagreement is a cursor question, not a timing one."""
+    findings = watermark(tmp_path, repo,
+                         {"observed_at": "2026-08-17T10:00:00Z"},
+                         {"created_at": "2026-08-17T09:59:00Z"})
+    assert findings["verdict"] == "CONTEMPORANEOUS_OR_EARLIER"
+    assert findings["is_replay"] is None
+    assert "check the cursor axis" in findings["why"]
+
+
+def test_an_unwatermarked_snapshot_cannot_be_ordered(tmp_path, repo):
+    findings = watermark(tmp_path, repo, {}, {"created_at": "2026-08-17T10:00:00Z"})
+    assert findings["verdict"] == "SNAPSHOT_UNWATERMARKED"
+
+
+def test_untimed_evidence_cannot_be_ordered(tmp_path, repo):
+    findings = watermark(tmp_path, repo, {"observed_at": "2026-08-17T10:00:00Z"}, {})
+    assert findings["verdict"] == "EVIDENCE_UNTIMED"
