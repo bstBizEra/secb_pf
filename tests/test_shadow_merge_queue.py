@@ -1009,3 +1009,64 @@ def test_an_over_budget_push_is_named_as_a_budget_verdict(tmp_path, hook_repo):
     assert result.returncode == 1
     assert "BUDGET_EXCEEDED" in result.stderr
     assert "REQUIRED_REF_UNAVAILABLE" not in result.stderr
+
+
+# --- reason integrity -------------------------------------------------------------
+
+
+def test_every_verdict_decomposes_into_three_axes(tmp_path, repo):
+    """`ACTION_REFUSED` ≠ `REFUSAL_REASON_CORRECT`."""
+    findings = handoff(tmp_path, repo, landed(repo))
+    assert findings["reason_integrity"] == "COHERENT"
+    assert findings["execution"] == "PROCEEDED"
+    assert findings["measurement"] == "OBSERVED"
+    assert findings["policy"] == "PASS"
+    assert findings["terminal_reason"] == "ENTRY_LANDED_AS_SIMULATED"
+
+
+def test_a_refusal_without_an_observation_evaluates_no_policy(tmp_path, repo):
+    """The rule that would have caught all three mislabels in this repository."""
+    observed = landed(repo)
+    del observed["actual_main_tree"]
+    findings = handoff(tmp_path, repo, observed)
+    assert findings["terminal_reason"] == "READBACK_NOT_OBSERVED"
+    assert findings["execution"] == "REFUSED"
+    assert findings["measurement"] == "NOT_OBSERVED"
+    assert findings["policy"] == "NOT_EVALUATED", (
+        "a control that cannot measure must not render a policy verdict"
+    )
+
+
+def test_a_policy_verdict_on_an_unobserved_measurement_is_a_diagnosis_failure():
+    """Asserted on the mapping itself, so an incoherent pairing cannot be introduced."""
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import importlib
+    module = importlib.import_module("check_shadow_merge_queue")
+    for verdict, (_execution, measurement, policy) in module.REASON_AXES.items():
+        if policy != "NOT_EVALUATED":
+            assert measurement == "OBSERVED", (
+                f"{verdict} would assert policy {policy} without an observation"
+            )
+    # and the guard fires when one is forced
+    module.REASON_AXES["_forced"] = ("REFUSED", "NOT_OBSERVED", "FAIL")
+    try:
+        findings = module.reason_integrity("_forced")
+        assert findings["reason_integrity"] == "CONTROL_DIAGNOSIS_FAILURE"
+        assert "only permitted after a valid observation" in findings["why"]
+    finally:
+        del module.REASON_AXES["_forced"]
+
+
+def test_an_unmapped_verdict_is_flagged_rather_than_passed():
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import importlib
+    module = importlib.import_module("check_shadow_merge_queue")
+    assert module.reason_integrity("SOMETHING_NEW")["reason_integrity"] == "UNMAPPED_REASON"
+
+
+def test_competing_reasons_are_absent_not_merely_unmentioned(tmp_path, repo):
+    """A result carrying two reasons leaves the reader to choose one."""
+    findings = handoff(tmp_path, repo, landed(repo, actual_main_tree="0" * 40))
+    assert findings["terminal_reason"] == "LANDED_TREE_MISMATCH"
+    assert "READBACK_NOT_OBSERVED" not in json.dumps(findings)
+    assert findings["policy"] == "FAIL" and findings["measurement"] == "OBSERVED"

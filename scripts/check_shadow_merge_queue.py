@@ -69,6 +69,61 @@ REPO_MERGE_METHOD = "SQUASH"
 DEFAULT_TEST = "python3 -m pytest -p no:cacheprovider -q tests/"
 
 
+# --- reason integrity ---------------------------------------------------------
+#
+#     ACTION_REFUSED != REFUSAL_REASON_CORRECT
+#
+# Three times in this repository a control refused correctly and diagnosed wrongly:
+# INTEGRATION_FAILED reported as CONFLICT, budget exhaustion reported as a failed prefix,
+# and an unresolvable ref reported as BUDGET_EXCEEDED. A correct stop hides an incorrect
+# reason, and fail-closed design makes that MORE likely -- refusing is right either way, so
+# the mislabel survives review.
+#
+# Every verdict therefore carries three independent axes and exactly one terminal reason.
+# The load-bearing rule: a POLICY verdict is only permitted after a valid OBSERVATION.
+# Each of the three mislabels above asserted policy on an unobserved measurement.
+REASON_AXES = {
+    # verdict: (execution, measurement, policy)
+    "ENTRY_LANDED_AS_SIMULATED":        ("PROCEEDED", "OBSERVED",     "PASS"),
+    "LANDED_TREE_MISMATCH":             ("REFUSED",   "OBSERVED",     "FAIL"),
+    "SUFFIX_INVALIDATED":               ("REFUSED",   "OBSERVED",     "FAIL"),
+    "HEAD_MOVED_409":                   ("REFUSED",   "OBSERVED",     "FAIL"),
+    "PRECONDITION_DRIFTED":             ("REFUSED",   "OBSERVED",     "FAIL"),
+    "METADATA_DRIFTED":                 ("REFUSED",   "OBSERVED",     "FAIL"),
+    "MERGE_NOT_ACCEPTED":               ("REFUSED",   "OBSERVED",     "FAIL"),
+    "READBACK_NOT_OBSERVED":            ("REFUSED",   "NOT_OBSERVED", "NOT_EVALUATED"),
+    "HISTORICAL_ALREADY_CONSUMED":      ("REFUSED",   "NOT_OBSERVED", "NOT_EVALUATED"),
+    "REFUSE_OUT_OF_ORDER":              ("REFUSED",   "NOT_OBSERVED", "NOT_EVALUATED"),
+    "REPLAY_REJECTED_FOR_CURRENT_STEP": ("REFUSED",   "NOT_OBSERVED", "NOT_EVALUATED"),
+    "READBACK_UNBOUND":                 ("REFUSED",   "NOT_OBSERVED", "NOT_EVALUATED"),
+    "UNKNOWN_ENTRY":                    ("REFUSED",   "NOT_OBSERVED", "NOT_EVALUATED"),
+    "EVIDENCE_PROMOTABLE":              ("PROCEEDED", "OBSERVED",     "PASS"),
+    "REQUIRED_GATE_FAILURE":            ("REFUSED",   "OBSERVED",     "FAIL"),
+    "CROSS_REVISION_ASSEMBLY":          ("REFUSED",   "NOT_OBSERVED", "NOT_EVALUATED"),
+    "MEASUREMENT_INCOMPLETE":           ("REFUSED",   "INCOMPLETE",   "NOT_EVALUATED"),
+    "MEASUREMENT_NOT_TERMINAL":         ("REFUSED",   "INCOMPLETE",   "NOT_EVALUATED"),
+    "ARTIFACT_NOT_VERIFIED":            ("REFUSED",   "NOT_OBSERVED", "NOT_EVALUATED"),
+    "METADATA_COHERENCE_FAILED":        ("REFUSED",   "OBSERVED",     "FAIL"),
+    "COHORT_DRIFT":                     ("REFUSED",   "OBSERVED",     "FAIL"),
+}
+
+
+def reason_integrity(verdict: str) -> dict:
+    """Decompose a terminal reason into its three axes, refusing incoherent pairings."""
+    axes = REASON_AXES.get(verdict)
+    if axes is None:
+        return {"terminal_reason": verdict, "reason_integrity": "UNMAPPED_REASON",
+                "why": "a verdict with no declared axes cannot be audited for diagnosis"}
+    execution, measurement, policy = axes
+    if policy != "NOT_EVALUATED" and measurement != "OBSERVED":
+        return {"terminal_reason": verdict, "reason_integrity": "CONTROL_DIAGNOSIS_FAILURE",
+                "why": (f"{verdict} asserts policy {policy} on measurement {measurement}. A "
+                        "policy verdict is only permitted after a valid observation")}
+    return {"terminal_reason": verdict, "execution": execution,
+            "measurement": measurement, "policy": policy,
+            "reason_integrity": "COHERENT"}
+
+
 class Refused(ValueError):
     """The measurement cannot be made honestly."""
 
@@ -628,6 +683,7 @@ def main(argv: list[str]) -> int:
                   file=sys.stderr)
             return FAIL
         findings = promote(receipt, observed)
+        findings.update(reason_integrity(findings.get("verdict", "")))
         print(json.dumps(findings, indent=2, sort_keys=True))
         return OK if findings.get("verdict") == "EVIDENCE_PROMOTABLE" else FAIL
 
@@ -691,6 +747,7 @@ def main(argv: list[str]) -> int:
                   file=sys.stderr)
             return FAIL
         findings = validate_handoff(receipt, observed)
+        findings.update(reason_integrity(findings.get("verdict", "")))
         findings["confers_merge_authority"] = False
         print(json.dumps(findings, indent=2, sort_keys=True))
         return OK if findings.get("verdict") == "ENTRY_LANDED_AS_SIMULATED" else FAIL
