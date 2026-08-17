@@ -667,8 +667,21 @@ GREEN_CHECKS = {"Gate 5 — Test": "success", "Budget circuit breaker": "success
                 "Gate 1 — Authority": "success", "Governance verdict": "success"}
 
 
-def promote(tmp_path, repo, queue=DRAINS, **observed_overrides) -> dict:
-    document = receipt(repo, queue)
+# Promotion binds ONE subject, so its fixture queue is single-entry. A multi-entry
+# cohort has no single subject to bind a rollup to, asserted separately below rather
+# than being the default every other promotion test trips over.
+SINGLE = "first"
+
+
+def promote(tmp_path, repo, queue=SINGLE, receipt_env=None, **observed_overrides) -> dict:
+    """Promote a measurement.
+
+    `receipt_env` shapes the RECEIPT (provenance, test command); `observed_overrides` shape
+    the supplied gate EVIDENCE. Keeping them separate matters here: the whole point of this
+    work package is that producer identity and eligibility subject are different fields, so
+    a helper that funnelled both through one bag would make the distinction untestable.
+    """
+    document = receipt(repo, queue, **(receipt_env or {}))
     receipt_path = tmp_path / "r.json"
     receipt_path.write_text(json.dumps(document), encoding="utf-8")
     observed = {
@@ -692,7 +705,7 @@ def promote(tmp_path, repo, queue=DRAINS, **observed_overrides) -> dict:
 
 
 def test_a_complete_verified_measurement_on_a_green_revision_is_promotable(tmp_path, repo):
-    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef")
+    findings = promote(tmp_path, repo, receipt_env={"MEASURING_PR_HEAD": "deadbeef"})
     assert findings["verdict"] == "EVIDENCE_PROMOTABLE"
     assert findings["measuring_head"] == "deadbeef"
     assert findings["subject_head"] != findings["measuring_head"]
@@ -708,7 +721,7 @@ def test_a_required_gate_failure_blocks_promotion(tmp_path, repo):
     gate on the same revision was red.
     """
     checks = dict(GREEN_CHECKS, **{"Budget circuit breaker": "failure"})
-    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef", required_checks=checks)
+    findings = promote(tmp_path, repo, receipt_env={"MEASURING_PR_HEAD": "deadbeef"}, required_checks=checks)
     assert findings["verdict"] == "REQUIRED_GATE_FAILURE"
     assert findings["execution_eligibility"] == "NOT_ELIGIBLE"
     assert "however" in findings["why"]
@@ -731,19 +744,19 @@ def test_measuring_head_is_provenance_not_the_gate_subject(tmp_path, repo):
 
 
 def test_subject_and_measurer_remain_separate_in_the_promoted_binding(tmp_path, repo):
-    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef")
+    findings = promote(tmp_path, repo, receipt_env={"MEASURING_PR_HEAD": "deadbeef"})
     assert findings["binding"]["subject_head"] == findings["subject_head"]
     assert findings["binding"]["measuring_head"] == "deadbeef"
 
 
 def test_an_unverified_artifact_blocks_promotion(tmp_path, repo):
-    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef", artifact_verified=False)
+    findings = promote(tmp_path, repo, receipt_env={"MEASURING_PR_HEAD": "deadbeef"}, artifact_verified=False)
     assert findings["verdict"] == "ARTIFACT_NOT_VERIFIED"
 
 
 def test_incoherent_metadata_blocks_promotion(tmp_path, repo):
     """A body whose declared budget and narrative disagree cannot bind anything."""
-    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef", metadata_coherent=False)
+    findings = promote(tmp_path, repo, receipt_env={"MEASURING_PR_HEAD": "deadbeef"}, metadata_coherent=False)
     assert findings["verdict"] == "METADATA_COHERENCE_FAILED"
 
 
@@ -754,7 +767,7 @@ def test_cohort_drift_blocks_promotion(tmp_path, repo):
 
 
 def test_an_incomplete_measurement_is_not_promotable(tmp_path, repo):
-    findings = promote(tmp_path, repo, JAMS, MEASURING_PR_HEAD="deadbeef")
+    findings = promote(tmp_path, repo, receipt_env={"TEST_COMMAND": "false"})
     assert findings["verdict"] in {"MEASUREMENT_INCOMPLETE", "MEASUREMENT_NOT_TERMINAL"}
     assert findings["execution_eligibility"] == "NOT_ELIGIBLE"
 
