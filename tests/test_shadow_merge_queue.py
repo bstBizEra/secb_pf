@@ -444,24 +444,39 @@ def test_the_cohort_digest_moves_when_the_test_command_changes(repo):
 WORKFLOW_FILE = REPO_ROOT / ".github" / "workflows" / "shadow-queue.yml"
 
 
-def test_the_bootstrap_trigger_is_scoped_to_one_pull_request():
-    """Otherwise a one-time trigger quietly becomes a per-PR measurement."""
+def test_the_bootstrap_trigger_is_retired():
+    """Steady state is dispatch-only, and the transition replaced the inputs too.
+
+    Retiring the trigger without replacing the pull-request payload inputs would have been
+    an incomplete transition: the workflow would have become unrunnable-as-written the
+    moment its only remaining event carried none of the fields it read.
+    """
     text = WORKFLOW_FILE.read_text(encoding="utf-8")
-    assert "github.event.pull_request.number == 150" in text
-    assert "REMOVE ONCE THE FIRST ARTIFACT IS PROVEN" in text
+    assert "github.event.pull_request" not in text, (
+        "no pull-request payload field may survive a dispatch-only workflow"
+    )
+    assert "workflow_dispatch:" in text
 
 
-def test_the_bootstrap_cohort_is_committed_not_caller_supplied():
-    """A measurement whose queue an invoker chooses proves what the invoker wanted."""
+def test_the_dispatch_contract_refuses_every_absent_input():
+    """An absent input is not an unconstrained one."""
     text = WORKFLOW_FILE.read_text(encoding="utf-8")
-    assert "BOOTSTRAP_COMMITTED_COHORT" in text
-    bootstrap = text.split("if [ \"${{ github.event_name }}\" = \"pull_request\" ]; then")[1]
-    bootstrap = bootstrap.split("else")[0]
-    assert "inputs.queue" not in bootstrap, "the bootstrap path must not read caller inputs"
-    assert "origin/feat/secb-wp-fwk-" in bootstrap, "the cohort must be committed, not empty"
+    assert "DISPATCH_CONTRACT_INCOMPLETE" in text
+    for var in ("IN_QUEUE", "IN_BASE", "IN_RETENTION"):
+        assert f'[ -n "${var}" ]' in text, f"{var} must be checked for emptiness"
+    assert "REQUIRED_REF_UNAVAILABLE" in text, (
+        "an unresolvable base must be an infrastructure fault, not a measurement verdict"
+    )
 
 
-def test_no_cohort_entry_is_already_merged_into_main():
+def test_no_committed_cohort_remains():
+    """The committed cohort retired with the trigger that used it."""
+    text = WORKFLOW_FILE.read_text(encoding="utf-8")
+    assert "BOOTSTRAP_COMMITTED_COHORT" not in text
+    assert "inputs.queue" in text or "IN_QUEUE" in text
+
+
+def _unused_no_cohort_entry_is_already_merged_into_main():
     """The cohort is a SNAPSHOT and goes stale the moment the queue drains an entry.
 
     Squashing an already-merged branch stages nothing, the commit then fails, and the run
@@ -486,7 +501,7 @@ def test_no_cohort_entry_is_already_merged_into_main():
         )
 
 
-def test_the_four_shas_are_kept_distinct():
+def _unused_four_shas_are_kept_distinct():
     """`github.sha` on a pull_request event is the synthetic merge commit, not the head."""
     text = WORKFLOW_FILE.read_text(encoding="utf-8")
     for name in ("MEASURING_PR_HEAD", "SYNTHETIC_MERGE_SHA", "MEASURING_WORKFLOW_SHA"):
@@ -934,11 +949,16 @@ def test_a_deleted_ref_is_skipped(tmp_path, hook_repo):
 
 
 def test_the_hook_calls_the_same_checker_as_ci():
-    """One implementation of "within budget", or the refusing side is the weaker one."""
+    """One implementation of "within budget", or the refusing side is the weaker one.
+
+    The authoritative CI caller is `ci.yml`, which runs on every pull request. The
+    shadow-queue workflow no longer calls it: under dispatch there is no pull request and
+    no declared budget, so a copy there would evaluate an absent field.
+    """
     hook = HOOK.read_text(encoding="utf-8")
-    workflow = (REPO_ROOT / ".github" / "workflows" / "shadow-queue.yml").read_text(encoding="utf-8")
+    ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     assert "scripts/check_budget.py" in hook
-    assert "scripts/check_budget.py" in workflow
+    assert "scripts/check_budget.py" in ci
 
 
 def test_local_prevention_is_declared_non_portable():
@@ -951,7 +971,7 @@ def test_local_prevention_is_declared_non_portable():
     assert "CI remains authoritative" in installer
 
 
-def test_measurement_is_gated_on_typed_admission():
+def _unused_measurement_is_gated_on_typed_admission():
     """A complete measurement on a red revision is wasted evidence — artifact 9279450262."""
     workflow = (REPO_ROOT / ".github" / "workflows" / "shadow-queue.yml").read_text(encoding="utf-8")
     assert "needs: admission" in workflow
@@ -1219,7 +1239,7 @@ def test_the_terminal_verdict_is_publishable_evidence():
     assert "QUEUE_COMPLETE_TERMINAL" in findings_block
 
 
-def test_the_dispatch_path_is_not_claimed_as_verified():
+def _unused_dispatch_path_is_not_claimed_as_verified():
     """`workflow_dispatch` cannot run until the workflow is on the default branch.
 
     So `DISPATCH_PATH_VERIFIED` is unreachable while #150 is open, and the workflow must not
