@@ -9,15 +9,19 @@ fails the PR when the diff exceeds it.
 
 Contract:
 
-    stdin        output of ``git diff --numstat <base>...<head>``
-    BUDGET_TEXT  the PR body, containing exactly one budget line:
+    stdin             output of ``git diff --numstat <base>...<head>``
+    BUDGET_TEXT       the PR body, containing exactly one budget line:
 
         BUDGET: max_files=<int> max_lines=<int>
 
+    ALLOW_EMPTY_DIFF  set to "1" to declare a genuinely empty diff deliberately
+
 Exit codes (fail-closed, AGENTS.md section 4):
 
-    0  diff is within the declared budget
-    2  budget missing, malformed, declared twice, or exceeded
+    0  diff is within the declared budget, or ALLOW_EMPTY_DIFF=1 and stdin was empty
+       (reported NOT_APPLICABLE, never PASS -- nothing was measured)
+    2  budget missing, malformed, declared twice, exceeded, OR stdin carried no numstat
+       rows without ALLOW_EMPTY_DIFF (BUDGET_DIFF_ABSENT)
 
 Counting rules: every changed path counts as one file. Lines are added
 plus deleted. Binary files report no line counts in numstat ("-"); they
@@ -76,7 +80,54 @@ def measure_diff(numstat: str) -> tuple[int, int]:
 def main() -> int:
     try:
         max_files, max_lines = parse_budget(os.environ.get("BUDGET_TEXT", ""))
-        files, lines = measure_diff(sys.stdin.read())
+        raw = sys.stdin.read()
+    except ValueError as exc:
+        print(f"BUDGET GATE FAIL (closed): {exc}", file=sys.stderr)
+        return FAIL
+
+    # An absent diff is not a diff of zero. This gate is fed by a shell pipeline
+    #
+    #     git diff --numstat "$BASE_SHA...$HEAD_SHA" | python scripts/check_budget.py
+    #
+    # and GitHub's default shell is `bash -e`, which does NOT set pipefail -- so the step's
+    # exit status is THIS script's. When `git diff` fails, most realistically because the base
+    # SHA is not present in a shallow clone, it writes nothing to stdout and its non-zero exit
+    # is discarded. Before this branch existed, that produced "BUDGET GATE PASS: 0/N files" and
+    # a green admission check that had measured nothing at all.
+    #
+    #     EMPTY_INPUT != EMPTY_DIFF
+    #     MEASUREMENT_NOT_PERFORMED != MEASUREMENT_FOUND_NOTHING
+    #
+    # The two sibling gates fed the same way already escalate on absent input: both
+    # classify_authority_delta.py and check_dual_policy.py answer "no diff parsed -- authority
+    # delta cannot be established" with the strictest verdict. This gate was the only one that
+    # read absence as compliance. Fixing it here rather than adding `set -o pipefail` to the
+    # workflow is deliberate: the distinction is only observable at the point that consumes the
+    # bytes, a gate must not depend on its caller's shell options for fail-closed behaviour, and
+    # `.github/workflows/ci.yml` is claimed by two long-open branches (#113, #123).
+    if not raw.strip():
+        if os.environ.get("ALLOW_EMPTY_DIFF") == "1":
+            # A genuinely empty diff is legitimate but rare (a revert reduced to nothing). It is
+            # reported as NOT_APPLICABLE and never as PASS: nothing was measured against the
+            # ceiling, so calling it "within budget" would overstate what the gate observed.
+            print(
+                "BUDGET GATE NOT_APPLICABLE: no changed paths were reported and "
+                "ALLOW_EMPTY_DIFF=1 was set explicitly. Nothing was measured against the "
+                f"declared {max_files} files / {max_lines} lines."
+            )
+            return 0
+        print(
+            "BUDGET GATE FAIL (closed): BUDGET_DIFF_ABSENT -- stdin carried no numstat rows. "
+            "Either the diff command failed (an unreachable base SHA in a shallow clone is the "
+            "usual cause, and a bash pipeline without pipefail hides its exit status) or the "
+            "pipe was not wired. An unmeasured diff is not a diff within budget. If the diff is "
+            "genuinely empty, set ALLOW_EMPTY_DIFF=1 to say so deliberately.",
+            file=sys.stderr,
+        )
+        return FAIL
+
+    try:
+        files, lines = measure_diff(raw)
     except ValueError as exc:
         print(f"BUDGET GATE FAIL (closed): {exc}", file=sys.stderr)
         return FAIL
