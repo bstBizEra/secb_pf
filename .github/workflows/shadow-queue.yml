@@ -13,16 +13,11 @@
 name: shadow-queue
 
 on:
-  # BOOTSTRAP TRIGGER -- REMOVE ONCE THE FIRST ARTIFACT IS PROVEN.
-  #
-  # workflow_dispatch only works once the workflow is on the default branch, which needs
-  # this pull request merged -- and merging it moves `main` outside the measured order,
-  # invalidating the receipt the measurement is for. A one-time pull_request trigger, scoped
-  # to this pull request alone, breaks that circle by producing the artifact BEFORE the
-  # merge. It is not a steady-state trigger and is deleted in the same change that proves
-  # the artifact.
-  pull_request:
-
+  # Steady state: dispatch only. The one-time `pull_request` bootstrap trigger is retired
+  # -- it existed because `workflow_dispatch` cannot run until the workflow is on the
+  # default branch, and that is now satisfied. Retiring the trigger WITHOUT replacing the
+  # pull-request payload inputs would have been an incomplete transition, so both happen
+  # here together.
   workflow_dispatch:
     inputs:
       queue:
@@ -41,55 +36,18 @@ permissions:
   contents: read
 
 jobs:
-  # Admission runs BEFORE measurement and is cheap. Measured: artifact 9279450262 was a
-  # complete 5/5 measurement on a revision whose budget gate was red, so the evidence could
-  # not be promoted and the measurement was wasted. A measurement must not start on a
-  # revision that fails a required gate.
-  admission:
-    name: "Admission — budget declaration"
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.number == 150
-    runs-on: ubuntu-latest
-    outputs:
-      admission: ${{ steps.gate.outputs.admission }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      # The SAME canonical checker the pre-push hook calls. A second implementation of
-      # "is this within budget" would disagree eventually, and the refusing side would be
-      # the weaker one.
-      - name: Check the declared budget
-        id: gate
-        env:
-          BUDGET_TEXT: ${{ github.event.pull_request.body }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set +e
-          git diff --numstat "$BASE_SHA...$HEAD_SHA" | python scripts/check_budget.py
-          code=$?
-          set -e
-          if [ "$code" -eq 0 ]; then
-            echo "admission=ADMISSION_PASS" >> "$GITHUB_OUTPUT"
-          else
-            echo "admission=ADMISSION_FAILED" >> "$GITHUB_OUTPUT"
-            echo "::error::ADMISSION_FAILED -- measurement will not start on a revision that "\
-                 "fails a required gate; its evidence could not be promoted anyway."
-            exit 1
-          fi
-
+  # The budget-admission job is retired with the bootstrap trigger, and deliberately not
+  # carried forward. It existed to stop a measurement starting on a PULL REQUEST whose
+  # declared budget was exceeded. A dispatch has no pull request and no budget declaration,
+  # so the check would either fail always or pass vacuously -- a control evaluating a field
+  # that does not exist. Admission under dispatch is the input-contract validation in the
+  # cohort step: every input declared, each refused when empty, and the base ref resolved
+  # before anything is measured.
   measure:
     name: "Shadow queue — ordered drainability"
     # Scoped to the bootstrap pull request, AND gated on admission. A skipped job is not a
     # success, so a red admission stops the measurement rather than producing evidence that
     # cannot be promoted.
-    needs: admission
-    if: needs.admission.outputs.admission == 'ADMISSION_PASS'
 
     runs-on: ubuntu-latest
     outputs:
@@ -116,34 +74,35 @@ jobs:
       # whose queue an invoker chooses proves whatever the invoker wanted measured. The
       # dispatch path keeps its inputs, because there the caller is choosing a cohort
       # deliberately rather than certifying this one.
-      - name: Resolve the cohort
+      # Validated dispatch contract. Every input is declared and refused when empty:
+      # an absent queue is not an unconstrained one, and the committed bootstrap cohort is
+      # gone with the trigger that used it.
+      - name: Resolve and validate the cohort
         id: cohort
+        env:
+          IN_QUEUE: ${{ inputs.queue }}
+          IN_BASE: ${{ inputs.base }}
+          IN_RETENTION: ${{ inputs.retention_days }}
         run: |
-          # Cohort updated after #142 (entry 1) merged: squashing an already-merged branch
-          # stages nothing, the commit fails, and the run reports INTEGRATION_FAILED. A
-          # committed cohort is a snapshot and goes stale the moment the queue drains an
-          # entry -- which is the first thing the framework's own merge did to it.
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # The committed cohort. When it empties, COHORT_COMPLETE marks the drain as
-            # terminal rather than letting an empty queue read as a producer fault.
-            # The eight-entry cohort drained: all landed, all verified at full identity. The
-            # remaining entry is THIS pull request. Note the self-reference: the
-            # measuring workflow lives on the branch it measures. The expected tree is
-            # still computed by git rather than by this code, so the PREDICTION is not
-            # self-certified -- only the orchestration is self-hosted, which is worth
-            # stating rather than glossing.
-            echo "queue=origin/feat/secb-wp-fwk-083-shadow-merge-queue" >> "$GITHUB_OUTPUT"
-            echo "cohort_complete=false" >> "$GITHUB_OUTPUT"
-            echo "base=origin/main" >> "$GITHUB_OUTPUT"
-            echo "retention=90" >> "$GITHUB_OUTPUT"
-            echo "mode=BOOTSTRAP_COMMITTED_COHORT" >> "$GITHUB_OUTPUT"
-          else
-            echo "queue=${{ inputs.queue }}" >> "$GITHUB_OUTPUT"
-            echo "base=${{ inputs.base }}" >> "$GITHUB_OUTPUT"
-            echo "retention=${{ inputs.retention_days }}" >> "$GITHUB_OUTPUT"
-            echo "cohort_complete=false" >> "$GITHUB_OUTPUT"
-            echo "mode=DISPATCH_CALLER_COHORT" >> "$GITHUB_OUTPUT"
+          missing=""
+          [ -n "$IN_QUEUE" ] || missing="$missing queue"
+          [ -n "$IN_BASE" ] || missing="$missing base"
+          [ -n "$IN_RETENTION" ] || missing="$missing retention_days"
+          if [ -n "$missing" ]; then
+            echo "::error::DISPATCH_CONTRACT_INCOMPLETE --$missing absent. An absent input is "\
+                 "not an unconstrained one."
+            exit 1
           fi
+          if ! git rev-parse --verify --quiet "$IN_BASE" >/dev/null; then
+            echo "::error::REQUIRED_REF_UNAVAILABLE -- base '$IN_BASE' cannot be resolved. "\
+                 "This is an infrastructure fault, not a measurement verdict."
+            exit 1
+          fi
+          echo "queue=$IN_QUEUE" >> "$GITHUB_OUTPUT"
+          echo "base=$IN_BASE" >> "$GITHUB_OUTPUT"
+          echo "retention=$IN_RETENTION" >> "$GITHUB_OUTPUT"
+          echo "cohort_complete=false" >> "$GITHUB_OUTPUT"
+          echo "mode=DISPATCH_VALIDATED_COHORT" >> "$GITHUB_OUTPUT"
 
       # Four distinct SHAs, deliberately not conflated: the pull request head is what is
       # under review, github.sha on a pull_request event is the SYNTHETIC MERGE commit,
@@ -154,8 +113,7 @@ jobs:
           QUEUE: ${{ steps.cohort.outputs.queue }}
           BASE: ${{ steps.cohort.outputs.base }}
           ARTIFACT_RETENTION_DAYS: ${{ steps.cohort.outputs.retention }}
-          MEASURING_PR_HEAD: ${{ github.event.pull_request.head.sha }}
-          SYNTHETIC_MERGE_SHA: ${{ github.sha }}
+          MEASURING_PR_HEAD: ${{ github.sha }}
           MEASURING_WORKFLOW_SHA: ${{ github.workflow_sha }}
           COHORT_MODE: ${{ steps.cohort.outputs.mode }}
           COHORT_COMPLETE: ${{ steps.cohort.outputs.cohort_complete }}
