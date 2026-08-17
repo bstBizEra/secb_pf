@@ -1,0 +1,195 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.control-execution-graph/v1",
+  "title": "Control Execution Graph",
+  "description": "SECB-WP-FWK-082, issue #147. Replaces filename-pattern discovery of controls with the paths CI actually invokes. STATIC_EXECUTION_GRAPH <-> RUNTIME_EXECUTION_RECEIPT <-> CONTROL_SURFACE_REGISTRY are three separate views: this schema describes the FIRST, and a static graph cannot observe the second. Each control path carries six independent statuses and none of them implies the next.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "parse_fidelity",
+    "paths",
+    "unresolved_edges"
+  ],
+  "properties": {
+    "schema": {
+      "const": "secb.control-execution-graph/v1"
+    },
+    "parse_fidelity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "why"
+      ],
+      "properties": {
+        "level": {
+          "const": "SUBSET",
+          "description": "Enforcement scripts import the standard library only (NFR-12), so no YAML library is available. The parser recognises a declared subset of workflow syntax; anything outside it becomes an UNRESOLVED_DYNAMIC_EDGE rather than silence."
+        },
+        "recognised": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "jobs, steps, run, uses, if, needs, strategy.matrix, continue-on-error"
+        },
+        "why": {
+          "type": "string",
+          "minLength": 40,
+          "description": "Unrecognised keys and YAML anchors/aliases are reported as edges AND force REACHABILITY_NOT_PROVEN, so the subset's blind spots degrade the claim rather than passing silently."
+        }
+      }
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "job",
+          "axes"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "job": {
+            "type": "string"
+          },
+          "step": {
+            "type": "string"
+          },
+          "job_condition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "step_condition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "needs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "continue_on_error": {
+            "type": "boolean"
+          },
+          "parse_incomplete": {
+            "type": "boolean"
+          },
+          "axes": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "CONTROL_SURFACE_MEMBERSHIP",
+              "CI_REACHABILITY",
+              "EXECUTION_OBSERVED",
+              "RESULT_CONSUMPTION",
+              "CI_ENFORCEMENT"
+            ],
+            "description": "CONTROL_SURFACE_MEMBERSHIP != CI_REACHABILITY != RESULT_CONSUMPTION != CI_ENFORCEMENT. Four independent axes: being in the registry says nothing about running, running says nothing about anyone reading the result, and none of it says a merge is blocked.",
+            "properties": {
+              "CONTROL_SURFACE_MEMBERSHIP": {
+                "enum": [
+                  "TRACKED",
+                  "EXCLUDED",
+                  "UNACCOUNTED"
+                ]
+              },
+              "CI_REACHABILITY": {
+                "enum": [
+                  "NO_EXPLICIT_CONDITION_OBSERVED",
+                  "EXPLICIT_CONDITION_PRESENT",
+                  "STATICALLY_UNREACHABLE",
+                  "REACHABILITY_NOT_PROVEN"
+                ],
+                "description": "UNCONDITIONAL is deliberately absent. A step with no `if` still carries GitHub's default success() condition, so a previous step's failure skips it; the absence of an explicit condition is an observation about the file, not a guarantee about execution. REACHABILITY_NOT_PROVEN is returned whenever the parser met syntax it does not model."
+              },
+              "EXECUTION_OBSERVED": {
+                "enum": [
+                  "NOT_OBSERVED"
+                ]
+              },
+              "RESULT_CONSUMPTION": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "DIRECT_JOB_FAILURE_PROPAGATION",
+                  "DOWNSTREAM_RESULT_CONSUMPTION"
+                ],
+                "properties": {
+                  "DIRECT_JOB_FAILURE_PROPAGATION": {
+                    "enum": [
+                      false,
+                      "NOT_OBSERVED"
+                    ],
+                    "description": "false is proven under continue-on-error: the step cannot fail its job DIRECTLY."
+                  },
+                  "DOWNSTREAM_RESULT_CONSUMPTION": {
+                    "enum": [
+                      "NOT_OBSERVED"
+                    ],
+                    "description": "continue-on-error does not stop a later step reading steps.<id>.outcome, so nobody-read-it is a separate and unobserved claim."
+                  }
+                }
+              },
+              "CI_ENFORCEMENT": {
+                "enum": [
+                  false,
+                  "NOT_OBSERVED"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "unresolved_edges": {
+      "type": "array",
+      "description": "Edges the parser could not follow. An unresolved edge is reported, never dropped: a silent omission is indistinguishable from an absent control.",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "where",
+          "value"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "UNRESOLVED_DYNAMIC_EDGE",
+              "EXTERNAL_ACTION",
+              "REUSABLE_WORKFLOW",
+              "COMPOSITE_ACTION",
+              "UNRECOGNISED_SYNTAX",
+              "YAML_ANCHOR_OR_ALIAS"
+            ]
+          },
+          "where": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "not_proven": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

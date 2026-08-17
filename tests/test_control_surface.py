@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -166,10 +168,24 @@ def test_every_enforcement_script_is_either_tracked_or_declared_excluded():
     # No path unclassified -- the runbook's rule, applied to the manifest. A new
     # enforcement script must be a deliberate decision (tracked, or excluded
     # with a trigger), never an omission nobody noticed.
-    on_disk = {
-        f"scripts/{p.name}"
-        for p in (REPO_ROOT / "scripts").glob("check_*.py")
-    } | {"scripts/classify_authority_delta.py"}
+    #
+    # Discovery is by EXECUTION PATH, not by filename (SECB-WP-FWK-082, #147). The
+    # previous version globbed `check_*.py`, which was wrong in both directions and
+    # both were live: `scripts/emit_pr_input_binding.py` is invoked by ci.yml on #134
+    # and escaped classification entirely, while `scripts/check_identity_receipt.py`
+    # matches the glob although no workflow invokes it. What a control IS cannot be
+    # decided by what it is called.
+    # The graph parser IS the discovery implementation; this guard does not re-derive
+    # the set with a second regex. Two implementations of "which controls does CI
+    # invoke" disagree eventually, and the guard would enforce the weaker one (C-CEG-01).
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from check_control_graph import invoked_scripts_in
+
+    # The UNION over all tracked workflows, not ci.yml alone (SECB-WP-FWK-082, #147).
+    # A control invoked only by a second workflow would otherwise be invisible, and
+    # SECB-WP-FWK-083 adds exactly such a workflow.
+    on_disk = invoked_scripts_in(REPO_ROOT / ".github" / "workflows")
+    assert on_disk, "no invoked scripts parsed -- the workflow directory shape changed"
     accounted = {c["path"] for c in CONTROLS} | {e["path"] for e in EXCLUSIONS}
     unaccounted = on_disk - accounted
     assert not unaccounted, (
