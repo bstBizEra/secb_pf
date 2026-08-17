@@ -1,7 +1,7 @@
 {
   "$comment": "Machine-readable status for the scenarios in NEGATIVE_TEST_CATALOGUE.md (SECB-WP-FWK-042, corrected under the operator's review of 2026-08-11 §P1). This file exists to fix a defect in the first version: two tests asserted a HOLE as current behaviour, so closing the hole would have turned CI red. Tests now compare observed behaviour against the status DECLARED here, so a fix requires flipping the status and CI stays meaningful either way. Statuses are observations; remediation obligations are recorded, not enforced -- enforcement is external, per FR-08.",
   "schema_version": "1.0.0",
-  "as_of_commit": "3b61307",
+  "as_of_commit": "pending — draft PR, SECB-WP-FWK-063",
   "recorded_by": "SECB-WP-FWK-042",
   "status_vocabulary": {
     "COVERED": "a control blocks the scenario, and a named test proves it",
@@ -41,7 +41,17 @@
         "what": "BACP covered was published as 2 and is 1. SECB-WP-FWK-042 counted BACP-17's TWO TESTS as two scenarios, so the published figures were 40.0% of applicable and 11.1% of target where the truth is 25.0% and 5.6% -- wrong in the flattering direction. Found by test_the_catalogue_agrees_with_the_machine_readable_status, written in this work package for a different drift and catching this one on its first run.",
         "also": "dormant was 13 and is 14: BACP-18 was omitted from the count."
       }
-    ]
+    ],
+    "AMS": {
+      "target": 2,
+      "covered": 0,
+      "gap": 2,
+      "dormant": 0,
+      "applicable": 2,
+      "covered_over_applicable_pct": 0.0,
+      "covered_over_target_pct": 0.0,
+      "note": "Both scenarios are GAP_REPRODUCED and both were demonstrated by a real merge rather than a fixture written in advance -- #111 and #120. Coverage is 0 of 2 and saying so is the point: the standard naming these defects was written after they shipped. Each scenario carries flip_requires, so neither can be closed by adding a file: AMS-01 needs the lattice join computed, AMS-02 needs six enforcement behaviours proven."
+    }
   },
   "scenarios": [
     {
@@ -215,6 +225,78 @@
       "status": "GAP_UNCHARACTERIZED",
       "observed": "Each half is judged alone because the family is computed over OPEN pull requests only. Closing it needs a lookback over merged work, and a window wide enough to matter would fold most of this repository into one family -- the RAAF profile suggests 30 days, which would make the cap unreachable. Recorded rather than claimed, per SECB-WP-FWK-046",
       "successor_of": "FPSA-02"
+    },
+    {
+      "id": "AMS-01",
+      "title": "A decision-bearing artifact under an auto_path receives G0 because of its path",
+      "status": "GAP_REPRODUCED",
+      "observed": "SECB-WP-FWK-063: the classifier grades by path, so a stage-gate verdict living under docs/ returns AUTO_APPROVED - G0. Demonstrated live on PR #111, whose diff was a D2 MATERIAL verdict and whose rendered verdict was G0 auto-merge. Ruled a downgrade by the operator 2026-08-14; K-09 d=2.",
+      "characterization_fixture": "tests/test_auto_merge_standard.py::test_gap_decision_record_under_docs_still_grades_g0",
+      "not_a_conformance_requirement": "The fixture asserts current behaviour against a declared status. When WP-02 lands, required_authority is computed as the lattice JOIN of authority requirements. If the semantic-effect dimension requires authority above G0, the decision-bearing artifact must no longer satisfy G0. No particular output class is promised here: the mapping semantic_effect -> authority_requirement is not yet defined or tested, so naming an expected class would assert a mechanism that does not exist.",
+      "named_fix": "WP-02 semantic classifier -- required_authority as a LATTICE JOIN of authority requirements, not a numeric max over incommensurable classification domains",
+      "source_proposal": "operator Auto-Merge Standard ruling, 2026-08-14",
+      "flip_requires": [
+        "the mapping semantic_effect -> authority_requirement is defined and tested",
+        "required_authority is computed as a lattice join over all five dimensions",
+        "a decision-bearing artifact under an auto_path no longer satisfies G0"
+      ],
+      "outcome_class_not_asserted": "Corrected under review: an earlier version of this field said the fixture would raise the artifact 'to NS2'. That promised both a vocabulary and an outcome before the mapping exists. The requirement is that G0 no longer suffices -- which class it becomes is WP-02's to define."
+    },
+    {
+      "id": "AMS-02",
+      "title": "An authoritative record is made effective by self-merge with no head-bound ratification receipt",
+      "status": "GAP_REPRODUCED",
+      "observed": "SECB-WP-FWK-063: nothing in the merge path requires a ratification receipt bound to the exact head, so an executor can make an authoritative record operative by self-merging it. Demonstrated live on PR #120, which stamped stage 2 EFFECTIVE and recorded C-5/C-6/C-7. Ruled a downgrade on the principle that transcription authority is not effectuation authority.",
+      "characterization_fixture": "tests/test_auto_merge_standard.py::test_gap_no_enforcement_consumes_a_receipt",
+      "not_a_conformance_requirement": "Asserts that NOTHING in the tree consumes a ratification receipt -- no script, no workflow, no gate. Corrected under review: the first version asserted that no receipt ARTIFACT existed, which would have let a filename flip the status. Receipt schema exists != receipt is required; receipt is required != enforcement cannot be bypassed.",
+      "named_fix": "WP-04 EBTA evaluator (eligibility conjunction) + WP-05 identity separation for the receipt's independence field",
+      "blocked_by": "C-7 -- the receipt requires actor.github_user_id independent of the executor and decision: APPROVE, and GitHub refuses an approving review from a PR's own author. Unobtainable under one account, so PR #113 is STRUCTURALLY_BLOCKED rather than awaiting ratification.",
+      "source_proposal": "operator Auto-Merge Standard ruling, 2026-08-14",
+      "flip_requires": [
+        "missing receipt -> merge eligibility DENY",
+        "wrong actor -> DENY",
+        "COMMENT instead of APPROVE -> DENY",
+        "receipt/head mismatch -> DENY",
+        "new push -> previous receipt STALE",
+        "valid independent receipt -> authority conjunct PASS"
+      ],
+      "enforcement_proof": "tests/test_ratification_enforcement.py (does not exist yet -- WP-04)"
+    },
+    {
+      "id": "AMS-03",
+      "title": "No producer generates an artifact-version receipt",
+      "status": "GAP_REPRODUCED",
+      "declared_by": "SECB-WP-FWK-063",
+      "condition": "C-AMS-03",
+      "gap": "The version-coherence gate's conjunct metadata_version_matches_generated_receipt cannot be satisfied: the schema secb.artifact-version-receipt/v1 has no producer and no consumer. Five of six conjuncts are enforced; this one is declared.",
+      "why_not_faked": "Hand-writing a receipt file and asserting the conjunct holds would reproduce, inside the gate written to catch it, the defect AUTO_MERGE_STANDARD.md 7 records: receipt schema exists != receipt is required != enforcement cannot be bypassed. Of the six conjuncts this was the cheapest to fake, which is why it is the one stated as absent.",
+      "named_fix": "A producer that emits a receipt at the point a version is recorded, and a gate that refuses a version claim without one. Neither exists; neither is in scope here.",
+      "flip_requires": [
+        "a script or workflow emits an artifact-version receipt",
+        "the receipt binds artifact_id, version, blob_sha, content_digest and head_sha",
+        "a gate refuses a version claim whose receipt is absent or does not bind the head",
+        "the 13 status table moves this conjunct from UNSATISFIABLE_NOW to ENFORCED"
+      ],
+      "enforcement_proof": "test_no_receipt_schema_reference_found_within_the_stated_boundary performs a SUBSTRING SCAN over the boundary above. Corrected under C-AMS-05: the earlier wording claimed it scanned for a PRODUCER rather than a file. It does neither -- it scans text, and it errs in both directions. A comment mentioning the schema would count as a producer, and a producer naming its output generically would be invisible. The claim is now the observation.",
+      "blocked_by": "No condition. Nothing prevents building the producer; it is simply not this work package.",
+      "observation": "NO_RECEIPT_SCHEMA_REFERENCE_FOUND",
+      "boundary": [
+        "scripts/*.py",
+        ".github/**/*.yml"
+      ],
+      "not_proven": [
+        "no_producer_exists",
+        "no_generic_producer_exists",
+        "no_external_producer_exists"
+      ],
+      "behavioural_contract_to_flip": [
+        "invoke the producer",
+        "receive a structured receipt",
+        "validate it against secb.artifact-version-receipt/v1",
+        "verify the artifact, version, blob and head bindings",
+        "tamper exactly one binding",
+        "the producer or the consuming gate REJECTS it"
+      ]
     }
   ],
   "artifact_classification": {

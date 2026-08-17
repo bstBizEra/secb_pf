@@ -1,0 +1,68 @@
+{
+  "$comment": "Artifact version manifest for SecB_PF (SECB-WP-FWK-063, opened under condition C-AMS-03). THIS FILE IS THE INDEPENDENT SURFACE against which a governed document's self-declared version is checked. It exists because a test that compares a document's version field to itself is circular and proves nothing: review found AUTO_MERGE_STANDARD.md declaring 0.2.0 at commit 86a1f30 while the work package and pull request called it 0.3.0, and the parser accepted it because it validated the version's FORM, not its TRUTH. This manifest does NOT issue allow/deny verdicts, does NOT make any listed artifact binding, and does NOT originate an authority -- an artifact's lifecycle_state and binding fields are reproduced here as recorded facts, and the artifact itself remains authoritative over its own status.",
+  "manifest_id": "AVM-SECB-001",
+  "schema_version": 1,
+  "identifier_registration": {
+    "decision": "AVM is NOT registered in config/identifier_taxonomy.json, and the taxonomy version is unchanged at 1.3.1.",
+    "reason": "The taxonomy registers identifier LADDERS -- prefixes with enumerable rungs (G0-G5, AMS-01..). AVM-SECB-001 is a singleton manifest identifier, the same shape as CSM-SECB-001 (control surface), TAX-SECB-2026-001 (the taxonomy itself) and ENV-SECB-2026-001 (the delegation envelope) -- none of which is registered. Registering this one would break the convention its three siblings set and would force a taxonomy version bump plus a fresh enumeration measurement for no gain.",
+    "checked_not_assumed": "git grep CSM -- config/identifier_taxonomy.json returns nothing.",
+    "if_this_changes": "If manifest identifiers are ever made a registered ladder, all four are registered together in one taxonomy bump -- not this one alone."
+  },
+  "work_package": "SECB-WP-FWK-063",
+  "what_this_is_not": {
+    "not_a_control": "Nothing consumes this manifest at merge time. Its only consumer is a test.",
+    "not_a_receipt": "The version-coherence conjunct metadata_version_matches_generated_receipt is UNSATISFIABLE_NOW: no producer generates artifact-version receipts. A hand-written receipt would reproduce the defect AUTO_MERGE_STANDARD.md §7 records -- a schema is not a control. Scenario AMS-03 declares this.",
+    "not_a_release_ledger": "PROPOSED artifacts are listed. Presence here is not publication."
+  },
+  "semver_scope": {
+    "version": "Semantic version of the artifact's normative content.",
+    "review_revision": "Count of review iterations on the artifact. DISTINCT from version by construction, and governed by current_review_revision > max(historical_review_revisions) -- strictly greater, never equal. Fusing the two fields is what let revision 3 keep revision 2's version; asserting equality with the last entry is what let two heads claim revision 3.",
+    "why_0_3_1_and_revision_5": "00e3dae is revision 4: the operator's ruling that its current entry should have read 4 is what fixes its position, so the head carrying that correction is 5. Numbering this head 4 would leave two history entries claiming 3 -- the same collision one level down. The version moves 0.3.0 -> 0.3.1 because narrowing an overstated claim in section 13 is a correction, which is patch tier under the project's version policy."
+  },
+  "artifacts": [
+    {
+      "artifact_id": "SECB-AMS-001",
+      "path": "docs/00-governance/AUTO_MERGE_STANDARD.md",
+      "version": "0.3.1",
+      "review_revision": 5,
+      "lifecycle_state": "PROPOSED",
+      "binding": false,
+      "sha256": "99970f54658f56be76df1cd5d27ae79bcb17f5b8c3d4e1fdc39434a9bc74486f",
+      "bytes": 19818,
+      "owning_work_package": "SECB-WP-FWK-063",
+      "version_history": [
+        {
+          "version": null,
+          "review_revision": 1,
+          "commit": "7dfb74c",
+          "sha256": "e0246361417f13c446e18040bbf0eb8b851fe704d553cce24b44e947143658b0",
+          "note": "No version field existed: the canonical metadata block was introduced at the next revision. Recorded as null rather than backfilled as 0.1.0 -- a version nobody declared is not history."
+        },
+        {
+          "version": "0.2.0",
+          "review_revision": 2,
+          "commit": "c171e17",
+          "sha256": "23db3720871a849955e5284993bf95b8fb6cdda0e1afa2337ad831908ea250d0",
+          "note": "Five review corrections; first revision to declare a version."
+        },
+        {
+          "version": "0.2.0",
+          "review_revision": 3,
+          "commit": "86a1f30",
+          "sha256": "df04991c8ee90d151daee63080461aa9bd8724fe0b65b1b1ec068c779291661b",
+          "note": "INCOHERENT AND RETAINED AS EVIDENCE. Content changed (sections 11 and 12 added, merge_effect added) while the version did not, so two distinct digests claim 0.2.0. This is the conjunct no_two_active_blobs_claim_same_version_with_different_digest violated in the record that the conjunct was written to prevent. Kept because a corrected history whose correction is invisible teaches nobody; the guard exempts superseded history and enforces the rule on current entries.",
+          "coherence_status": "SUPERSEDED_INCOHERENT"
+        },
+        {
+          "version": "0.3.0",
+          "review_revision": 4,
+          "commit": "00e3dae",
+          "sha256": "d280be5cca26ea71c88213aca4c25328f0676468f77332e5b2dae1673209770a",
+          "note": "DECLARED review_revision 3, which collided with 86a1f30's 3. Recorded here at its true position, 4. The collision was possible because the guard asserted current == history[-1] instead of current > max(history), so the current entry was allowed to repeat a historical revision while the test's name said strictly increasing. Corrected under C-AMS-04. The declared value is preserved in this note rather than overwritten in place, on the same principle as the digest collision above: a corrected ledger whose correction is invisible teaches nobody.",
+          "declared_review_revision": 3,
+          "coherence_status": "SUPERSEDED_INCOHERENT_REVISION"
+        }
+      ]
+    }
+  ]
+}

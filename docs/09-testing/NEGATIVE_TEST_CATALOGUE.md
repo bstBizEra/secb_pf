@@ -11,6 +11,12 @@ and nothing had mapped them against what the gates stop. This is that map.
 
 ## Measured coverage, read two ways
 
+> **Group added 2026-08-14 (`SECB-WP-FWK-063`):** `AMS` — 2 scenarios, 0 covered, 2
+> gaps, 2 applicable. **0.0% either way.** The counters below predate it; the group's
+> own row is in `negative_test_status.json` under `coverage.AMS`, and the totals are
+> deliberately not merged into one figure, because one number across groups of
+> different provenance is the flattery this document exists to refuse.
+
 One fraction flatters, so both are published.
 
 The machine-readable source of these numbers is `negative_test_status.json`;
@@ -97,6 +103,44 @@ should not look alike.
 | 10 | Sub-work items created to evade a budget | **`CONTROL_FIXED_CONDITIONAL`** | Same mechanism as `FPSA-02`, same fix and same residual |
 | 18 | Several agents share a signer but are counted as a quorum | **`DORMANT`** | One identity; quorum is enforced nowhere in code, which is the compensating control |
 | 01–04, 07–09, 11–16 | Crash after an external effect · replayed webhook · lease expiry mid-write · takeover without inspection · tampered policy bundle · borrowed auditor credential · injected tool response · kill signal mid-call · partial compensation · lagging cost telemetry · learning candidate edits its evaluator · claimed-complete with a failing postcondition · rollback to an incompatible schema | **`DORMANT`** | No durable workflow, no external effects, no leases, no signed bundles, no second identity, no learning pipeline. Each is a real scenario for a system that has those; none is one here |
+
+## Auto-Merge Standard — the two classes ruled `d = 2`
+
+Added by `SECB-WP-FWK-063`. **Neither was found by writing a fixture. Both were found
+by merging them**, which is why they are here as `GAP_REPRODUCED` with the merge as
+the demonstration rather than a synthetic case.
+
+| ID | Scenario | Status | Demonstrated by | Named fix |
+|---|---|---|---|---|
+| `AMS-01` | A decision-bearing artifact under an `auto_path` receives `G0` because of its path | `GAP_REPRODUCED` | **PR #111** — a `D2 MATERIAL` stage-gate verdict rendered `AUTO_APPROVED — G0` | `WP-02` semantic classifier: `required_authority = join(path, materiality, state, authority, condition)` — a lattice join, and no output class is promised until the mapping `semantic_effect → authority_requirement` exists |
+| `AMS-02` | An authoritative record is made effective by self-merge with no head-bound ratification receipt | `GAP_REPRODUCED` | **PR #120** — stamped stage 2 `EFFECTIVE` and recorded `C-5`/`C-6`/`C-7`, self-merged | `WP-04` EBTA eligibility conjunction; the receipt's independence field needs `WP-05` |
+| `AMS-03` | The version-coherence gate's receipt conjunct has no producer, so a version claim cannot be receipt-bound | `GAP_REPRODUCED` | **This branch** — `c171e17` and `86a1f30` both declare `0.2.0` with different digests; the parser accepted it because it checked the version's form, not its truth | A producer emitting `secb.artifact-version-receipt/v1`, and a gate refusing a version claim without one. Five of six conjuncts are enforced; this one is declared |
+
+**Neither scenario can be closed by adding a file.** Each carries `flip_requires`:
+
+- **`AMS-01`** needs `required_authority = join(authority_for(path), authority_for(semantic_effect), …)` actually computed — a **lattice join of authority requirements**, not a numeric `max` over incommensurable classification domains, which is what the first draft wrote.
+- **`AMS-03`** is the cheapest conjunct to fake and therefore the one declared absent. A hand-written receipt would satisfy the gate's text while satisfying nothing — the defect `AUTO_MERGE_STANDARD.md` §7 records. Its proof is a **substring scan over `scripts/*.py` and `.github/**/*.yml`**, which is wrong in both directions: a comment mentioning the schema counts as a producer, and a producer naming its output generically is invisible. Corrected under `C-AMS-05` — the earlier wording claimed the scan looked for a *producer* rather than a file, which was stronger than the mechanism. The conjunct flips on the behavioural contract (invoke → validate → verify bindings → tamper one → expect rejection), never on this scan.
+- **`AMS-02`** needs six enforcement behaviours proven: missing receipt → `DENY` · wrong actor → `DENY` · `COMMENT` instead of `APPROVE` → `DENY` · receipt/head mismatch → `DENY` · new push → previous receipt `STALE` · valid independent receipt → authority conjunct `PASS`.
+
+```text
+Receipt schema exists  ≠  receipt is required
+Receipt is required    ≠  enforcement cannot be bypassed
+```
+
+The first version of `AMS-02`'s fixture asserted that no receipt *artifact* existed,
+so **a filename could have flipped it** — reproducing "presence is not enforcement",
+the very defect class the standard exists to eliminate, inside the test for it. It now
+asserts that nothing in `scripts/` or `.github/` *consumes* a receipt.
+
+**`AMS-02` is blocked on a capability, not on effort.** The receipt requires
+`actor.github_user_id` independent of the executor **and** `decision: APPROVE`, and
+GitHub refuses an approving review from a pull request's own author. Under one shared
+account neither field can be filled — that is `C-7`, which makes **PR #113
+`STRUCTURALLY_BLOCKED` rather than awaiting ratification.**
+
+**Coverage for this group is 0 of 2, and stating it plainly is the point:** the
+standard naming these defects was written *after* they shipped, and the classifier
+that would catch them is not built.
 
 ## What a green run of this module means
 
