@@ -1,0 +1,476 @@
+{
+  "schema": "secb.reusable-pattern-ledger/v1",
+  "_purpose": "SECB-WP-FWK-090. The durable home for reusable patterns established across FWK-079..089, which until now existed only in pull-request comments -- ungreppable by the next agent and unverifiable by any tool. Each entry declares HOW it is guarded, and scripts/check_pattern_ledger.py refuses any entry whose declared guard disagrees with this tree. See docs/00-governance/REUSABLE_PATTERN_LEDGER.md for the contract.",
+  "patterns": [
+    {
+      "id": "RP-001",
+      "name": "Claim strength never exceeds mechanism strength",
+      "rule": "CLAIM_STRENGTH <= MECHANISM_STRENGTH <= VERIFIED_BEHAVIOUR",
+      "origin": {
+        "pr": 123
+      },
+      "guard": "PROSE_ONLY",
+      "note": "The root pattern. Every entry below is a special case of it: a document may not claim more than its mechanism does, and a mechanism may not claim more than has been observed."
+    },
+    {
+      "id": "RP-002",
+      "name": "Individual mergeability is not ordered-prefix integrability",
+      "rule": "PR_IS_INDIVIDUALLY_MERGEABLE != ORDERED_PREFIX_IS_INTEGRABLE != INTEGRATED_RESULT_PASSES_TESTS",
+      "origin": {
+        "pr": 150
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_each_prefix_is_cumulative_not_a_single_pr"
+        },
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_a_conflicting_prefix_is_reported_with_its_paths"
+        }
+      ]
+    },
+    {
+      "id": "RP-003",
+      "name": "Measure with the merge method the repository will actually use",
+      "rule": "SQUASH_SIMULATION != MERGE_COMMIT_SIMULATION -> MERGE_METHOD_MISMATCH",
+      "origin": {
+        "pr": 150
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_the_merge_method_must_match_the_repositorys"
+        }
+      ]
+    },
+    {
+      "id": "RP-004",
+      "name": "Compare-and-swap execution on a pinned head",
+      "rule": "MERGE_API_SUCCESS != SIMULATED_TREE_LANDED != NEXT_PREFIX_STILL_VALID",
+      "origin": {
+        "pr": 150
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_a_head_that_drifted_before_the_call_is_refused"
+        }
+      ]
+    },
+    {
+      "id": "RP-005",
+      "name": "Evidence never confers authority",
+      "rule": "EVIDENCE_PROMOTABLE != MERGE_AUTHORISED",
+      "origin": {
+        "pr": 150
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_the_receipt_confers_no_merge_authority"
+        }
+      ]
+    },
+    {
+      "id": "RP-006",
+      "name": "A policy verdict requires a valid observation",
+      "rule": "ACTION_REFUSED != REFUSAL_REASON_CORRECT",
+      "origin": {
+        "pr": 154
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_a_refusal_without_an_observation_evaluates_no_policy"
+        },
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_a_policy_verdict_on_an_unobserved_measurement_is_a_diagnosis_failure"
+        }
+      ]
+    },
+    {
+      "id": "RP-007",
+      "name": "One terminal reason, competitors absent not merely unmentioned",
+      "rule": "REASON_STATED != REASON_UNIQUE -> CONTROL_DIAGNOSIS_FAILURE",
+      "origin": {
+        "pr": 154
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_competing_reasons_are_absent_not_merely_unmentioned"
+        }
+      ]
+    },
+    {
+      "id": "RP-008",
+      "name": "Observation watermark ordering",
+      "rule": "evidence.created_at > snapshot.observed_at -> LATE_ARRIVAL_AFTER_SNAPSHOT != REPLAY",
+      "origin": {
+        "pr": 154
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_evidence_after_the_watermark_is_late_arrival_not_replay"
+        },
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_an_unwatermarked_snapshot_cannot_be_ordered"
+        }
+      ]
+    },
+    {
+      "id": "RP-009",
+      "name": "Dual-subject evidence binding",
+      "rule": "measuring_head (provenance) != subject_head (eligibility) -> SUBJECT_SELECTION_UNBOUND if conflated",
+      "origin": {
+        "pr": 156
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_measuring_head_is_provenance_not_the_gate_subject"
+        },
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_subject_and_measurer_remain_separate_in_the_promoted_binding"
+        }
+      ]
+    },
+    {
+      "id": "RP-010",
+      "name": "Tool drift is cohort drift",
+      "rule": "SAME_INPUTS != SAME_COHORT when the measuring toolchain differs",
+      "origin": {
+        "pr": 150
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_the_environment_is_recorded_because_a_pass_is_relative_to_it"
+        },
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_metadata_drift_invalidates_the_pr_and_every_prefix_containing_it"
+        }
+      ]
+    },
+    {
+      "id": "RP-011",
+      "name": "The observer must not perturb the observed",
+      "rule": "MEASUREMENT_TAKEN != TREE_UNCHANGED_BY_MEASURING",
+      "origin": {
+        "pr": 150
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_bytecode_is_suppressed_so_the_default_command_does_not_self_contaminate"
+        },
+        {
+          "file": "tests/test_shadow_merge_queue.py",
+          "test": "test_a_test_command_that_dirties_the_tree_invalidates_the_measurement"
+        }
+      ]
+    },
+    {
+      "id": "RP-012",
+      "name": "Control membership is derived from the execution graph, not declared",
+      "rule": "CONTROL_DISCOVERY = UNION(EXECUTION_EDGES_OF_ALL_TRACKED_WORKFLOWS) != REGISTRY_LIST",
+      "origin": {
+        "pr": 148
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_control_graph.py",
+          "test": "test_runtime_facts_are_never_inferred_from_the_graph"
+        },
+        {
+          "file": "tests/test_control_graph.py",
+          "test": "test_the_four_axes_are_separate"
+        }
+      ]
+    },
+    {
+      "id": "RP-013",
+      "name": "Bootstrap fix without self-registration",
+      "rule": "workflow_invoked(script) = false ^ graph_discovery_authoritative -> monolith_registration_required = false",
+      "origin": {
+        "pr": 153
+      },
+      "guard": "PROSE_ONLY",
+      "note": "Four applications: #153, its correction, #144 (registration PRESERVED for a different reason -- see RP-014), #146 (dropped)."
+    },
+    {
+      "id": "RP-014",
+      "name": "Semantic role before registration removal",
+      "rule": "registration_not_required != record_has_no_governance_value",
+      "origin": {
+        "pr": 144
+      },
+      "guard": "PROSE_ONLY",
+      "note": "Classify before deleting: MEMBERSHIP_ASSERTION | PORTABILITY_ASSERTION | NEGATIVE_PORTABILITY_RATIONALE | MIGRATION_TOMBSTONE. Only the first becomes unnecessary when graph membership is false. A missing detector is why the record is load-bearing, not permission to drop it."
+    },
+    {
+      "id": "RP-015",
+      "name": "Phase-complete structural elimination",
+      "rule": "DESIGN_AVAILABLE ^ DATA_MIGRATED ^ LEGACY_WRITERS_DRAINED ^ CONSUMERS_CUT_OVER ^ SINGLE_AUTHORITY_CONFIRMED ^ TRANSITION_OBSERVED -> CONTENTION_STRUCTURALLY_ELIMINATED",
+      "origin": {
+        "issue": 157
+      },
+      "guard": "PROSE_ONLY",
+      "note": "No earlier conjunct substitutes for a later one. SHARDING_DESIGN_LANDED != CONTENTION_ELIMINATED: #153 landed schema, aggregator, canonical digest and verifier while authority stayed with the monolith."
+    },
+    {
+      "id": "RP-016",
+      "name": "Typed multi-path readback",
+      "rule": "PRIMARY_PATH_BLOCKED ^ ALTERNATIVE_PATH_MEASURES_SAME_TYPED_FACT ^ OBJECT_IDENTITY_BOUND -> OBSERVATION_RECOVERED",
+      "origin": {
+        "pr": 146
+      },
+      "guard": "PROSE_ONLY",
+      "note": "A successful alternative call is insufficient; it must independently establish the same commit, tree, current ref and merge shape. Paid for itself three times in one session: a 403 on a commit readback, a 503 on an artifact download, a 503 on a comment POST."
+    },
+    {
+      "id": "RP-017",
+      "name": "Actuator admission before autonomous execution",
+      "rule": "DECISION_READY ^ EVIDENCE_READY ^ AUTHORITY_READY ^ ACTUATOR_AVAILABLE -> EXECUTION_ATTEMPT_PERMITTED",
+      "origin": {
+        "pr": 159
+      },
+      "guard": "PROSE_ONLY",
+      "note": "Record measurement: NOT_STARTED rather than inferring a result the missing actuator could not produce. Corollary observed live: a transient failure of one actuator path (git fetch, an API endpoint) is not loss of the actuator -- probe a second path before declaring it unavailable."
+    },
+    {
+      "id": "RP-018",
+      "name": "A sandbox may never observe production",
+      "rule": "SANDBOX_LEVEL_COMPUTED != PRODUCTION_LEVEL_OBSERVED",
+      "origin": {
+        "pr": 146
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_identity_receipt.py",
+          "test": "test_production_is_never_observed_even_on_success"
+        },
+        {
+          "file": "tests/test_identity_receipt.py",
+          "test": "test_a_registry_claiming_production_observation_is_refused"
+        }
+      ]
+    },
+    {
+      "id": "RP-019",
+      "name": "A role label is not a platform principal",
+      "rule": "ROLE_LABEL != PLATFORM_PRINCIPAL != CUSTODY_DOMAIN != DECISION_INDEPENDENCE",
+      "origin": {
+        "pr": 146
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_identity_receipt.py",
+          "test": "test_shared_app_identity_stops_at_ais1"
+        },
+        {
+          "file": "tests/test_identity_receipt.py",
+          "test": "test_a_shared_domain_stops_at_ais2"
+        },
+        {
+          "file": "tests/test_identity_receipt.py",
+          "test": "test_actor_id_is_prohibited_as_principal_evidence"
+        }
+      ]
+    },
+    {
+      "id": "RP-020",
+      "name": "A producer may not certify its own evidence",
+      "rule": "PRODUCER_EMITTED != ELIGIBLE_FOR_NORMATIVE_CONSUMPTION",
+      "origin": {
+        "pr": 139
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_pr_input_binding.py",
+          "test": "test_the_binding_names_the_only_subject_it_can_describe"
+        }
+      ]
+    },
+    {
+      "id": "RP-021",
+      "name": "Cryptographic coverage closure",
+      "rule": "asserted_fact ^ exact_signed_field ^ authorized_key_role ^ signer_identity == asserted_producer ^ signed_authority_over_the_decision ^ freshness -> AUTHENTICATED; any missing edge -> COVERAGE_GAP",
+      "origin": {
+        "pr": 159
+      },
+      "guard": "PENDING_MERGE",
+      "pending_pr": 159,
+      "tests": [
+        {
+          "file": "tests/test_ais_production_evidence.py",
+          "test": "test_closure_1_policy_signer_must_be_the_administrator_it_names"
+        },
+        {
+          "file": "tests/test_ais_production_evidence.py",
+          "test": "test_closure_2c_role_assignment_signer_needs_authority_over_the_subjects"
+        },
+        {
+          "file": "tests/test_ais_production_evidence.py",
+          "test": "test_closure_coverage_ledger_has_no_unauthenticated_derived_conjunct"
+        }
+      ]
+    },
+    {
+      "id": "RP-022",
+      "name": "A signature over one field does not authenticate its neighbours",
+      "rule": "SIGNATURE_VALID_OVER_PORTION != ADJACENT_UNSIGNED_FIELDS_AUTHENTIC",
+      "origin": {
+        "pr": 159
+      },
+      "guard": "PENDING_MERGE",
+      "pending_pr": 159,
+      "tests": [
+        {
+          "file": "tests/test_ais_production_evidence.py",
+          "test": "test_v1_counterexample_is_refused"
+        },
+        {
+          "file": "tests/test_ais_production_evidence.py",
+          "test": "test_purpose_confusion_is_refused"
+        }
+      ]
+    },
+    {
+      "id": "RP-023",
+      "name": "A signature is not authority",
+      "rule": "SIGNED_BY_AUTHORISED_ROLE != SIGNER_HAS_AUTHORITY_OVER_THIS_SUBJECT",
+      "origin": {
+        "pr": 159
+      },
+      "guard": "PENDING_MERGE",
+      "pending_pr": 159,
+      "tests": [
+        {
+          "file": "tests/test_ais_production_evidence.py",
+          "test": "test_closure_2b_role_assignment_signed_from_inside_the_set_is_refused"
+        },
+        {
+          "file": "tests/test_ais_production_evidence.py",
+          "test": "test_closure_2c_role_assignment_signer_needs_authority_over_the_subjects"
+        }
+      ]
+    },
+    {
+      "id": "RP-024",
+      "name": "Reachability bought from the caller is the vulnerability, not the proof",
+      "rule": "CALLER_SUPPLIED_CONFIRMATION != INDEPENDENT_CONFIRMATION -> top rung must be structurally unreachable offline",
+      "origin": {
+        "pr": 159
+      },
+      "guard": "PENDING_MERGE",
+      "pending_pr": 159,
+      "tests": [
+        {
+          "file": "tests/test_ais_production_evidence.py",
+          "test": "test_issuer_trust_anchor_is_unsatisfiable_by_any_input"
+        }
+      ]
+    },
+    {
+      "id": "RP-025",
+      "name": "Counterexample-first verification",
+      "rule": "GUARD_PRESENT != GUARD_LOAD_BEARING -> write the document the guard must refuse BEFORE the guard",
+      "origin": {
+        "pr": 159
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_pattern_ledger.py",
+          "test": "test_a_mechanical_claim_whose_test_is_absent_is_refused"
+        },
+        {
+          "file": "tests/test_pattern_ledger.py",
+          "test": "test_a_pending_claim_whose_tests_all_exist_is_refused"
+        }
+      ],
+      "note": "Three review rounds on #159 each found a check that existed without a counterexample proving it load-bearing. Two hand-run mutations (whole-block compare -> suffix scan; jti guard removed) were the only mechanical proof, and each broke exactly one test. This ledger's own anti-phantom rule is the first instance guarded by construction."
+    },
+    {
+      "id": "RP-026",
+      "name": "A cited guard must exist in the tree that cites it",
+      "rule": "DOCUMENTED != ENFORCED; CITED != PRESENT",
+      "origin": {
+        "issue": 157
+      },
+      "guard": "MECHANICAL",
+      "tests": [
+        {
+          "file": "tests/test_pattern_ledger.py",
+          "test": "test_a_mechanical_claim_whose_test_is_absent_is_refused"
+        },
+        {
+          "file": "tests/test_pattern_ledger.py",
+          "test": "test_a_prose_entry_may_not_cite_a_guard"
+        }
+      ],
+      "note": "Checked in both directions: a phantom MECHANICAL citation is refused, and so is a stale PENDING_MERGE whose tests have all landed. Under-claiming decays the ledger as surely as over-claiming."
+    },
+    {
+      "id": "RP-027",
+      "name": "Historical evidence is superseded, not invalidated",
+      "rule": "SUPERSEDED_FOR_CURRENT_ELIGIBILITY != INVALID_HISTORICAL_EVIDENCE",
+      "origin": {
+        "pr": 144
+      },
+      "guard": "PROSE_ONLY",
+      "note": "Also INTEGRATION_PASS != POLICY_PASS: a security refusal does not retract the integration fact beside it. #159 revisions 1 and 2 keep valid integration artifacts."
+    },
+    {
+      "id": "RP-028",
+      "name": "Checks bind a head, not a base",
+      "rule": "CHECKS_GREEN_AT_HEAD != CHECKS_GREEN_AGAINST_CURRENT_BASE",
+      "origin": {
+        "pr": 153
+      },
+      "guard": "PROSE_ONLY",
+      "note": "GitHub does not re-run a PR's checks when its base moves. The gap is closed by an integration measurement against the current base, never inherited from the rollup."
+    },
+    {
+      "id": "RP-029",
+      "name": "A read is not the state",
+      "rule": "API_RESPONSE_READ != CURRENT_STATE; LOG_LINE_PRESENT != JOB_COMPLETED",
+      "origin": {
+        "pr": 159
+      },
+      "guard": "PROSE_ONLY",
+      "note": "Observed three times in one round: a PATCH response returned a superseded head after the push landed; a readback job printed its verdict while the jobs API still reported in_progress; two runs shared an identical created_at so neither could be ordered first. Re-read from a second path before reporting."
+    },
+    {
+      "id": "RP-030",
+      "name": "Empty input is not an empty measurement",
+      "rule": "EMPTY_INPUT != EMPTY_DIFF; ZERO_BYTE_ARTIFACT != ABSENT_ARTIFACT",
+      "origin": {
+        "pr": 144
+      },
+      "guard": "PROSE_ONLY",
+      "note": "check_budget.py prints a PASS at 0/N when stdin is empty; a zero-byte receipt has a perfectly valid SHA-256. Both launder absence into evidence. Filed, not yet fixed."
+    }
+  ]
+}
