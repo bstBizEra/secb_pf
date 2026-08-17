@@ -1,0 +1,298 @@
+# Shadow merge queue measurement (SECB-WP-FWK-083).
+#
+# Manual only. It measures whether an ORDERED queue drains and uploads the receipt as an
+# artifact, because a receipt that exists only in an operator's shell is not addressable:
+# after a squash you could show MERGE_API_SUCCESS and never prove SIMULATED_TREE_LANDED.
+#
+# It merges nothing, pushes nothing, and the receipt confers no merge authority. Storage
+# and retention are not provenance -- an artifact is not an attestation.
+#
+# A separate workflow rather than a step in ci.yml: this needs full history, runs on
+# demand, and ci.yml is claimed by another open branch.
+
+name: shadow-queue
+
+on:
+  # BOOTSTRAP TRIGGER -- REMOVE ONCE THE FIRST ARTIFACT IS PROVEN.
+  #
+  # workflow_dispatch only works once the workflow is on the default branch, which needs
+  # this pull request merged -- and merging it moves `main` outside the measured order,
+  # invalidating the receipt the measurement is for. A one-time pull_request trigger, scoped
+  # to this pull request alone, breaks that circle by producing the artifact BEFORE the
+  # merge. It is not a steady-state trigger and is deleted in the same change that proves
+  # the artifact.
+  pull_request:
+
+  workflow_dispatch:
+    inputs:
+      queue:
+        description: "Comma-separated refs, in queue order"
+        required: true
+      base:
+        description: "Base ref"
+        required: false
+        default: origin/main
+      retention_days:
+        description: "Artifact retention"
+        required: false
+        default: "90"
+
+permissions:
+  contents: read
+
+jobs:
+  # Admission runs BEFORE measurement and is cheap. Measured: artifact 9279450262 was a
+  # complete 5/5 measurement on a revision whose budget gate was red, so the evidence could
+  # not be promoted and the measurement was wasted. A measurement must not start on a
+  # revision that fails a required gate.
+  admission:
+    name: "Admission — budget declaration"
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.number == 150
+    runs-on: ubuntu-latest
+    outputs:
+      admission: ${{ steps.gate.outputs.admission }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The SAME canonical checker the pre-push hook calls. A second implementation of
+      # "is this within budget" would disagree eventually, and the refusing side would be
+      # the weaker one.
+      - name: Check the declared budget
+        id: gate
+        env:
+          BUDGET_TEXT: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set +e
+          git diff --numstat "$BASE_SHA...$HEAD_SHA" | python scripts/check_budget.py
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "admission=ADMISSION_PASS" >> "$GITHUB_OUTPUT"
+          else
+            echo "admission=ADMISSION_FAILED" >> "$GITHUB_OUTPUT"
+            echo "::error::ADMISSION_FAILED -- measurement will not start on a revision that "\
+                 "fails a required gate; its evidence could not be promoted anyway."
+            exit 1
+          fi
+
+  measure:
+    name: "Shadow queue — ordered drainability"
+    # Scoped to the bootstrap pull request, AND gated on admission. A skipped job is not a
+    # success, so a red admission stops the measurement rather than producing evidence that
+    # cannot be promoted.
+    needs: admission
+    if: needs.admission.outputs.admission == 'ADMISSION_PASS'
+
+    runs-on: ubuntu-latest
+    outputs:
+      # A TYPED outcome, passed through `needs`. The verifier must not infer usability from
+      # an artifact's existence: a zero-byte file has a perfectly valid SHA-256
+      # (e3b0c442...), and handing that to a verifier launders absence into evidence.
+      outcome: ${{ steps.classify.outputs.outcome }}
+      receipt_digest: ${{ steps.digest.outputs.sha256 }}
+    steps:
+      # Full history: every queued head must be resolvable, and a shallow checkout has none
+      # of them. This is the environment dependency that reddened Gate 5 once already.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pytest
+        run: python -m pip install --quiet pytest
+
+      # In bootstrap mode the cohort is COMMITTED, not supplied by a caller: a measurement
+      # whose queue an invoker chooses proves whatever the invoker wanted measured. The
+      # dispatch path keeps its inputs, because there the caller is choosing a cohort
+      # deliberately rather than certifying this one.
+      - name: Resolve the cohort
+        id: cohort
+        run: |
+          # Cohort updated after #142 (entry 1) merged: squashing an already-merged branch
+          # stages nothing, the commit fails, and the run reports INTEGRATION_FAILED. A
+          # committed cohort is a snapshot and goes stale the moment the queue drains an
+          # entry -- which is the first thing the framework's own merge did to it.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # The committed cohort. When it empties, COHORT_COMPLETE marks the drain as
+            # terminal rather than letting an empty queue read as a producer fault.
+            # The eight-entry cohort drained: all landed, all verified at full identity. The
+            # remaining entry is THIS pull request. Note the self-reference: the
+            # measuring workflow lives on the branch it measures. The expected tree is
+            # still computed by git rather than by this code, so the PREDICTION is not
+            # self-certified -- only the orchestration is self-hosted, which is worth
+            # stating rather than glossing.
+            echo "queue=origin/feat/secb-wp-fwk-083-shadow-merge-queue" >> "$GITHUB_OUTPUT"
+            echo "cohort_complete=false" >> "$GITHUB_OUTPUT"
+            echo "base=origin/main" >> "$GITHUB_OUTPUT"
+            echo "retention=90" >> "$GITHUB_OUTPUT"
+            echo "mode=BOOTSTRAP_COMMITTED_COHORT" >> "$GITHUB_OUTPUT"
+          else
+            echo "queue=${{ inputs.queue }}" >> "$GITHUB_OUTPUT"
+            echo "base=${{ inputs.base }}" >> "$GITHUB_OUTPUT"
+            echo "retention=${{ inputs.retention_days }}" >> "$GITHUB_OUTPUT"
+            echo "cohort_complete=false" >> "$GITHUB_OUTPUT"
+            echo "mode=DISPATCH_CALLER_COHORT" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Four distinct SHAs, deliberately not conflated: the pull request head is what is
+      # under review, github.sha on a pull_request event is the SYNTHETIC MERGE commit,
+      # the base is what the cohort was measured against, and the workflow SHA is which
+      # measuring code ran. Only the base belongs to cohort identity.
+      - name: Measure the queue
+        env:
+          QUEUE: ${{ steps.cohort.outputs.queue }}
+          BASE: ${{ steps.cohort.outputs.base }}
+          ARTIFACT_RETENTION_DAYS: ${{ steps.cohort.outputs.retention }}
+          MEASURING_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          SYNTHETIC_MERGE_SHA: ${{ github.sha }}
+          MEASURING_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          COHORT_MODE: ${{ steps.cohort.outputs.mode }}
+          COHORT_COMPLETE: ${{ steps.cohort.outputs.cohort_complete }}
+        # The receipt is written OUTSIDE the worktree. Redirecting into the repository
+        # creates the file before python starts, so the tool's own dirty-tree preflight saw
+        # an untracked receipt.json and refused -- the observer perturbing the observed, the
+        # same family as the __pycache__ contamination.
+        #
+        # No `continue-on-error`. It made this job report SUCCESS while the tool refused and
+        # produced nothing, which is precisely the conditional-success defect this
+        # repository catalogues. A queue that does not drain is a FINDING (exit 2, receipt
+        # written); a refusal is an ERROR (no verdict). They are told apart by whether a
+        # verdict exists, not by the exit code alone.
+        run: |
+          set +e
+          python scripts/check_shadow_merge_queue.py > "$RUNNER_TEMP/receipt.json"
+          code=$?
+          set -e
+          if ! RECEIPT="$RUNNER_TEMP/receipt.json" python - <<'PY'
+          import json, os, sys
+          try:
+              document = json.load(open(os.environ["RECEIPT"], encoding="utf-8"))
+          except Exception as exc:
+              print(f"::error::receipt unreadable ({exc}); a refusal is not a finding")
+              sys.exit(1)
+          if not document.get("verdict"):
+              print("::error::receipt carries no verdict; the tool refused")
+              sys.exit(1)
+          print(f"verdict={document['verdict']} status={document.get('measurement_status')}")
+          PY
+          then
+            echo "::error::measurement produced no usable receipt (tool exit $code)"
+            exit 1
+          fi
+
+
+      # Validate BEFORE digesting, and publish atomically. Digesting first would produce a
+      # valid hash of an unusable file, which is the laundering step.
+      - name: Classify the producer outcome
+        id: classify
+        env:
+          RECEIPT: ${{ runner.temp }}/receipt.json
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, pathlib, sys
+          path = pathlib.Path(os.environ["RECEIPT"])
+          TERMINAL = {"QUEUE_DRAINS_AS_ORDERED"}
+          FINDINGS = {"QUEUE_COMPLETE_TERMINAL",
+                      "QUEUE_NOT_DRAINABLE_AS_ORDERED", "QUEUE_DRAINABILITY_UNPROVEN",
+                      "INTEGRATION_FAILED", "MEASUREMENT_CONTAMINATED",
+                      "MERGE_METHOD_MISMATCH"}
+          outcome = "PRODUCER_ERROR"
+          if path.exists() and path.stat().st_size > 0:
+              try:
+                  document = json.loads(path.read_text(encoding="utf-8"))
+                  verdict = document.get("verdict")
+                  if document.get("schema") != "secb.shadow-merge-queue-receipt/v1":
+                      outcome = "PRODUCER_ERROR"
+                  elif verdict in TERMINAL:
+                      outcome = "VALID_MEASUREMENT"
+                  elif verdict in FINDINGS:
+                      outcome = "VALID_FINDING"
+              except Exception:
+                  outcome = "PRODUCER_ERROR"
+          print(f"outcome={outcome}")
+          PY
+
+      - name: Refuse to publish an unusable receipt
+        if: steps.classify.outputs.outcome == 'PRODUCER_ERROR'
+        run: |
+          echo "::error::PRODUCER_ERROR -- the receipt is absent, empty, malformed or "\
+               "carries no declared verdict. A zero-byte file has a valid digest; "\
+               "publishing it would launder absence into evidence."
+          exit 1
+
+      # Atomic publish: only a validated receipt becomes the artifact path.
+      - name: Publish the validated receipt
+        run: |
+          cp "$RUNNER_TEMP/receipt.json" "$RUNNER_TEMP/receipt-validated.json"
+          mv "$RUNNER_TEMP/receipt-validated.json" receipt-artifact.json
+
+      - name: Emit the receipt digest out of band
+        id: digest
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import hashlib, pathlib
+          print("sha256=" + hashlib.sha256(pathlib.Path("receipt-artifact.json").read_bytes()).hexdigest())
+          PY
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import hashlib, pathlib
+          raw = pathlib.Path("receipt-artifact.json").read_bytes()
+          print("### Shadow queue receipt")
+          print()
+          print("```text")
+          print(f"sha256:{hashlib.sha256(raw).hexdigest()}")
+          print("```")
+          print()
+          print("The digest is recorded here and NOT inside the receipt: a mutated file "
+                "whose embedded digest was recomputed would verify against itself.")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shadow-queue-receipt
+          path: receipt-artifact.json
+          retention-days: ${{ inputs.retention_days }}
+
+  verify:
+    name: "Shadow queue — artifact readback"
+    needs: measure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # A SECOND job, so the bytes verified are the bytes that survived upload and
+      # download. Verifying in the producing job would check a local file that never left
+      # the runner, which proves storage of nothing.
+      - uses: actions/download-artifact@v4
+        with:
+          name: shadow-queue-receipt
+
+      # Read the TYPED outcome through `needs` rather than inferring usability from the
+      # artifact's name or presence.
+      - name: Refuse a producer error
+        if: needs.measure.outputs.outcome != 'VALID_MEASUREMENT' && needs.measure.outputs.outcome != 'VALID_FINDING'
+        run: |
+          echo "::error::producer outcome ${{ needs.measure.outputs.outcome }} is not usable evidence"
+          exit 1
+
+      - name: Verify the downloaded receipt against the out-of-band digest
+        env:
+          VERIFY_ARTIFACT: receipt-artifact.json
+          RECEIPT_DIGEST: ${{ needs.measure.outputs.receipt_digest }}
+        # Reads the stored bytes. It does NOT re-measure: regenerating would produce a
+        # fresh receipt and prove nothing about the one that was stored.
+        run: python scripts/check_shadow_merge_queue.py

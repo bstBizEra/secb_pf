@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.shadow-merge-queue-receipt/v1",
+  "title": "Shadow Merge Queue receipt",
+  "description": "SECB-WP-FWK-083, issue #149. Records whether an ORDERED queue drains, which is a different claim from each PR being individually mergeable. PR_IS_INDIVIDUALLY_MERGEABLE != ORDERED_PREFIX_IS_INTEGRABLE != INTEGRATED_RESULT_PASSES_TESTS != GITHUB_REQUIRED_CHECKS_PASSED. A receipt conforming to this schema confers NO merge authority and creates no queue entry.",
+  "type": "object",
+  "required": ["schema", "base_sha", "merge_method", "environment", "prefixes",
+               "measured_prefix", "unmeasured_suffix", "measurement_status", "verdict",
+               "confers_merge_authority"],
+  "properties": {
+    "schema": { "const": "secb.shadow-merge-queue-receipt/v1" },
+    "base_ref": { "type": "string" },
+    "base_sha": { "type": "string", "minLength": 40 },
+    "merge_method": {
+      "enum": ["SQUASH", "MERGE", "REBASE"],
+      "description": "Must equal the repository's method. A prefix built the wrong way measures a tree that will never exist."
+    },
+    "environment": {
+      "type": "object",
+      "required": ["python", "git", "test_command", "test_command_digest"],
+      "description": "A pass is only meaningful against the environment that produced it."
+    },
+    "prefixes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["position", "ref", "head_sha", "prefix", "integration", "tests"],
+        "properties": {
+          "integration": { "enum": ["SQUASHED", "CONFLICT"] },
+          "tests": { "enum": ["PASS", "FAIL", "NOT_RUN"] },
+          "synthetic_commit_sha": { "type": "string" },
+          "synthetic_tree_sha": { "type": "string" },
+          "conflicted_paths": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "measured_prefix": { "type": "array", "items": { "type": "string" } },
+    "unmeasured_suffix": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Entries the budget did not reach. The first of these is NOT failing; it is unmeasured, which is a different fact."
+    },
+    "measurement_status": { "enum": ["COMPLETE", "INCOMPLETE", "REFUSED"] },
+    "verdict": {
+      "enum": ["QUEUE_DRAINS_AS_ORDERED", "QUEUE_NOT_DRAINABLE_AS_ORDERED",
+               "QUEUE_DRAINABILITY_UNPROVEN", "MERGE_METHOD_MISMATCH"]
+    },
+    "first_failing_prefix_at": { "type": "string" },
+    "attribution": {
+      "type": "string",
+      "description": "Required whenever a prefix fails: FIRST_FAILING_PREFIX_AT_PR_N is not PR_N_IS_SOLE_CAUSE. The failure belongs to the combination."
+    },
+    "confers_merge_authority": { "const": false },
+    "not_proven": { "type": "array", "items": { "type": "string" } }
+  }
+}

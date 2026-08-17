@@ -113,6 +113,13 @@
       "reason": "Does not exist on main yet -- it is the deliverable of PR #101, which is green and awaiting operator authorization. A digest cannot be computed for a file that has not landed, and guessing one would be a fabricated measurement.",
       "trigger_to_cover": "PR #101 merges.",
       "why_declared": "Same reason."
+    },
+    {
+      "path": "scripts/check_shadow_merge_queue.py",
+      "portability_class": "do_not_copy",
+      "reason": "Not CI enforcement and not portable. No workflow invokes it -- it is an operator tool that measures whether SecB's own pull-request queue drains, against SecB's own branches. Under the graph-derived discovery of SECB-WP-FWK-082 (#148) it would not be demanded at all; it is classified here only because that discovery change is unmerged and the filename glob still applies on this base.",
+      "trigger_to_cover": "Track it if ci.yml ever invokes it. Note that once #148 lands, discovery derives from the execution graph and this entry becomes informational rather than required.",
+      "why_declared": "An undeclared exclusion is indistinguishable from an oversight. Recorded rather than renamed: naming the script verify_* would have hidden it from the glob, which is the evasion SECB-WP-FWK-082 exists to remove."
     }
   ],
   "known_limits": [
