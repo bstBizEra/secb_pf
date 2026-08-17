@@ -35,6 +35,8 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "scripts" / "check_ais_production_evidence.py"
 SCHEMA_PATH = ROOT / "config" / "ais_production_evidence.schema.json"
 KEYS_PATH = Path(__file__).parent / "fixtures" / "ais_test_keys.json"
+OBSERVED_CLAIMS_PATH = (Path(__file__).parent / "fixtures" /
+                        "github_oidc_issued_claims_observation.json")
 
 GITHUB_ISSUER = "https://token.actions.githubusercontent.com"
 JWKS_URI = f"{GITHUB_ISSUER}/.well-known/jwks"
@@ -1073,6 +1075,39 @@ def test_closure_coverage_ledger_has_no_unauthenticated_derived_conjunct(tmp_pat
 # issuer's subject-claim customization, so expectation and configuration are one
 # authority instead of two.
 # ============================================================================
+
+
+def test_positive_fixture_is_bound_to_an_observed_github_token_shape():
+    """Bind the synthetic subject tests to claims GitHub actually issued.
+
+    The compact credential is deliberately absent. The exact allowlisted record and its
+    digest came from Actions run 32059511164; stable assertions below distinguish a
+    real issuer observation from documentation-shaped data authored by this repository.
+    """
+    fixture = json.loads(OBSERVED_CLAIMS_PATH.read_text(encoding="utf-8"))
+    record = fixture["record"]
+    claims = record["claims"]
+    provenance = fixture["provenance"]
+
+    assert provenance["compact_jwt_retained"] is False
+    assert sha256_digest(record) == provenance["claims_record_digest"]
+    assert provenance["workflow_run_url"].endswith("/actions/runs/32059511164")
+    assert record["source"]["run_id"] == claims["run_id"] == "32059511164"
+    assert record["source"]["sha"] == claims["sha"]
+    assert claims["iss"] == GITHUB_ISSUER
+    assert claims["aud"] == "secb-pf:oidc-observation"
+    assert claims["repository"] == SUBJECT_REPOSITORY
+    assert claims["repository_id"] == REPOSITORY_ID
+    assert claims["repository_owner_id"] == REPOSITORY_OWNER_ID
+    assert claims["sub"] == f"{REAL_SUB_CONFIG['sub_claim_prefix']}:pull_request"
+    assert claims["event_name"] == "pull_request"
+    assert claims["ref"] == "refs/pull/159/merge"
+    assert claims["job_workflow_ref"] == claims["workflow_ref"]
+    assert claims["job_workflow_ref"].endswith(
+        ".github/workflows/oidc-issued-claims.yml@refs/pull/159/merge")
+    assert claims["workflow_sha"] == claims["job_workflow_sha"] == claims["sha"]
+    assert int(claims["nbf"]) <= int(claims["iat"]) < int(claims["exp"])
+    assert int(claims["exp"]) - int(claims["iat"]) == 300
 
 
 def test_revision_3_role_subject_is_now_refused(tmp_path):
