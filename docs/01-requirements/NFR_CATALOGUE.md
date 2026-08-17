@@ -42,13 +42,42 @@ clothing, and is marked as such.
 | `NFR-12` | Enforcement scripts depend on the Python standard library only | 0 third-party imports in `scripts/` | Observed: `json`, `os`, `re`, `sys`, `subprocess`, `datetime` only. CI installs `pytest` for tests, not for the gates | Import inspection |
 | `NFR-13` | The framework runs on a personal GitHub account with no organization, no paid plan, and no branch protection | All gates functional under those constraints | Observed and forced: rulesets and protection both return `403` | Every CI run is the evidence |
 | `NFR-14` | Governance configuration is machine-readable and editable without code changes | Scope, caps, tier and expiry live in `config/delegation_envelope.json` | Design decision, `SECB-WP-FWK-012` | Classifier reads the envelope at runtime; `test_missing_envelope_escalates` |
-| `NFR-15` | A new project can be instantiated without modifying enforcement **logic** | **Met on the logic clause, re-measured 2026-08-11** (`SECB-WP-FWK-036`): **0 of 3** enforcement scripts now require an edit, down from 3. Total files still requiring an edit: **13**, of which 1 is the intended configuration change and 12 are prose or identity strings. The original "no framework logic" target stays **withdrawn as false** | **Measured twice**: `TRIAL-FR12-BOOTSTRAP.md` finding 1 (18 files, 2026-08-10) and the re-measurement below | Custom prefix proven **by invoking the gate**: `test_custom_prefix_from_envelope_passes`, `test_foreign_prefix_rejected_under_custom_configuration` |
+| `NFR-15` | A new project can be instantiated without modifying enforcement **logic** | **Met on the logic clause, re-measured 2026-08-11** (`SECB-WP-FWK-036`): **0 of 3** enforcement scripts now require an edit, down from 3. Total files still requiring an edit: **13**, of which 1 is the intended configuration change and 12 are prose or identity strings. The original "no framework logic" target stays **withdrawn as false** | **Measured three times**: `TRIAL-FR12-BOOTSTRAP.md` finding 1 (greenfield, 18 files, 2026-08-10) · the re-measurement below (`SECB-WP-FWK-036`) · and the **retrofit** in `INSTANTIATION_FIELD_REPORT.md` (`SECB-WP-FWK-052`) — see the qualification below, which the first two measurements structurally could not surface | Custom prefix proven **by invoking the gate**: `test_custom_prefix_from_envelope_passes`, `test_foreign_prefix_rejected_under_custom_configuration` |
 
 `NFR-15`'s original target claimed zero `scripts/` edits with one known
 exception. The bootstrap trial found **eighteen** files, and the error was in the
 direction that flattered the framework. The target was withdrawn rather than
 defended, and narrowed to a clause that could be met: no change to enforcement
 *logic*.
+
+**Third measurement — the retrofit, and it qualifies the narrowed clause too**
+(`SECB-WP-FWK-052`, `INSTANTIATION_FIELD_REPORT.md`; recorded here under
+`SECB-WP-FWK-061` now that the report is on `main`).
+
+The logic clause **holds strictly**: no enforcement script had to change for a gate
+to *function* in the retrofit. What the field shows is that all four were changed
+anyway — **130 lines, 45 of them mentioning a governance ladder token** — because the
+host repository already used the letters `G`, `L` and `A`, and a gate whose verdicts
+read `G0`…`G5` inside a project where `G` means something else is ambiguous rather
+than broken.
+
+| | |
+|---|---|
+| Logic clause | **Met.** Zero scripts require an edit to run |
+| Instantiation cost | **Not zero.** 130 lines across all four "reusable as-is" scripts |
+| Cause | `G0–G5`, `L0–L3`, `A0–A4` are hard-coded in code **and prose**. `NFR-15` made only the *work-package prefix* configuration |
+| Why the first two measurements missed it | **A greenfield trial has nothing to collide with.** Only a retrofit into a repository with its own identifiers can surface it |
+
+So the honest reading of `NFR-15` is: *a new project can be instantiated without
+modifying enforcement logic, and cannot yet be instantiated without renaming the
+enforcement vocabulary.* The second half is measured, not asserted, and the fix —
+making the ladder tokens configuration — touches `classify_authority_delta.py`, a
+constitutional path, and is deferred with that named scope rather than folded in
+here.
+
+**The target is not re-withdrawn.** It was already narrowed once for overstating;
+narrowing it again on the same evidence class would be moving the goalpost to keep a
+`Met`. The clause stands as written, with the cost recorded beside it.
 
 ### Re-measurement, 2026-08-11 (`SECB-WP-FWK-036`)
 
