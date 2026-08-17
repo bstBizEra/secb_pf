@@ -672,7 +672,7 @@ def promote(tmp_path, repo, queue=DRAINS, **observed_overrides) -> dict:
     receipt_path = tmp_path / "r.json"
     receipt_path.write_text(json.dumps(document), encoding="utf-8")
     observed = {
-        "rollup_head_sha": document["persistence"]["measuring_pr_head"],
+        "rollup_head_sha": document["prefixes"][0]["head_sha"],
         "artifact_verified": True,
         "artifact_digest": "sha256:" + "a" * 64,
         "required_checks": dict(GREEN_CHECKS),
@@ -694,6 +694,8 @@ def promote(tmp_path, repo, queue=DRAINS, **observed_overrides) -> dict:
 def test_a_complete_verified_measurement_on_a_green_revision_is_promotable(tmp_path, repo):
     findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef")
     assert findings["verdict"] == "EVIDENCE_PROMOTABLE"
+    assert findings["measuring_head"] == "deadbeef"
+    assert findings["subject_head"] != findings["measuring_head"]
     assert findings["execution_eligibility"] == "ELIGIBLE"
     assert findings["confers_merge_authority"] is False, "eligibility is not authority"
     assert findings["binding"]["expected_trees"], "the binding must carry the expected trees"
@@ -713,11 +715,25 @@ def test_a_required_gate_failure_blocks_promotion(tmp_path, repo):
 
 
 def test_evidence_may_not_be_assembled_across_revisions(tmp_path, repo):
-    """A measurement from one head plus a green gate from the next tests nothing."""
+    """A measured subject plus a green rollup from another subject tests nothing."""
     findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef",
                        rollup_head_sha="cafebabe")
     assert findings["verdict"] == "CROSS_REVISION_ASSEMBLY"
-    assert "nobody tested" in findings["why"]
+    assert "not the subject" in findings["why"]
+
+
+def test_measuring_head_is_provenance_not_the_gate_subject(tmp_path, repo):
+    """Dispatch from main must not require main's checks for a queued PR."""
+    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef",
+                       rollup_head_sha="deadbeef")
+    assert findings["verdict"] == "CROSS_REVISION_ASSEMBLY"
+    assert findings["subject_head"] != findings["measuring_head"]
+
+
+def test_subject_and_measurer_remain_separate_in_the_promoted_binding(tmp_path, repo):
+    findings = promote(tmp_path, repo, MEASURING_PR_HEAD="deadbeef")
+    assert findings["binding"]["subject_head"] == findings["subject_head"]
+    assert findings["binding"]["measuring_head"] == "deadbeef"
 
 
 def test_an_unverified_artifact_blocks_promotion(tmp_path, repo):
