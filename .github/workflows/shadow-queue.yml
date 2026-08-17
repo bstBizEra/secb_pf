@@ -126,7 +126,13 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # The committed cohort. When it empties, COHORT_COMPLETE marks the drain as
             # terminal rather than letting an empty queue read as a producer fault.
-            echo "queue=origin/feat/secb-wp-fwk-082-control-execution-graph" >> "$GITHUB_OUTPUT"
+            # The eight-entry cohort drained: all landed, all verified at full identity. The
+            # remaining entry is THIS pull request. Note the self-reference: the
+            # measuring workflow lives on the branch it measures. The expected tree is
+            # still computed by git rather than by this code, so the PREDICTION is not
+            # self-certified -- only the orchestration is self-hosted, which is worth
+            # stating rather than glossing.
+            echo "queue=origin/feat/secb-wp-fwk-083-shadow-merge-queue" >> "$GITHUB_OUTPUT"
             echo "cohort_complete=false" >> "$GITHUB_OUTPUT"
             echo "base=origin/main" >> "$GITHUB_OUTPUT"
             echo "retention=90" >> "$GITHUB_OUTPUT"
