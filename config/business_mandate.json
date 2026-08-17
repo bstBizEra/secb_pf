@@ -1,0 +1,195 @@
+{
+  "schema_version": "secb.dev/business-mandate/v1",
+  "lifecycle": {
+    "state": "PROPOSED_ON_PR_HEAD",
+    "binding": false,
+    "effective_event": "PR_113_MERGED",
+    "note": "A mandate delegates authority. It is not binding because this file says so -- it is binding when the authority that holds the authority lands it on main. Recorded explicitly because SECB-WP-FWK-056 shipped a record that declared itself ISSUED while its own pull request said nothing was issued until merge."
+  },
+  "mandate": {
+    "id": "BM-SECB-AUTONOMY-001",
+    "owner": "OP-Vily",
+    "owner_role": "BUSINESS_INTENT_OWNER",
+    "not_owner_role": "The owner is NOT an engineering approver. They do not decide architecture correctness, security design correctness, test sufficiency, code quality, merge readiness, deployment mechanics, or incident remediation. Routing an engineering judgement to a party without engineering competence produces a rubber stamp and calls it a control.",
+    "objective": [
+      "BUILD_AND_OPERATE_SECB_FRAMEWORK",
+      "MAXIMIZE_ENGINEERING_AUTONOMY",
+      "MAINTAIN_EVIDENCE_AND_RECOVERABILITY"
+    ],
+    "business_success": {
+      "kpis": [
+        "delivery_lead_time",
+        "escaped_defect_rate",
+        "recovery_time",
+        "evidence_completeness",
+        "autonomous_completion_rate"
+      ],
+      "kpi_note": "Mapping these onto the existing K-nn series in KPI_BASELINE.md is deferred to WP-04. Inventing the mapping here would create a second KPI vocabulary, and this repository already carries eight verdict vocabularies it must keep apart."
+    },
+    "authorized_domains": [
+      "architecture",
+      "implementation",
+      "testing",
+      "security_engineering",
+      "documentation",
+      "ci_cd",
+      "controlled_deployment",
+      "rollback",
+      "technical_governance"
+    ],
+    "constraints": {
+      "production_changes_require": [
+        "verified_release_certificate",
+        "canary_or_staged_rollout",
+        "rollback_proof",
+        "observability_ready"
+      ],
+      "production_note": "None of these four exist yet. Stage 9 is structurally blocked and production is NOT_AUTHORIZED, so this clause constrains a capability the repository does not have. It is written now so that acquiring the capability does not also require negotiating the constraint.",
+      "prohibited": [
+        "unbounded_spend",
+        "raw_credential_exposure",
+        "irreversible_data_destruction",
+        "undeclared_external_commitment",
+        "silent_authority_expansion"
+      ],
+      "prohibited_note": "These are refused, never weighed. A prohibited action is not a cost to be traded against a benefit."
+    },
+    "default_resolution": {
+      "technical_uncertainty": "INVESTIGATE_AND_VERIFY",
+      "failed_gate": "REPAIR_OR_ROLLBACK",
+      "business_ambiguity": "PRESERVE_CURRENT_SAFE_STATE",
+      "budget_exhausted": "STOP_NEW_WORK_AND_PRESERVE_STATE",
+      "note": "These exist so that an agent meeting an unanswered question has a defined move that is not 'ask a human'. Business ambiguity is the one case that still halts -- and it halts by preserving state, not by escalating a technical question."
+    }
+  },
+  "exercisability": {
+    "state": "NOT_EXERCISABLE",
+    "reason": "The mandate delegates engineering authority; the platform cannot yet enforce the conditions under which that authority is safe to exercise. See AUTONOMOUS_AUTHORITY_MODEL.md section 9: no branch protection, three gates skip on push, skipped counts as success, one principal, no expected-source required checks, no release controller separate from the builder.",
+    "becomes_exercisable_when": "WP-04 through WP-06 are effective AND the eight tamper-resistance negative tests pass. Tamper resistance is a PRECONDITION for autonomous merge, not a later hardening pass -- raised from follow-up work to exit condition by the operator on 2026-08-13.",
+    "meanwhile": "The existing A1 envelope continues to govern: G0 auto-merge inside auto_paths, everything else escalates. A green 4/4 is not an EBTA certificate and no agent may treat it as one."
+  },
+  "tamper_resistance": {
+    "required_before_autonomous_merge": true,
+    "principle": "Do not try to make the agent unable to modify the repository. Make an unauthorized modification unable to become a valid merge, release or deployment. The agent has write access by construction -- it is the thing doing the work -- so the control cannot live at the write, it must live at the consumption.",
+    "signing_alone_is_insufficient": "A signature proves who wrote something and that it has not changed since. That is TAMPER-EVIDENT: it makes forgery detectable after the fact. TAMPER-RESISTANT requires four properties together -- principal separation, enforcement from outside the trust domain being enforced, digest binding across the whole chain, and a fail-closed consumption gate that refuses anything lacking a valid chain. SecB has none of the four.",
+    "trust_root": "OUTSIDE_AGENT_WRITABLE_REPOSITORY",
+    "single_principal_authorization": "BOOTSTRAP_ONLY",
+    "required_principal_separation": [
+      "BUILDER",
+      "VERIFIER",
+      "AUTHORITY_CONTROLLER",
+      "RELEASE_CONTROLLER"
+    ],
+    "release_requires": [
+      "SIGNED_SINGLE_USE_WAT",
+      "DIGEST_BOUND_EBTA",
+      "CONTROL_PLANE_PROVENANCE",
+      "EXPECTED_EVIDENCE_SOURCE",
+      "NON_REPLAYABLE_RECEIPT",
+      "EXTERNAL_APPEND_ONLY_AUDIT"
+    ],
+    "unauthorized_main_change": "MUST_NOT_RELEASE_OR_DEPLOY",
+    "unauthorized_main_change_note": "This is the load-bearing clause for a repository whose main branch cannot be protected. A direct push to main cannot be PREVENTED here (rulesets return 403), so the requirement is that it cannot be CONSUMED: no release receipt, no provenance, therefore no deployment. Prevention is unavailable; refusal is not.",
+    "policy_change_activation": "NEXT_POLICY_EPOCH",
+    "failure_mode": "PRESERVE_SAFE_STATE",
+    "verified_by": "The eight negative tests in AUTONOMOUS_AUTHORITY_MODEL.md section 12. All eight must pass before WP-06 is EFFECTIVE; a passing positive path proves nothing about resistance."
+  },
+  "bootstrap_corridor_exit": "WP_06_EFFECTIVE_AND_TAMPER_RESISTANCE_VERIFIED",
+  "status_vocabulary": {
+    "engineering_evidence": "READY",
+    "business_delegation": "READY",
+    "tamper_resistance": "NOT_YET_BOUND",
+    "note": "All three must be reported together. The first two being ready is what makes the third easy to forget."
+  },
+  "ratification_model": {
+    "business_ratifier": "OP-Vily",
+    "ratification_subject": [
+      "BUSINESS_INTENT",
+      "AUTONOMY_SCOPE",
+      "RISK_TOLERANCE",
+      "BUDGET_BOUNDARY",
+      "PUBLIC_VISIBILITY"
+    ],
+    "engineering_review_required_from_business_owner": false,
+    "merge_executor_may_be_agent": true,
+    "merge_executor_has_no_ratification_authority": true,
+    "ratification_receipt_must_bind": [
+      "repository_id",
+      "pull_request_number",
+      "head_sha",
+      "mandate_digest",
+      "decision_id",
+      "nonce",
+      "expires_at"
+    ],
+    "defect_this_fixes": "Two defects. First, the framework conflated the party who RATIFIES with the party who PRESSES MERGE, which is why the agent kept refusing to merge PR #113 -- merging is EXECUTION, and once a receipt is bound to an exact head an agent executing it ratifies nothing. Second, an ordinary issue comment does not prove WHICH COMMIT was ratified and leaves a race between reading the receipt and merging: a push between the two would merge a commit nobody ratified. A pull-request review binds commit_id in the same object GitHub generates, and expectedHeadOid closes the race by making the merge itself fail rather than proceed on a changed head.",
+    "after_receipt_exists": "Refusing to execute without naming a stop condition is itself a framework defect, not caution. MANDATE_MISSING is a TRANSIENT state, never a destination.",
+    "bootstrap_ratification_transport": "PULL_REQUEST_REVIEW_COMMENT",
+    "review_commit_id_must_equal": "CURRENT_PR_HEAD_OID",
+    "ratified_head_oid_format": "FULL_40_HEX",
+    "merge_precondition": "CURRENT_HEAD_OID_EQUALS_RATIFIED_HEAD_OID",
+    "merge_operation": "expectedHeadOid_REQUIRED",
+    "receipt_mutation_before_merge": "REVOKED",
+    "new_head_before_merge": "STALE",
+    "bootstrap_receipt_class": "CONSUMED_BOOTSTRAP_EXCEPTION",
+    "review_state_must_be": "COMMENT, never APPROVE -- the author cannot approve their own pull request, and business ratification is not engineering approval in any case. A review of type COMMENT carries review_id, user.id, submitted_at and commit_id in one GitHub-generated object, which an issue comment does not.",
+    "github_generated_fields_not_typed_by_human": [
+      "review_id",
+      "user.id",
+      "submitted_at",
+      "commit_id"
+    ],
+    "bootstrap_limitation": "This receipt is not yet fully tamper-resistant: it is read by the same principal that will act on it. WP-05 must consume ratification events through a webhook whose X-Hub-Signature-256 HMAC-SHA256 is verified, storing the raw delivery outside the builder trust domain."
+  },
+  "execution_semantics": {
+    "principle": "MUST_PROCEED, not MAY_PROCEED",
+    "rules": {
+      "IN_MANDATE and EBTA_PASS": "MUST_EXECUTE",
+      "IN_MANDATE and EVIDENCE_INCOMPLETE": "MUST_REPAIR_AND_REEVALUATE",
+      "IN_MANDATE and TECHNICAL_FAILURE": "MUST_REPLAN_WITHIN_BUDGET",
+      "OUTSIDE_MANDATE": "PRESERVE_SAFE_STATE_AND_REQUEST_BUSINESS_DECISION",
+      "LOSS_LIMIT_BREACHED": "AUTO_ROLLBACK_AND_REPORT"
+    },
+    "denial_codes": [
+      "MANDATE_MISSING",
+      "EVIDENCE_MISSING",
+      "BUDGET_EXHAUSTED",
+      "LOSS_LIMIT_BREACHED",
+      "INFRASTRUCTURE_UNAVAILABLE",
+      "BUSINESS_INTENT_CONFLICT"
+    ],
+    "no_other_stop_is_valid": "An agent may not halt merely because it is unconfident. A halt must carry one of the six codes above; anything else and the controller orders the work to continue. Uncertainty is a reason to INVESTIGATE_AND_VERIFY, which is work, not a reason to stop and wait, which is not.",
+    "why_this_matters_here": "Deference is not free. An agent that stops on unnamed unease pushes the decision back to the human the mandate exists to keep out of the loop -- and it looks like caution while doing it.",
+    "transition": [
+      "RATIFICATION_PENDING",
+      "RECEIPT_CAPTURED",
+      "HEAD_REVALIDATED",
+      "MERGE_EXECUTED",
+      "EFFECTIVE"
+    ],
+    "controller_obligations": {
+      "valid_receipt": "clear MANDATE_MISSING and re-evaluate EBTA immediately",
+      "ebta_pass": "MUST_EXECUTE",
+      "head_changed_after_ratification": "EVIDENCE_MISSING: HEAD_CHANGED_AFTER_RATIFICATION",
+      "receipt_mutated_or_review_dismissed": "MANDATE_MISSING: RECEIPT_REVOKED",
+      "executor_died": "the execution lease expires and the next release controller resumes idempotently",
+      "adversarial_veto_validity": "A veto counts only if it names a failed EBTA conjunct with an evidence_ref. An opinion, or 'not confident', is not a veto."
+    },
+    "must_proceed_clarified": "MUST_PROCEED does not mean 'merge everything'. It means: execute, repair, replan, or preserve safe state per a deterministic transition -- and never wait without a stop code."
+  },
+  "platform_profile": {
+    "selected": "GITHUB_PUBLIC_FREE_ORG",
+    "procurement_required": false,
+    "merge_queue": "AVAILABLE_IF_REPOSITORY_IN_ORGANIZATION",
+    "organization_prerequisite": "UNMET -- bstBizEra is a User account with 0 organizations; a free Organization must be created and the repository transferred. Branch protection and rulesets do not require it; merge queue does.",
+    "protected_merge": "AVAILABLE_AFTER_PUBLIC_CUTOVER",
+    "artifact_attestation": "PUBLIC_SIGSTORE_TRANSPARENCY_LOG",
+    "cutover_event": "WP_06_IMPLEMENTED_NOT_EFFECTIVE",
+    "autonomy_activation_event": "WP_06_EFFECTIVE_AND_TAMPER_RESISTANCE_VERIFIED"
+  },
+  "visibility_statement": {
+    "can_return_to_private": true,
+    "confidentiality_can_be_restored": false,
+    "public_forks_may_remain_public": true
+  }
+}

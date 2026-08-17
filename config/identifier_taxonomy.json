@@ -1,7 +1,7 @@
 {
   "$comment": "Identifier taxonomy registry for SecB_PF (SECB-WP-FWK-041, corrected under the operator's research verdict of 2026-08-11). Adopted from BACP v1.1 TaxonomyModel section 6: identifier ladders are versioned DATA, not assumptions spread across prose. THIS FILE IS A FACTUAL LEDGER. It preserves provenance-backed recorded assertions and an immutable-by-git-history baseline of the collision debt observed at as_of_commit. It does NOT prevent new collision debt from arising in the governed system, it does NOT issue allow/deny verdicts, and it does NOT originate a prohibition, threshold or authority. Any normative effect is performed by an external authorized policy and enforcement mechanism.",
   "taxonomy_id": "TAX-SECB-2026-001",
-  "taxonomy_version": "1.3.0",
+  "taxonomy_version": "1.5.0",
   "as_of_commit": "3b61307",
   "recorded_by": "SECB-WP-FWK-041",
   "ladders": [
@@ -247,6 +247,29 @@
       "ordering": "none",
       "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit",
       "registered_in": "1.2.0 -- missed by v1.0.0's hand-picked enumeration"
+    },
+    {
+      "prefix": "NS",
+      "form": "NS0-NS3 plus NS_REVIEW_REQUIRED",
+      "bound_to": "Normative surface classes -- WHAT an artifact changes, as distinct from who may ratify it (D) or who may land it (G). Registered by SECB-WP-FWK-057 under the operator disposition of 2026-08-13, which resolved finding F1 by giving the new concept a FREE prefix instead of rebinding D0-D4. NS3 covers the classifier's own source, so the classifier can never approve itself.",
+      "home": "docs/17-references/ANALYSIS-DAAF-V2.md until WP-02 is built; the classifier's own document thereafter",
+      "enforced_by": "reading -- WP-02 is NOT built and is authorized for SHADOW_MODE only",
+      "ordering": "ascending normative weight; effective class is the STRICTEST of manifest, artifact type and semantic effects, and path may never lower it",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit",
+      "declared_not_implemented": true,
+      "authority_note": "The NS ladder describes surface, never authority. It may route a decision to an existing authority and may never widen one.",
+      "enforcement_status": "DECLARED_NOT_IMPLEMENTED -- WP-02 is authorized for SHADOW_MODE and is not built; NS classifies nothing today and blocks no merge"
+    },
+    {
+      "prefix": "AR",
+      "form": "AR0-AR4",
+      "bound_to": "Authorization routes -- HOW a change is authorized, as distinct from what it touches (NS), which outcomes are delegated (BM), who decides historically (D), who may land it (G) or how much damage (R). Registered by SECB-WP-FWK-057 under the operator disposition of 2026-08-13 replacing the blanket D2+ human-ratification rule.",
+      "home": "docs/00-governance/AUTONOMOUS_AUTHORITY_MODEL.md",
+      "enforced_by": "reading -- no route is implemented; WP-04 through WP-06 are the gating pair",
+      "ordering": "ascending authorization strength; AR4 has NO autonomous path and is not an escalation route",
+      "verified_by": "git grep -n '<prefix>' -- docs config AGENTS.md, at as_of_commit",
+      "enforcement_status": "DECLARED_NOT_IMPLEMENTED -- design baseline only; a green 4/4 is not an EBTA certificate",
+      "containment_note": "AR contains A as a prefix, and A is bound to the A0-A4 tier ladder. Not a duplicate binding, so the collision guard does not fire -- recorded here because the registry already carries four containment cases (G in GATE/GC/GIT, E in EL, D in DWRC, A in ASF) and an unrecorded fifth would be exactly the drift this file tracks. Always write 'AR2' or 'A2' with its ladder named; the two are one character apart and mean unrelated things."
     }
   ],
   "collisions_recorded": [
@@ -371,6 +394,12 @@
       "registered": 26,
       "unregistered_remaining": 0,
       "note": "v1.0.0 registered 17 from a hand-picked grep and claimed 'in use, verified by grep'. That claim was true of what was grepped and false as an enumeration: 9 prefixes were missing -- O, I, F, GC, EL, DWRC, ASF, FI, GIT. FR-15's point, measured on this file."
+    },
+    "enumeration_result_at_1_5_0": {
+      "declaration_shaped_prefixes_found": 23,
+      "registered": 28,
+      "unregistered_remaining": 0,
+      "note": "NS and AR added by SECB-WP-FWK-057. The guard caught NS as 'declared but unregistered' on the first run after the prose was written -- the registry did its job against its own author, twice in one work package. No enumeration block exists for 1.3.0 or 1.4.0: the first predates the version-resolving guard, the second was superseded before ratification, and fabricating a block for either would be the defect this registry prevents."
     }
   },
   "prohibited_output_vocabulary": {
@@ -383,5 +412,23 @@
       "DENY"
     ],
     "permitted_absence_claim": "OBSERVED_CLEAR_WITHIN_BOUNDARY -- no qualifying collision was observed in the declared subject snapshot under the attested observation boundary"
+  },
+  "version_lifecycle": {
+    "proposed_version": "1.5.0",
+    "state": "PROPOSED_ON_PR_HEAD",
+    "binding_version_until_effective_event": "1.3.0",
+    "effective_event": "PR_113_MERGED",
+    "history": {
+      "1_4_0": {
+        "status": "SUPERSEDED_BEFORE_RATIFICATION",
+        "effective": false,
+        "reason": "1.4.0 registered NS under the disposition that D2+ requires human ratification. That disposition was reversed the same day, before either became effective, and 1.5.0 adds the AR routing ladder the replacement needs. 1.4.0 never governed anything, so this supersession costs nothing -- which is only true because SECB-WP-FWK-056 separated PROPOSED from EFFECTIVE first."
+      },
+      "1_3_0": {
+        "status": "BINDING_ON_MAIN",
+        "effective": true,
+        "note": "SECB-WP-FWK-051. Bumped the version without adding an enumeration block for it; the guard read a version-pinned key and could not see the gap. No block is written for it after the fact."
+      }
+    }
   }
 }
