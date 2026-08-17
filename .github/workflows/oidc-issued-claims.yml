@@ -70,17 +70,17 @@ jobs:
               },
           )
           with urllib.request.urlopen(request, timeout=20) as response:
-              token = json.load(response)["value"]
+              issued = json.load(response)["value"]
 
           # Register the exact compact credential before any subsequent output.
-          print(f"::add-mask::{token}")
-          parts = token.split(".")
+          print(f"::add-mask::{issued}")
+          parts = issued.split(".")
           if len(parts) != 3:
               raise SystemExit("issuer returned a value that is not a compact JWT")
 
           padding = "=" * (-len(parts[1]) % 4)
           claims = json.loads(base64.urlsafe_b64decode(parts[1] + padding))
-          del token
+          issued = ""
           del parts
 
           expected = {
