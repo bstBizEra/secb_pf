@@ -1,0 +1,305 @@
+#!/usr/bin/env python3
+"""Validate the reusable-pattern ledger against the tree it ships in (FWK-090).
+
+WHY THIS EXISTS. Roughly thirty reusable patterns were established across the FWK-079..089
+work packages, and every one of them lived only in a pull-request comment. A comment is not
+greppable by the next agent, carries no provenance a tool can check, and -- worst -- can claim
+that a pattern is enforced by a test that does not exist. That last failure is not
+hypothetical: a governing document in a sibling repository named a required test which had
+never been written, and every agent that read the document believed the guard was in force.
+
+    DOCUMENTED != ENFORCED
+    CITED != PRESENT
+
+So the ledger is machine-readable and each entry declares HOW it is guarded, and this tool
+refuses any entry whose declared guard disagrees with what is actually in the tree:
+
+    MECHANICAL    every cited test must EXIST here. A phantom citation is refused.
+    PENDING_MERGE DUAL-TREE binding. The cited test must be ABSENT from this tree AND
+                  PRESENT at a PINNED pending head. Both trees are read.
+    PROSE_ONLY    no test may be cited. An entry that cites a guard while calling itself
+                  prose hides the drift in the opposite direction.
+
+Both directions are checked, because either one silently turns the ledger into decoration.
+
+WHY PENDING_MERGE NEEDS TWO TREES. The first version of this tool proved only
+
+    TEST_ABSENT_HERE ^ PR_NUMBER_NAMED
+
+and called that a pending guard. It is not one:
+
+    TEST_ABSENT_HERE ^ PR_NUMBER_NAMED
+    != TEST_PRESENT_IN_PINNED_PENDING_HEAD
+    != GUARD_WILL_LAND
+
+An invented PR citing an invented test satisfied it indefinitely, and the shipped ledger proved
+the point by accident: four entries said their guards "arrive with #159", which was true of that
+PR's revision-3 head and FALSE of the revision-2 head a reviewer checked -- the cited tests did
+not exist there at all. The defect was citing a PR NUMBER rather than a TREE. A pull request's
+head moves, so its number never identified content. `pending_head` is now a required pinned SHA
+and the guard must be readable AT it.
+
+An unresolvable pinned head is REFUSED, not waived: a claim that cannot be checked where the
+gate runs is not a weaker claim, it is an unchecked one. Where the pending object is not
+fetchable, the honest classification is PROSE_ONLY with the head recorded in the note.
+
+WHAT IT DELIBERATELY DOES NOT DO. It does not judge whether a cited test actually exercises
+the pattern it claims to guard -- only a human reviewer can say that. It reports the guarded
+ratio and never rounds it up: patterns that are honest prose stay visibly prose.
+"""
+from __future__ import annotations
+
+import ast
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path, PurePosixPath
+
+OK = 0
+FAIL = 2
+
+SCHEMA = "secb.reusable-pattern-ledger/v1"
+GUARD_CLASSES = ("MECHANICAL", "PENDING_MERGE", "PROSE_ONLY")
+ID_PATTERN = re.compile(r"^RP-\d{3}$")
+REQUIRED_FIELDS = ("id", "name", "rule", "origin", "guard")
+
+# A pattern states a DISTINCTION, an IMPLICATION, a CONJUNCTION or an ORDERING. Without one it
+# is a slogan, and a slogan cannot be applied to a new case by anyone who was not in the
+# conversation that produced it. The ordering forms are here because the root pattern of this
+# whole family -- claim <= mechanism <= verified behaviour -- is an ordering and nothing else;
+# the first draft of this list omitted them and refused that entry, which was the check
+# working correctly against a rule that was too narrow.
+RULE_MARKERS = ("!=", "≠", "->", "→", "∧", "^", "<=", "≤", ">=", "≥")
+
+
+class Refused(ValueError):
+    """The ledger contradicts the tree, or an entry is not a pattern."""
+
+
+def validate_citation(citation: dict) -> tuple[str, str]:
+    """Return a confined pytest module/function identity or refuse it.
+
+    A top-level function somewhere on the runner is not a test. Citations are intentionally
+    narrower than arbitrary pytest node IDs: a repository-relative tests/test_*.py module and
+    a top-level test_* function. This makes the same identity checkable in both the worktree
+    and a pinned git tree without executing code from an unmerged commit.
+    """
+    if not isinstance(citation, dict):
+        raise Refused(f"test citation {citation!r} is not an object")
+    raw_path = citation.get("file")
+    name = citation.get("test")
+    if not isinstance(raw_path, str) or not raw_path:
+        raise Refused("test citation requires a non-empty file string")
+    if not isinstance(name, str) or not re.fullmatch(r"test_[A-Za-z0-9_]+", name):
+        raise Refused(
+            f"citation test {name!r} is not a pytest test function name (expected test_*)"
+        )
+    if "\\" in raw_path:
+        raise Refused(f"citation path {raw_path!r} is not a normalized POSIX repository path")
+    path = PurePosixPath(raw_path)
+    if path.is_absolute():
+        raise Refused(f"citation path {raw_path!r} must be repository-relative, not absolute")
+    if str(path) != raw_path or any(part in (".", "..") for part in path.parts):
+        raise Refused(
+            f"citation path {raw_path!r} is not normalized or attempts path traversal"
+        )
+    if len(path.parts) < 2 or path.parts[0] != "tests":
+        raise Refused(f"citation path {raw_path!r} must be inside tests/")
+    if path.suffix != ".py" or not path.name.startswith("test_"):
+        raise Refused(f"citation path {raw_path!r} is not a pytest test module tests/test_*.py")
+    return raw_path, name
+
+
+def defines_test(source: str, name: str) -> bool:
+    """True only for a top-level pytest-shaped function definition."""
+    try:
+        module = ast.parse(source)
+    except SyntaxError:
+        return False
+    return any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name
+        for node in module.body
+    )
+
+
+def test_exists(root: Path, citation: dict) -> bool:
+    """True when a confined citation exists and defines the test in the working tree."""
+    file, name = validate_citation(citation)
+    path = root / file
+    if not path.is_file():
+        return False
+    return defines_test(path.read_text(encoding="utf-8"), name)
+
+
+def blob_at(root: Path, head: str, file: str) -> str | None:
+    """The file's contents at a pinned commit, or None when unresolvable.
+
+    Read through git rather than the filesystem: the pending head is by definition not
+    checked out, and its content is the only thing that can show a guard WILL land.
+    """
+    result = subprocess.run(
+        ["git", "cat-file", "-p", f"{head}:{file}"],
+        cwd=root, capture_output=True, text=True, check=False,
+    )
+    return result.stdout if result.returncode == 0 else None
+
+
+def check_entry(root: Path, entry: dict, seen: dict) -> tuple[bool, list[str]]:
+    """Return (mechanically_guarded, notes). Raises Refused on a contradiction."""
+    missing = [f for f in REQUIRED_FIELDS if not entry.get(f)]
+    if missing:
+        raise Refused(f"{entry.get('id', '<no id>')}: missing required field(s) {missing}")
+
+    identifier = entry["id"]
+    if not ID_PATTERN.match(identifier):
+        raise Refused(f"{identifier!r} is not of the form RP-000")
+    if identifier in seen:
+        raise Refused(f"duplicate id {identifier!r} (also used by {seen[identifier]!r})")
+    seen[identifier] = entry["name"]
+
+    if not any(marker in entry["rule"] for marker in RULE_MARKERS):
+        raise Refused(
+            f"{identifier}: rule {entry['rule']!r} states no distinction or implication. A "
+            "pattern without one is a slogan, and a slogan cannot be applied to a new case"
+        )
+
+    origin = entry["origin"]
+    if not (origin.get("pr") or origin.get("issue")):
+        raise Refused(
+            f"{identifier}: origin names neither a pr nor an issue. A pattern with no "
+            "provenance is folklore -- unauditable and unfalsifiable"
+        )
+
+    guard = entry["guard"]
+    if guard not in GUARD_CLASSES:
+        raise Refused(f"{identifier}: guard {guard!r} is not one of {GUARD_CLASSES}")
+    citations = entry.get("tests") or []
+
+    if guard == "PROSE_ONLY":
+        if citations:
+            raise Refused(
+                f"{identifier}: declared PROSE_ONLY but cites {len(citations)} test(s). An "
+                "entry that cites a guard while calling itself prose understates its own "
+                "enforcement, which is drift in the direction nobody audits"
+            )
+        return False, [f"{identifier}: prose only, no guard claimed"]
+
+    if not citations:
+        raise Refused(f"{identifier}: guard {guard} cites no tests")
+
+    # Validate every identity before reading either tree. The same confined, pytest-shaped
+    # citation is then used for MECHANICAL and PENDING_MERGE; neither class gets a weaker path.
+    for citation in citations:
+        validate_citation(citation)
+
+    present = [c for c in citations if test_exists(root, c)]
+    absent = [c for c in citations if c not in present]
+
+    if guard == "MECHANICAL":
+        if absent:
+            raise Refused(
+                f"{identifier}: declared MECHANICAL but "
+                + ", ".join(f"{c['file']}::{c['test']}" for c in absent)
+                + " is not in this tree. A phantom citation is worse than no citation: every "
+                "reader concludes the guard is in force"
+            )
+        return True, [f"{identifier}: {len(present)} guard(s) present"]
+
+    # PENDING_MERGE -- dual-tree binding.
+    if not entry.get("pending_pr"):
+        raise Refused(f"{identifier}: PENDING_MERGE requires pending_pr")
+    head = entry.get("pending_head", "")
+    if not re.fullmatch(r"[0-9a-f]{40}", head):
+        raise Refused(
+            f"{identifier}: PENDING_MERGE requires pending_head as a full 40-hex SHA. A PR "
+            "NUMBER does not identify content -- its head moves, so the same citation can be "
+            "true of one revision and false of another"
+        )
+    if not absent:
+        raise Refused(
+            f"{identifier}: declared PENDING_MERGE against PR #{entry['pending_pr']}, but every "
+            "cited test is already present. The classification is stale -- promote it to "
+            "MECHANICAL. A ledger that under-claims decays into one nobody trusts"
+        )
+    for citation in citations:
+        source = blob_at(root, head, citation["file"])
+        if source is None:
+            raise Refused(
+                f"{identifier}: pending_head {head[:12]} cannot be resolved here (or it has no "
+                f"{citation['file']}). A claim that cannot be checked where the gate runs is "
+                "not a weaker claim, it is an unchecked one. Fetch the head, or reclassify as "
+                "PROSE_ONLY and record the head in the note"
+            )
+        if not defines_test(source, citation["test"]):
+            raise Refused(
+                f"{identifier}: {citation['test']} is NOT defined in {citation['file']} at "
+                f"pending_head {head[:12]}. TEST_ABSENT_HERE ^ PR_NUMBER_NAMED != "
+                "TEST_PRESENT_IN_PINNED_PENDING_HEAD"
+            )
+    return False, [
+        f"{identifier}: pending PR #{entry['pending_pr']} at {head[:12]}, "
+        f"{len(absent)} guard(s) present there and absent here"
+    ]
+
+
+def validate(root: Path, ledger: dict) -> dict:
+    if ledger.get("schema") != SCHEMA:
+        raise Refused(f"schema is {ledger.get('schema')!r}, expected {SCHEMA!r}")
+    patterns = ledger.get("patterns")
+    if not patterns:
+        raise Refused("ledger declares no patterns")
+
+    seen: dict[str, str] = {}
+    guarded: list[str] = []
+    notes: list[str] = []
+    for entry in patterns:
+        is_guarded, entry_notes = check_entry(root, entry, seen)
+        notes.extend(entry_notes)
+        if is_guarded:
+            guarded.append(entry["id"])
+
+    by_guard: dict[str, int] = {}
+    for entry in patterns:
+        by_guard[entry["guard"]] = by_guard.get(entry["guard"], 0) + 1
+
+    return {
+        "schema": "secb.pattern-ledger-observation/v1",
+        "patterns": len(patterns),
+        "mechanically_guarded": len(guarded),
+        "by_guard_class": by_guard,
+        "guarded_ids": guarded,
+        "notes": notes,
+        "not_proven": [
+            "that a cited test exercises the pattern it claims to guard; only review can say",
+            "that an unguarded pattern is wrong -- honest prose is better than a phantom test",
+            "that this ledger is complete; absence of an entry is not absence of a pattern",
+        ],
+        "confers_merge_authority": False,
+    }
+
+
+def main(argv: list[str]) -> int:
+    env = dict(os.environ)
+    path = Path(env.get("LEDGER", "config/reusable_patterns.json"))
+    root = Path(env.get("REPO_ROOT", ".")).resolve()
+    try:
+        ledger = json.loads((root / path).read_text(encoding="utf-8"))
+        report = validate(root, ledger)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"REFUSED (closed): ledger unreadable or unparseable ({exc})", file=sys.stderr)
+        return FAIL
+    except Refused as exc:
+        print(f"REFUSED (closed): {exc}", file=sys.stderr)
+        return FAIL
+    except (KeyError, TypeError, AttributeError) as exc:
+        print(f"REFUSED (closed): malformed ledger ({exc!r})", file=sys.stderr)
+        return FAIL
+
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return OK
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(main(sys.argv[1:]))
