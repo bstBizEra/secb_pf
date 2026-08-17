@@ -83,6 +83,7 @@ CONJUNCTS = (
     "EFFECT_ROLE_SEPARATION",
     "REVOCATION_RECEIPT_VERIFIED",
     "DISCOVERY_EXACTLY_BOUND",
+    "SUBJECT_PRODUCIBLE_AND_DISTINGUISHING",
     "ISSUER_TRUST_ANCHOR",
 )
 
@@ -100,6 +101,27 @@ PURPOSE_SIGNERS = {
 KEY_ROLES = ("PRINCIPAL", "CUSTODY_ROOT", "POLICY_ADMIN_ROOT", "PLATFORM")
 
 REQUIRED_OIDC_CLAIMS = ("iss", "aud", "sub", "exp", "iat", "jti")
+
+# The claim keys GitHub documents as permissible in a customized subject template. Anything
+# outside this set cannot appear in a `sub` the issuer mints, however willing a fixture is to
+# sign it. Revision 3 of this file required `repo:<repo>:role:<role>` -- and `role` is not here,
+# so that contract was UNSATISFIABLE in production: the fixture proved verifier/fixture
+# agreement and nothing about what the issuer can produce.
+#
+#     FIXTURE_ACCEPTS != ISSUER_CAN_MINT
+#
+# Source: docs.github.com/en/actions/reference/openid-connect-reference (include_claim_keys).
+SUPPORTED_CLAIM_KEYS = (
+    "repo", "context", "repository_owner", "repository_visibility", "job_workflow_ref",
+    "repository_id", "repository_owner_id", "environment",
+)
+# `repo_property_<name>` is also supported; matched by prefix rather than listed.
+CLAIM_KEY_PREFIXES = ("repo_property_",)
+
+# The documented default contexts. `environment` is the only one that DISTINGUISHES two
+# principals in the same repository on the same ref -- which is why subject-based separation
+# depends on protected environments existing, and cannot be conjured by the verifier.
+DEFAULT_CONTEXTS = ("pull_request", "ref", "environment")
 BOUND_CLAIMS = ("repository_id", "workflow_sha", "job_workflow_ref")
 
 MAX_TOKEN_LIFETIME_SECONDS = 3600
@@ -260,6 +282,82 @@ def load_keys(evidence: dict) -> dict:
 # ------------------------------------------------------------------------ OIDC, in full
 
 
+
+def subject_from_configuration(role: str, claims: dict, policy: dict) -> str:
+    """Rebuild the `sub` the issuer would mint for these claims, per its own configuration.
+
+    The configuration is a READBACK of the issuer's subject-claim customization, carried in the
+    evidence, so verifier expectation and issuer configuration are one authority rather than two
+    unjoined ones. Every value comes from the token's signed claims -- never from a field beside
+    the token, which could disagree with what was signed.
+    """
+    config = policy["subject_configuration"]
+    prefix = f"repo:{policy['subject_repository']}"
+    if config.get("use_immutable_subject"):
+        # Post-2026-07-15 immutable identifiers: repo:OWNER@OWNER-ID/REPO@REPO-ID
+        declared = config.get("sub_claim_prefix", "")
+        owner_id, repo_id = claims.get("repository_owner_id"), claims.get("repository_id")
+        if not owner_id or not repo_id:
+            raise Refused(
+                f"{role}: immutable subjects are configured but the token carries no "
+                "repository_owner_id / repository_id to bind them to"
+            )
+        owner, name = policy["subject_repository"].split("/", 1)
+        prefix = f"repo:{owner}@{owner_id}/{name}@{repo_id}"
+        if declared and declared != prefix:
+            raise Refused(
+                f"{role}: sub_claim_prefix readback {declared!r} disagrees with the prefix the "
+                f"token's own claims produce ({prefix!r})"
+            )
+
+    if not config.get("use_default", True):
+        keys = config.get("include_claim_keys") or []
+        if not keys:
+            raise Refused(f"{role}: a custom subject template declares no include_claim_keys")
+        unsupported = [
+            k for k in keys
+            if k not in SUPPORTED_CLAIM_KEYS and not k.startswith(CLAIM_KEY_PREFIXES)
+        ]
+        if unsupported:
+            raise Refused(
+                f"SUBJECT_TEMPLATE_NOT_PRODUCIBLE -- include_claim_keys {unsupported} are not "
+                f"claim keys the issuer supports, so no configuration can mint this subject. "
+                f"Supported: {list(SUPPORTED_CLAIM_KEYS)} plus repo_property_*"
+            )
+        parts = []
+        for key in keys:
+            if key == "repo":
+                parts.append(prefix.removeprefix("repo:"))
+                continue
+            if key not in claims:
+                raise Refused(
+                    f"{role}: the template includes {key!r} but the signed token carries no "
+                    "such claim, so the subject cannot be reconstructed from what was signed"
+                )
+            parts.append(str(claims[key]))
+        return ":".join(parts)
+
+    # Default template: repo:<repo>:<context>
+    context = config.get("context")
+    if context not in DEFAULT_CONTEXTS:
+        raise Refused(
+            f"{role}: default-template context {context!r} is not one of {list(DEFAULT_CONTEXTS)}"
+        )
+    if context == "pull_request":
+        return f"{prefix}:pull_request"
+    if context == "ref":
+        if not claims.get("ref"):
+            raise Refused(f"{role}: a ref-context subject needs the token's `ref` claim")
+        return f"{prefix}:ref:{claims['ref']}"
+    if not claims.get("environment"):
+        raise Refused(
+            f"{role}: an environment-context subject needs the token's `environment` claim. "
+            "Environment is the only default context that distinguishes two principals in one "
+            "repository, and it exists only if a protected environment does"
+        )
+    return f"{prefix}:environment:{claims['environment']}"
+
+
 def validate_oidc(role: str, principal: dict, evidence: dict, keys: dict, now: datetime,
                   seen_jti: dict) -> dict:
     """Signature, exact issuer, audience, subject, expiry, lifetime and replay.
@@ -302,17 +400,39 @@ def validate_oidc(role: str, principal: dict, evidence: dict, keys: dict, now: d
             f"{policy['audience']!r}. A token minted for another audience is a valid token "
             "for someone else"
         )
-    # Structured, segment-exact. A raw prefix test accepts any longer repository whose
-    # name merely STARTS with the expected one ("secb_pf" under a prefix of "secb"), and it
-    # never binds the token to the ROLE presenting it -- so one principal's token satisfies
-    # every role record that carries the same prefix. Both are closed by comparing segments.
-    segments = str(claims["sub"]).split(":")
-    expected = ["repo", policy["subject_repository"], "role", role]
-    if segments != expected:
+    # The subject must be one the ISSUER can mint under its OWN configuration, and it is
+    # rebuilt from the token's own claims rather than compared to a shape this repository
+    # invented. Revision 3 demanded `repo:<repo>:role:<role>`; `role` is not a claim key
+    # GitHub supports, so no issuer configuration could ever produce it.
+    # Rebuilding the subject from the token's OWN claims proves the sub is internally
+    # consistent with the issuer's configuration -- and nothing about WHICH principal presented
+    # it. A token copied into another role record rebuilds to its own subject and passes.
+    #
+    #     SUBJECT_INTERNALLY_CONSISTENT != SUBJECT_BINDS_THIS_PRINCIPAL
+    #
+    # So the distinguishing claim is also compared against the value the PRINCIPAL declares.
+    config = evidence["oidc_policy"]["subject_configuration"]
+    if config.get("use_default", True) and config.get("context") == "environment":
+        declared = oidc.get("environment")
+        if not declared:
+            raise Refused(
+                f"{role}: an environment-context substrate needs the principal to declare which "
+                "environment is ITS own; otherwise any environment token satisfies any role"
+            )
+        if claims.get("environment") != declared:
+            raise Refused(
+                f"{role}: the signed token was minted for environment "
+                f"{claims.get('environment')!r} but this principal declares {declared!r}. A "
+                "token that rebuilds to its own subject is self-consistent, not bound to the "
+                "role presenting it"
+            )
+
+    expected_subject = subject_from_configuration(role, claims, evidence["oidc_policy"])
+    if str(claims["sub"]) != expected_subject:
         raise Refused(
-            f"{role}: token sub {claims['sub']!r} does not match exactly "
-            f"{':'.join(expected)!r}. A prefix match binds neither the repository nor the "
-            "role, so one token would satisfy every role record sharing that prefix"
+            f"{role}: token sub {claims['sub']!r} is not the subject the declared issuer "
+            f"configuration produces for these claims ({expected_subject!r}). The verifier's "
+            "expectation and the issuer's configuration must be ONE authority, not two"
         )
 
     issued = parse_time(f"{role}.iat", claims["iat"])
@@ -454,14 +574,70 @@ def evaluate(evidence: dict, expected_main_sha: str, evaluate_at: str) -> tuple[
         results["SIGNED_WORKFLOW_CONTEXT"] = (
             False, "EVALUATE_AT was not supplied, so token expiry cannot be evaluated")
         record("SIGNED_WORKFLOW_CONTEXT", "workflow execution context", "the issuer", None)
+        results["SUBJECT_PRODUCIBLE_AND_DISTINGUISHING"] = (
+            False, "subjects cannot be evaluated without validating the tokens that carry them")
+        record("SUBJECT_PRODUCIBLE_AND_DISTINGUISHING",
+               "which principal a token was minted for", "the issuer", None)
     else:
         seen_jti: dict[str, str] = {}
+        subjects: dict[str, str] = {}
         for role in sorted(principals):
-            validate_oidc(role, principals[role], evidence, keys, now, seen_jti)
+            claims = validate_oidc(role, principals[role], evidence, keys, now, seen_jti)
+            subjects[role] = str(claims["sub"])
         results["SIGNED_WORKFLOW_CONTEXT"] = (
             True, f"{len(principals)} tokens fully validated, {len(seen_jti)} distinct jti")
         record("SIGNED_WORKFLOW_CONTEXT", "workflow execution context",
                f"the issuer {GITHUB_ISSUER}", "PLATFORM-signed OIDC JWS, one distinct jti per role")
+
+        # SUBJECT_PRODUCIBLE_AND_DISTINGUISHING. Producible is necessary and not sufficient: a
+        # subject that every principal shares identifies the repository, not the principal. Under
+        # the default template only the `environment` context varies per principal, and an
+        # environment exists only if someone created a protected one -- which is repository
+        # administration, not something this verifier can conjure.
+        policy = evidence["oidc_policy"]
+        available = policy.get("environments_observed")
+        if available is not None:
+            named = {
+                role: p["oidc"].get("environment") for role, p in principals.items()
+            }
+            missing = sorted(
+                f"{r}:{e}" for r, e in named.items()
+                if e is not None and e not in available["environments"]
+            )
+            if missing:
+                raise Refused(
+                    f"principals name environments absent from the readback of what exists: "
+                    f"{missing}. Observed environments: {available['environments'] or '(none)'}. "
+                    "A subject naming an environment that does not exist cannot be minted"
+                )
+        duplicates = sorted({s for s in subjects.values()
+                             if list(subjects.values()).count(s) > 1})
+        if duplicates:
+            results["SUBJECT_PRODUCIBLE_AND_DISTINGUISHING"] = (
+                False,
+                f"{len(duplicates)} subject(s) are shared by more than one principal "
+                f"({duplicates}). The subject identifies the repository, not the principal; "
+                "under the default template only an environment context distinguishes them",
+            )
+            record("SUBJECT_PRODUCIBLE_AND_DISTINGUISHING",
+                   "which principal a token was minted for", "the issuer", None)
+        elif available is None:
+            results["SUBJECT_PRODUCIBLE_AND_DISTINGUISHING"] = (
+                False,
+                "subjects are distinct and producible in shape, but no environments_observed "
+                "readback accompanies them, so it is unproven that the named environments exist",
+            )
+            record("SUBJECT_PRODUCIBLE_AND_DISTINGUISHING",
+                   "which principal a token was minted for", "the issuer", None)
+        else:
+            results["SUBJECT_PRODUCIBLE_AND_DISTINGUISHING"] = (
+                True,
+                f"{len(set(subjects.values()))} distinct subjects, each producible under the "
+                f"declared configuration and naming an environment in the readback",
+            )
+            record("SUBJECT_PRODUCIBLE_AND_DISTINGUISHING",
+                   "which principal a token was minted for", "the issuer",
+                   "the token's own signed sub, rebuilt from the issuer's configuration readback")
 
     # 2. PRINCIPAL_IDENTITY_ATTESTED -- app/installation/role signed by the principal itself.
     principal_keys: dict[str, str] = {}

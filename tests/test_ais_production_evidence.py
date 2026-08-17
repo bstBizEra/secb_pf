@@ -41,9 +41,20 @@ JWKS_URI = f"{GITHUB_ISSUER}/.well-known/jwks"
 MAIN_SHA = "f5aa26aef86250a7dfb68223f8f0b5d63f54ea52"
 WORKFLOW_SHA = "7e478d714ef57f624de2ccddc5733697f06fb119"
 JOB_WORKFLOW_REF = "bstBizEra/secb_pf/.github/workflows/ci.yml@refs/heads/main"
-REPOSITORY_ID = "1029384756"
 AUDIENCE = "bstBizEra"
 SUBJECT_REPOSITORY = "bstBizEra/secb_pf"
+# The REAL issuer configuration for this repository, read back from
+# GET /repos/bstBizEra/secb_pf/actions/oidc/customization/sub on 2026-08-18:
+#   {"use_default": true, "use_immutable_subject": false,
+#    "sub_claim_prefix": "repo:bstBizEra@230689381/secb_pf@1328913339"}
+# and GET /repos/bstBizEra/secb_pf/environments -> {"total_count": 0}.
+# Recorded here because the fixture's subjects must be shapes THIS issuer can mint.
+REAL_SUB_CONFIG = {"use_default": True, "use_immutable_subject": False,
+                   "sub_claim_prefix": "repo:bstBizEra@230689381/secb_pf@1328913339"}
+REPOSITORY_ID = "1328913339"
+REPOSITORY_OWNER_ID = "230689381"
+ENVIRONMENTS = {role: f"secb-{role.replace('_', '-')}" for role in
+                ("voter_a", "voter_b", "executor", "readback")}
 NOW = "2026-08-17T10:30:00+00:00"
 
 SHA256_DIGESTINFO = binascii.unhexlify("3031300d060960864801650304020105000420")
@@ -114,7 +125,11 @@ def oidc_token(role: str, index: int, *, claims_override: dict | None = None,
     claims = {
         "iss": GITHUB_ISSUER,
         "aud": AUDIENCE,
-        "sub": f"repo:{SUBJECT_REPOSITORY}:role:{role}",
+        "sub": f"repo:{SUBJECT_REPOSITORY}:environment:{ENVIRONMENTS[role]}",
+        "environment": ENVIRONMENTS[role],
+        "ref": "refs/heads/main",
+        "repository": SUBJECT_REPOSITORY,
+        "repository_owner_id": REPOSITORY_OWNER_ID,
         "iat": "2026-08-17T10:00:00+00:00",
         "exp": "2026-08-17T10:45:00+00:00",
         "jti": f"jti-{index}",
@@ -177,7 +192,8 @@ def principal(role: str, index: int) -> dict:
             "revoked_at": "2026-08-17T10:20:00+00:00",
             "reuse_attempted_at": "2026-08-17T10:21:00+00:00",
         }),
-        "oidc": {"kid": "platform-oidc", "token": oidc_token(role, index)},
+        "oidc": {"kid": "platform-oidc", "token": oidc_token(role, index),
+                 "environment": ENVIRONMENTS[role]},
     }
 
 
@@ -197,7 +213,17 @@ def evidence() -> dict:
     return {
         "schema": "secb.ais-production-evidence/v2",
         "snapshot": deepcopy(SNAPSHOT),
-        "oidc_policy": {"audience": AUDIENCE, "subject_repository": SUBJECT_REPOSITORY},
+        "oidc_policy": {
+            "audience": AUDIENCE,
+            "subject_repository": SUBJECT_REPOSITORY,
+            # Bound to the issuer's own configuration, not to a shape this repository invented.
+            "subject_configuration": {**REAL_SUB_CONFIG, "context": "environment"},
+            "environments_observed": {
+                "environments": sorted(ENVIRONMENTS.values()),
+                "readback": "GET /repos/bstBizEra/secb_pf/environments",
+                "fetched_at": "2026-08-18T01:00:00+00:00",
+            },
+        },
         "jwks": {
             "provenance": "LOCAL_FIXTURE",
             "issuer": GITHUB_ISSUER,
@@ -267,12 +293,12 @@ def test_v1_counterexample_is_refused(tmp_path):
         {"principal": "voter_b", "snapshot_digest": SNAPSHOT_DIGEST, "decision": "APPROVE"},
     ]
     rebuild_receipt(document)
-    stderr = refuses(document, tmp_path, "does not match exactly")
-    # It no longer even reaches the jti replay guard: the copied token's `sub` names voter_a,
-    # so presenting it as another role fails the role binding first. Revision 3 refuses this
-    # document one edge EARLIER than revision 2 did, which is the improvement -- the token is
-    # rejected for not belonging to the role, not merely for having been seen twice.
-    assert "binds neither the repository nor the" in stderr
+    stderr = refuses(document, tmp_path, "not bound to the")
+    # It does not reach the jti replay guard: the copied token was minted for voter_a's
+    # environment, so presenting it as another principal fails the principal binding first.
+    # Revision 4 refuses this one edge earlier than revision 2 did -- the token is rejected for
+    # not belonging to the principal, not merely for having been seen twice.
+    assert "self-consistent, not bound" in stderr
 
 
 def test_same_jti_across_two_principals_is_refused(tmp_path):
@@ -658,8 +684,8 @@ def test_wrong_audience_is_refused(tmp_path):
 def test_subject_outside_the_repository_is_refused(tmp_path):
     document = evidence()
     document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
-        "voter_a", 0, claims_override={"sub": "repo:attacker/repo:role:voter_a"})
-    refuses(document, tmp_path, "does not match exactly")
+        "voter_a", 0, claims_override={"sub": "repo:attacker/repo:environment:secb-voter-a"})
+    refuses(document, tmp_path, "is not the subject the declared issuer")
 
 
 def test_over_hour_token_lifetime_is_refused(tmp_path):
@@ -988,22 +1014,23 @@ def test_closure_3a_sub_prefix_extension_is_refused(tmp_path):
     document = evidence()
     document["oidc_policy"]["subject_repository"] = "bstBizEra/secb_pf"
     document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
-        "voter_a", 0, claims_override={"sub": "repo:bstBizEra/secb_pf_shadow:role:voter_a"})
-    refuses(document, tmp_path, "does not match exactly")
+        "voter_a", 0,
+        claims_override={"sub": "repo:bstBizEra/secb_pf_shadow:environment:secb-voter-a"})
+    refuses(document, tmp_path, "is not the subject the declared issuer")
 
 
-def test_closure_3b_token_for_another_role_is_refused(tmp_path):
-    """Gap 3, the half that mattered more: a prefix binds no role.
+def test_closure_3b_token_for_another_principal_is_refused(tmp_path):
+    """A prefix bound no principal; the rebuilt subject does.
 
-    An authentic token whose `sub` names the executor, presented in voter_a's record. Same
-    repository, same audience, valid signature, unique jti -- and revision 2 accepted it,
-    because the prefix it checked stopped before the role segment.
+    An authentic token whose `sub` names the executor's environment, presented in voter_a's
+    record. Same repository, same audience, valid signature, unique jti -- and it is refused
+    because the subject rebuilt from voter_a's own claims is not the one presented.
     """
     document = evidence()
     document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
-        "voter_a", 0, claims_override={"sub": f"repo:{SUBJECT_REPOSITORY}:role:executor"})
-    stderr = refuses(document, tmp_path, "does not match exactly")
-    assert "binds neither the repository nor the" in stderr
+        "voter_a", 0,
+        claims_override={"sub": f"repo:{SUBJECT_REPOSITORY}:environment:{ENVIRONMENTS['executor']}"})
+    refuses(document, tmp_path, "is not the subject the declared issuer")
 
 
 def test_closure_4_future_issued_token_is_refused(tmp_path):
@@ -1032,3 +1059,179 @@ def test_closure_coverage_ledger_has_no_unauthenticated_derived_conjunct(tmp_pat
     assert unauthenticated == {"DISCOVERY_EXACTLY_BOUND", "ISSUER_TRUST_ANCHOR"}
     assert report["coverage_ledger"]["EFFECT_ROLE_SEPARATION"]["authenticator"].startswith(
         "POLICY_ADMIN_ROOT-signed ROLE_ASSIGNMENT")
+
+
+# ============================================================================
+# Revision 4. Revision 3 required `repo:<repo>:role:<role>` -- and `role` is not
+# a claim key GitHub supports, so NO issuer configuration could mint it. The
+# fixture signed the invented shape with repository-held test keys, which proved
+# verifier/fixture agreement and nothing about the issuer.
+#
+#     FIXTURE_ACCEPTS != ISSUER_CAN_MINT
+#
+# The subject is now rebuilt from the token's own claims per a READBACK of the
+# issuer's subject-claim customization, so expectation and configuration are one
+# authority instead of two.
+# ============================================================================
+
+
+def test_revision_3_role_subject_is_now_refused(tmp_path):
+    """The exact contract revision 3 enforced must now fail: it was unsatisfiable."""
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
+        "voter_a", 0, claims_override={"sub": f"repo:{SUBJECT_REPOSITORY}:role:voter_a"})
+    refuses(document, tmp_path, "is not the subject the declared issuer")
+
+
+def test_a_template_naming_an_unsupported_claim_key_is_refused(tmp_path):
+    """`role` in include_claim_keys is refused as NOT PRODUCIBLE, not merely mismatched.
+
+    This is the finding in its most direct form: the issuer supports repo, context,
+    repository_owner, repository_visibility, job_workflow_ref, repository_id,
+    repository_owner_id, environment and repo_property_*. A template outside that set cannot
+    be minted by any configuration.
+    """
+    document = evidence()
+    document["oidc_policy"]["subject_configuration"] = {
+        "use_default": False, "use_immutable_subject": False,
+        "include_claim_keys": ["repo", "role"],
+    }
+    stderr = refuses(document, tmp_path, "SUBJECT_TEMPLATE_NOT_PRODUCIBLE")
+    assert "not claim keys the issuer supports" in stderr
+
+
+def test_a_custom_template_is_rebuilt_from_the_signed_claims(tmp_path):
+    """A supported custom template is accepted when the token's claims produce that subject."""
+    document = evidence()
+    document["oidc_policy"]["subject_configuration"] = {
+        "use_default": False, "use_immutable_subject": False,
+        "include_claim_keys": ["repo", "environment"],
+    }
+    for role in ROLES:
+        document["principals"][role]["oidc"]["token"] = oidc_token(
+            role, ROLES.index(role),
+            claims_override={"sub": f"{SUBJECT_REPOSITORY}:{ENVIRONMENTS[role]}"})
+    report = accepts(document, tmp_path)
+    assert report["conjuncts"]["SIGNED_WORKFLOW_CONTEXT"]["observed"] is True
+
+
+def test_a_template_key_absent_from_the_signed_token_is_refused(tmp_path):
+    document = evidence()
+    document["oidc_policy"]["subject_configuration"] = {
+        "use_default": False, "use_immutable_subject": False,
+        "include_claim_keys": ["repo", "job_workflow_ref"],
+    }
+    for role in ROLES:
+        document["principals"][role]["oidc"]["token"] = oidc_token(
+            role, ROLES.index(role), drop="job_workflow_ref",
+            claims_override={"sub": f"{SUBJECT_REPOSITORY}:x"})
+    refuses(document, tmp_path, "carries no")
+
+
+@pytest.mark.parametrize("context,sub_tail", [
+    ("pull_request", "pull_request"),
+    ("ref", "ref:refs/heads/main"),
+])
+def test_documented_default_contexts_are_accepted(tmp_path, context, sub_tail):
+    """The other two documented default contexts must verify -- shape fidelity, both ways."""
+    document = evidence()
+    document["oidc_policy"]["subject_configuration"] = {**REAL_SUB_CONFIG, "context": context}
+    for role in ROLES:
+        document["principals"][role]["oidc"]["token"] = oidc_token(
+            role, ROLES.index(role),
+            claims_override={"sub": f"repo:{SUBJECT_REPOSITORY}:{sub_tail}"})
+    report = accepts(document, tmp_path)
+    assert report["conjuncts"]["SIGNED_WORKFLOW_CONTEXT"]["observed"] is True
+
+
+def test_a_shared_subject_does_not_distinguish_principals(tmp_path):
+    """THIS repository's real state: default template, no environments.
+
+    Under `pull_request` (or `ref`) context every principal's subject is identical, so the
+    subject identifies the repository and not the principal. Producible, and not
+    distinguishing -- reported as a shortfall rather than accepted.
+
+        SUBJECT_PRODUCIBLE != SUBJECT_DISTINGUISHING
+    """
+    document = evidence()
+    document["oidc_policy"]["subject_configuration"] = {
+        **REAL_SUB_CONFIG, "context": "pull_request"}
+    for role in ROLES:
+        document["principals"][role]["oidc"]["token"] = oidc_token(
+            role, ROLES.index(role),
+            claims_override={"sub": f"repo:{SUBJECT_REPOSITORY}:pull_request"})
+    report = accepts(document, tmp_path)
+    assert report["conjuncts"]["SUBJECT_PRODUCIBLE_AND_DISTINGUISHING"]["observed"] is False
+    assert "shared by more than one principal" in \
+        report["conjuncts"]["SUBJECT_PRODUCIBLE_AND_DISTINGUISHING"]["note"]
+    assert report["PRODUCTION_AIS_LEVEL"] == "NOT_OBSERVED"
+
+
+def test_an_environment_absent_from_the_readback_is_refused(tmp_path):
+    """A subject naming an environment that does not exist cannot be minted.
+
+    The live readback for this repository is `{"total_count": 0}` -- zero environments -- so
+    every environment-context subject the fixture uses is currently unmintable HERE. That is
+    why the readback is required rather than assumed.
+    """
+    document = evidence()
+    document["oidc_policy"]["environments_observed"]["environments"] = ["secb-voter-a"]
+    refuses(document, tmp_path, "absent from the readback of what exists")
+
+
+def test_no_environments_readback_leaves_the_conjunct_unobserved(tmp_path):
+    document = evidence()
+    del document["oidc_policy"]["environments_observed"]
+    report = accepts(document, tmp_path)
+    assert report["conjuncts"]["SUBJECT_PRODUCIBLE_AND_DISTINGUISHING"]["observed"] is False
+    assert "no environments_observed" in \
+        report["conjuncts"]["SUBJECT_PRODUCIBLE_AND_DISTINGUISHING"]["note"]
+
+
+def test_immutable_subject_prefix_must_match_the_tokens_own_ids(tmp_path):
+    """The immutable format binds owner and repository IDs, and both come from the token."""
+    document = evidence()
+    document["oidc_policy"]["subject_configuration"] = {
+        "use_default": True, "use_immutable_subject": True,
+        "sub_claim_prefix": "repo:bstBizEra@999/secb_pf@1328913339", "context": "environment",
+    }
+    refuses(document, tmp_path, "disagrees with the prefix the")
+
+
+def test_immutable_subject_is_accepted_when_the_ids_agree(tmp_path):
+    """The real readback's prefix, with subjects rebuilt in the immutable shape."""
+    document = evidence()
+    prefix = REAL_SUB_CONFIG["sub_claim_prefix"]
+    document["oidc_policy"]["subject_configuration"] = {
+        "use_default": True, "use_immutable_subject": True,
+        "sub_claim_prefix": prefix, "context": "environment",
+    }
+    for role in ROLES:
+        document["principals"][role]["oidc"]["token"] = oidc_token(
+            role, ROLES.index(role),
+            claims_override={"sub": f"{prefix}:environment:{ENVIRONMENTS[role]}"})
+    report = accepts(document, tmp_path)
+    assert report["conjuncts"]["SUBJECT_PRODUCIBLE_AND_DISTINGUISHING"]["observed"] is True
+
+
+def test_a_token_minted_for_another_environment_is_refused(tmp_path):
+    """The gap the v1 counterexample exposed in revision 4's own first draft.
+
+    voter_a presents a token minted for the executor's environment. It rebuilds to its OWN
+    subject under the issuer configuration, so the consistency check passes -- and it must
+    still be refused, because self-consistency says nothing about which principal holds it.
+    """
+    document = evidence()
+    document["principals"]["voter_a"]["oidc"]["token"] = oidc_token(
+        "voter_a", 0, claims_override={
+            "environment": ENVIRONMENTS["executor"],
+            "sub": f"repo:{SUBJECT_REPOSITORY}:environment:{ENVIRONMENTS['executor']}",
+        })
+    stderr = refuses(document, tmp_path, "but this principal declares")
+    assert "self-consistent, not bound" in stderr
+
+
+def test_an_environment_context_principal_must_declare_its_own_environment(tmp_path):
+    document = evidence()
+    del document["principals"]["voter_a"]["oidc"]["environment"]
+    refuses(document, tmp_path, "declare which environment is ITS own")
