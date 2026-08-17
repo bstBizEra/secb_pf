@@ -41,11 +41,56 @@ permissions:
   contents: read
 
 jobs:
+  # Admission runs BEFORE measurement and is cheap. Measured: artifact 9279450262 was a
+  # complete 5/5 measurement on a revision whose budget gate was red, so the evidence could
+  # not be promoted and the measurement was wasted. A measurement must not start on a
+  # revision that fails a required gate.
+  admission:
+    name: "Admission — budget declaration"
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.number == 150
+    runs-on: ubuntu-latest
+    outputs:
+      admission: ${{ steps.gate.outputs.admission }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The SAME canonical checker the pre-push hook calls. A second implementation of
+      # "is this within budget" would disagree eventually, and the refusing side would be
+      # the weaker one.
+      - name: Check the declared budget
+        id: gate
+        env:
+          BUDGET_TEXT: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set +e
+          git diff --numstat "$BASE_SHA...$HEAD_SHA" | python scripts/check_budget.py
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "admission=ADMISSION_PASS" >> "$GITHUB_OUTPUT"
+          else
+            echo "admission=ADMISSION_FAILED" >> "$GITHUB_OUTPUT"
+            echo "::error::ADMISSION_FAILED -- measurement will not start on a revision that "\
+                 "fails a required gate; its evidence could not be promoted anyway."
+            exit 1
+          fi
+
   measure:
     name: "Shadow queue — ordered drainability"
-    # Scoped to the bootstrap pull request. Every other pull request skips, so this trigger
-    # cannot quietly become a per-PR measurement.
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.number == 150
+    # Scoped to the bootstrap pull request, AND gated on admission. A skipped job is not a
+    # success, so a red admission stops the measurement rather than producing evidence that
+    # cannot be promoted.
+    needs: admission
+    if: needs.admission.outputs.admission == 'ADMISSION_PASS'
+
     runs-on: ubuntu-latest
     outputs:
       # A TYPED outcome, passed through `needs`. The verifier must not infer usability from

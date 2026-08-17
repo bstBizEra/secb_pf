@@ -841,3 +841,98 @@ def test_an_unwatermarked_snapshot_cannot_be_ordered(tmp_path, repo):
 def test_untimed_evidence_cannot_be_ordered(tmp_path, repo):
     findings = watermark(tmp_path, repo, {"observed_at": "2026-08-17T10:00:00Z"}, {})
     assert findings["verdict"] == "EVIDENCE_UNTIMED"
+
+
+# --- budget enforcement layers ---------------------------------------------------
+
+
+HOOK = REPO_ROOT / "hooks" / "pre-push"
+
+
+def push_refs(sha, base) -> str:
+    return f"refs/heads/x {sha} refs/heads/x {base}\n"
+
+
+def run_hook(body: str, sha: str, tmp_path) -> subprocess.CompletedProcess:
+    body_file = tmp_path / "body.txt"
+    body_file.write_text(body, encoding="utf-8")
+    base = subprocess.run(["git", "rev-parse", "origin/main"], cwd=str(REPO_ROOT),
+                          capture_output=True, text=True).stdout.strip()
+    return subprocess.run(
+        ["bash", str(HOOK)], input=push_refs(sha, base), capture_output=True, text=True,
+        cwd=str(REPO_ROOT), timeout=120,
+        env={"PATH": "/usr/bin:/bin", "BUDGET_BODY_FILE": str(body_file),
+             "BUDGET_BASE_REF": "origin/main"},
+    )
+
+
+def head_sha() -> str:
+    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(REPO_ROOT),
+                          capture_output=True, text=True).stdout.strip()
+
+
+def test_the_hook_refuses_a_push_over_the_declared_budget(tmp_path):
+    """Three times in one session a revision was pushed over budget having been measured in
+    the same command. Nothing refused the push; now something does.
+    """
+    result = run_hook("BUDGET: max_files=5 max_lines=10\n", head_sha(), tmp_path)
+    assert result.returncode == 1
+    assert "exceeds its declared budget" in result.stderr
+
+
+def test_the_hook_allows_a_push_within_budget(tmp_path):
+    result = run_hook("BUDGET: max_files=9 max_lines=99999\n", head_sha(), tmp_path)
+    assert result.returncode == 0, result.stderr
+
+
+def test_an_absent_declaration_is_refused_not_treated_as_unconstrained(tmp_path):
+    result = run_hook("no declaration here\n", head_sha(), tmp_path)
+    assert result.returncode == 1
+    assert "not an absent constraint" in result.stderr or "REFUSED" in result.stderr
+
+
+def test_duplicate_declarations_are_refused_by_the_canonical_checker(tmp_path):
+    """Inherited, not reimplemented: `check_budget.py` already calls this ambiguous."""
+    result = run_hook(
+        "BUDGET: max_files=5 max_lines=10\ntext\nBUDGET: max_files=9 max_lines=99999\n",
+        head_sha(), tmp_path)
+    assert result.returncode == 1
+    assert "ambiguous" in result.stdout + result.stderr
+
+
+def test_a_deleted_ref_is_skipped(tmp_path):
+    body = tmp_path / "b.txt"
+    body.write_text("BUDGET: max_files=1 max_lines=1\n", encoding="utf-8")
+    result = subprocess.run(
+        ["bash", str(HOOK)], input="refs/heads/x " + "0" * 40 + " refs/heads/x " + "0" * 40 + "\n",
+        capture_output=True, text=True, cwd=str(REPO_ROOT), timeout=60,
+        env={"PATH": "/usr/bin:/bin", "BUDGET_BODY_FILE": str(body)},
+    )
+    assert result.returncode == 0
+
+
+def test_the_hook_calls_the_same_checker_as_ci():
+    """One implementation of "within budget", or the refusing side is the weaker one."""
+    hook = HOOK.read_text(encoding="utf-8")
+    workflow = (REPO_ROOT / ".github" / "workflows" / "shadow-queue.yml").read_text(encoding="utf-8")
+    assert "scripts/check_budget.py" in hook
+    assert "scripts/check_budget.py" in workflow
+
+
+def test_local_prevention_is_declared_non_portable():
+    """`LOCAL_PRE_PUSH_INSTALLED` ≠ `PORTABLE_ENFORCEMENT` — hooks are not cloned."""
+    hook = HOOK.read_text(encoding="utf-8")
+    assert "LOCAL_PRE_PUSH_INSTALLED != PORTABLE_ENFORCEMENT" in hook
+    assert "NOT copied by `git clone`" in hook
+    installer = (REPO_ROOT / "scripts" / "install-hooks.sh").read_text(encoding="utf-8")
+    assert "bypassable with --no-verify" in installer
+    assert "CI remains authoritative" in installer
+
+
+def test_measurement_is_gated_on_typed_admission():
+    """A complete measurement on a red revision is wasted evidence — artifact 9279450262."""
+    workflow = (REPO_ROOT / ".github" / "workflows" / "shadow-queue.yml").read_text(encoding="utf-8")
+    assert "needs: admission" in workflow
+    assert "needs.admission.outputs.admission == 'ADMISSION_PASS'" in workflow
+    assert "ADMISSION_FAILED" in workflow
+    assert workflow.index("admission:") < workflow.index("  measure:")

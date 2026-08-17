@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Pre-push budget prevention (SECB-WP-FWK-083).
+#
+# The budget gate runs in CI, AFTER the push. Three times in one session a revision was
+# pushed over its declared budget having been measured in the same command -- 1208/1200,
+# 1470/1400, 1871/1800 -- because nothing refused the push. An intention to check is a
+# reminder; this is the refusal.
+#
+# LOCAL_PRE_PUSH_INSTALLED != PORTABLE_ENFORCEMENT
+#
+# Hooks are NOT copied by `git clone`, so this file is tracked and installed explicitly
+# (`scripts/install-hooks.sh`, or `core.hooksPath=hooks`). It is preventive CONVENIENCE.
+# CI remains the authoritative shared evidence, because it runs whether or not a
+# contributor installed anything -- and it cannot be bypassed with `--no-verify`.
+#
+# It calls the SAME canonical checker CI calls (`scripts/check_budget.py`). A second
+# implementation of "is this within budget" would disagree eventually, and the side that
+# refuses would be the weaker one.
+
+set -euo pipefail
+
+BASE="${BUDGET_BASE_REF:-origin/main}"
+BODY_FILE="${BUDGET_BODY_FILE:-}"
+
+# Every ref being pushed is checked. A multi-ref push where one ref is over budget must
+# fail: passing because another ref was fine is the aggregation error.
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
+
+  if [ -n "$BODY_FILE" ] && [ -r "$BODY_FILE" ]; then
+    BUDGET_TEXT="$(cat "$BODY_FILE")"
+  elif command -v gh >/dev/null 2>&1; then
+    BUDGET_TEXT="$(gh pr view --json body --jq .body 2>/dev/null || true)"
+  else
+    BUDGET_TEXT=""
+  fi
+
+  if [ -z "$BUDGET_TEXT" ]; then
+    echo "pre-push REFUSED: no budget declaration available for $local_sha." >&2
+    echo "  Set BUDGET_BODY_FILE, or make \`gh pr view\` work here." >&2
+    echo "  An unreadable declaration is not an absent constraint." >&2
+    exit 1
+  fi
+
+  if ! git diff --numstat "$BASE...$local_sha" \
+       | BUDGET_TEXT="$BUDGET_TEXT" python3 scripts/check_budget.py; then
+    echo "pre-push REFUSED: $local_sha exceeds its declared budget against $BASE." >&2
+    echo "  Re-declare the budget in the pull-request body FIRST, then push." >&2
+    exit 1
+  fi
+done
+
+exit 0
