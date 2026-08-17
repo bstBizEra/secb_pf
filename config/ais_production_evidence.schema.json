@@ -1,0 +1,213 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.ais-production-evidence/v2",
+  "title": "AIS4 production evidence contract (v2, revision 4 -- subjects the issuer can actually mint)",
+  "description": "SECB-WP-FWK-089, issue #158. v1 of this contract was refused in review: its single OIDC signature covered the workflow execution context, while app_id, installation_id, custody domain, policy domain and the ballots sat beside it as repository-authored strings. One authentic token copied across role records, plus fabricated distinct identifiers and unsigned APPROVE records, satisfied every separation check. The governing rule of v2: A VALID SIGNATURE OVER ONE PORTION OF A DOCUMENT MUST NOT LEND AUTHENTICITY TO ADJACENT UNSIGNED FIELDS. Therefore every separation dimension is carried by a signed attestation from the role authorised to produce that fact -- the principal attests its own identity, the CUSTODY ROOT attests custody, an EXTERNAL POLICY ADMIN ROOT attests policy, the PLATFORM attests revocation, and each voter signs its own ballot. Distinct identifier STRINGS evidence nothing; distinct signing KEYS with attestations from distinct roots do. Revision 3 closes four provenance edges the second review found still open: the policy signer must BE the administrator it names (a root vouching for another root is hearsay); the executor/readback assignment is itself signed by an external administering root; `sub` is matched segment-exactly rather than by prefix; and a token whose `iat` is after the evaluation instant is refused. Conformance here is necessary and not sufficient: scripts/check_ais_production_evidence.py computes the observed level from nine conjuncts and emits a coverage ledger naming, per conjunct, the asserted fact, its authoritative producer and the authenticator binding them. No level field exists in this schema, because a document that can assert its own level makes every check decorative. AIS4 additionally requires ISSUER_TRUST_ANCHOR -- a live fetch proving the key set is the issuer's -- which no offline document can supply and no caller-provided digest can stand in for.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "snapshot", "oidc_policy", "jwks", "principals", "ballots", "role_assignment", "decision_receipt_digest"],
+
+  "definitions": {
+    "signed_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A payload, the kid that signed it, and the signature. The payload is the ONLY authoritative copy of the facts it carries: a decoded duplicate beside the envelope is a second source of truth that can disagree with the signed one. Every payload carries `purpose` and `snapshot_digest`, so a signature made for one purpose over one snapshot cannot be replayed as another.",
+      "required": ["payload", "kid", "signature"],
+      "properties": {
+        "payload": {
+          "type": "object",
+          "required": ["purpose", "snapshot_digest"],
+          "properties": {
+            "purpose": { "enum": ["PRINCIPAL_IDENTITY", "CUSTODY_BINDING", "POLICY_BINDING", "BALLOT", "REVOCATION_RECEIPT", "ROLE_ASSIGNMENT"] },
+            "snapshot_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          }
+        },
+        "kid": { "type": "string", "minLength": 1 },
+        "signature": { "type": "string", "minLength": 1, "description": "base64url RS256 over the canonical JSON of `payload`" }
+      }
+    }
+  },
+
+  "properties": {
+    "schema": { "const": "secb.ais-production-evidence/v2" },
+
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The immutable subject every attestation and ballot must be bound to. Independent decisions about DIFFERENT snapshots are a coincidence, not a quorum.",
+      "required": ["repository_id", "main_sha", "workflow_sha", "job_workflow_ref"],
+      "properties": {
+        "repository_id": { "type": "string", "minLength": 1 },
+        "main_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "workflow_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "job_workflow_ref": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "oidc_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What the tokens must have been minted FOR, expressed so that the verifier's expectation and the ISSUER's configuration are one authority rather than two unjoined ones. v1 never read `aud` or `sub`. v2 read `sub` by raw prefix. v3 required `repo:<repo>:role:<role>` segment-exactly -- and `role` is not a claim key GitHub supports, so NO issuer configuration could mint that subject: the fixture signed an invented shape with repository-held keys, proving verifier/fixture agreement and nothing about the issuer. FIXTURE_ACCEPTS != ISSUER_CAN_MINT. v4 carries a READBACK of the repository's subject-claim customization and rebuilds the expected subject from the token's own signed claims under it. Two further distinctions are enforced separately: a rebuilt subject proves internal consistency, not that the presenting principal owns the token (SUBJECT_INTERNALLY_CONSISTENT != SUBJECT_BINDS_THIS_PRINCIPAL, closed by comparing the distinguishing claim to the principal's declared value); and a producible subject may still be shared by every principal (SUBJECT_PRODUCIBLE != SUBJECT_DISTINGUISHING -- under the default template only an `environment` context varies per principal, and an environment exists only if a protected one was created).",
+      "required": ["audience", "subject_repository", "subject_configuration"],
+      "properties": {
+        "audience": { "type": "string", "minLength": 1 },
+        "subject_repository": { "type": "string", "minLength": 1, "description": "owner/name" },
+        "subject_configuration": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "A readback of GET /repos/{owner}/{repo}/actions/oidc/customization/sub (or the organization equivalent). include_claim_keys outside the documented supported set is refused as SUBJECT_TEMPLATE_NOT_PRODUCIBLE rather than merely mismatched.",
+          "required": ["use_default", "use_immutable_subject"],
+          "properties": {
+            "use_default": { "type": "boolean" },
+            "use_immutable_subject": { "type": "boolean", "description": "when true the prefix is repo:OWNER@OWNER-ID/REPO@REPO-ID, bound to the token's own repository_owner_id and repository_id claims" },
+            "sub_claim_prefix": { "type": "string" },
+            "context": { "enum": ["pull_request", "ref", "environment"], "description": "required when use_default is true: which documented default context the token was minted under" },
+            "include_claim_keys": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "required when use_default is false; only documented keys are producible" }
+          }
+        },
+        "environments_observed": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "A readback of GET /repos/{owner}/{repo}/environments. Without it, environment-context subjects are unproven: a subject naming an environment that does not exist cannot be minted. Absent = the conjunct is NOT observed; a principal naming an environment outside the readback is refused.",
+          "required": ["environments", "readback"],
+          "properties": {
+            "environments": { "type": "array", "items": { "type": "string" } },
+            "readback": { "type": "string", "minLength": 1 },
+            "fetched_at": { "type": "string", "minLength": 20 }
+          }
+        }
+      }
+    },
+
+    "jwks": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Every key used anywhere in the document, each with the ROLE it is permitted to sign for and the domain that OWNS it. Two kids over one modulus are refused: that is one holder with two names, which is the label-vs-substance error one layer below the identifiers.",
+      "required": ["provenance", "issuer", "keys"],
+      "properties": {
+        "provenance": {
+          "enum": ["ISSUER_DISCOVERY", "LOCAL_FIXTURE"],
+          "description": "LOCAL_FIXTURE is honest and caps the level: signatures verifying against a repository-supplied key set prove internal consistency, not an issuer."
+        },
+        "issuer": { "type": "string", "minLength": 1 },
+        "discovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Required when provenance is ISSUER_DISCOVERY. The host and path are compared EXACTLY -- v1 used a prefix check, which also accepted `…githubusercontent.com.attacker.example` and `…githubusercontent.com@evil.example`.",
+          "required": ["jwks_uri", "fetched_at", "response_digest"],
+          "properties": {
+            "jwks_uri": { "type": "string", "pattern": "^https://" },
+            "fetched_at": { "type": "string", "minLength": 20 },
+            "response_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          }
+        },
+        "keys": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kid", "kty", "alg", "key_role", "owner", "n", "e"],
+            "properties": {
+              "kid": { "type": "string", "minLength": 1 },
+              "kty": { "const": "RSA" },
+              "alg": { "const": "RS256" },
+              "key_role": {
+                "enum": ["PRINCIPAL", "CUSTODY_ROOT", "POLICY_ADMIN_ROOT", "PLATFORM"],
+                "description": "Which purposes this key may sign. A custody root may not sign an identity attestation, and a principal may not attest its own custody or its own revocation."
+              },
+              "owner": { "type": "string", "minLength": 1 },
+              "n": { "type": "string", "minLength": 1, "description": "base64url modulus, at least 2048 bits" },
+              "e": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+
+    "principals": {
+      "type": "object",
+      "minProperties": 2,
+      "description": "Role name -> principal. The role NAME is a label; each separation dimension is carried by a signed attestation from a different authorised producer.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["app_id", "installation_id", "custody_domain", "policy_domain", "token_scope", "identity_attestation", "custody_attestation", "policy_attestation", "oidc"],
+        "properties": {
+          "app_id": { "type": "string", "minLength": 1 },
+          "installation_id": { "type": "string", "minLength": 1 },
+          "custody_domain": { "type": "string", "minLength": 1 },
+          "policy_domain": { "type": "string", "minLength": 1 },
+          "token_scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Least privilege. Lifetime is NOT declared here -- it is read from the signed token's iat/exp, because a declared lifetime beside a token is a claim about the token rather than a property of it.",
+            "required": ["repositories", "permissions"],
+            "properties": {
+              "repositories": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+              "permissions": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string" } }
+            }
+          },
+          "identity_attestation": {
+            "allOf": [{ "$ref": "#/definitions/signed_envelope" }],
+            "description": "Signed by the principal's OWN key, binding app_id, installation_id and role to this snapshot. Two principals signing with one key are refused."
+          },
+          "custody_attestation": {
+            "allOf": [{ "$ref": "#/definitions/signed_envelope" }],
+            "description": "Signed by the CUSTODY ROOT that holds the principal's private key, naming that principal's kid. The subject cannot produce this fact about itself."
+          },
+          "policy_attestation": {
+            "allOf": [{ "$ref": "#/definitions/signed_envelope" }],
+            "description": "Signed by a POLICY ADMIN ROOT, declaring `administered_by`. Self-administration is refused; so is reciprocal administration (A governs B and B governs A -- one administrator with two names); and at least one admin root must be external to the principals' own policy domains."
+          },
+          "revocation_receipt": {
+            "allOf": [{ "$ref": "#/definitions/signed_envelope" }],
+            "description": "Signed by the PLATFORM, showing reuse after revocation was observed DENIED with reuse attempted strictly after revocation. Absent = shortfall; ACCEPTED = refusal. REVOKE_ACCEPTED != REUSE_DENIED."
+          },
+          "oidc": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kid", "token"],
+            "properties": {
+              "kid": { "type": "string", "minLength": 1, "description": "must be a PLATFORM key" },
+              "environment": { "type": "string", "minLength": 1, "description": "which environment is THIS principal's own; compared against the token's signed `environment` claim so a token minted for another principal cannot be presented here" },
+              "token": { "type": "string", "minLength": 1, "description": "Compact JWS. Validated in full: signature, exact iss, aud, sub prefix, iat/exp/nbf, lifetime ceiling, and jti uniqueness ACROSS principals -- one token copied into several role records is one principal." }
+            }
+          }
+        }
+      }
+    },
+
+    "ballots": {
+      "type": "array",
+      "minItems": 2,
+      "description": "Signed decisions. Each is a signed envelope whose payload names the principal, the decision and a nonce; the signing kid must be that principal's identity key. v1 accepted plain unsigned records here, which is why two fabricated APPROVE lines satisfied it.",
+      "items": {
+        "allOf": [{ "$ref": "#/definitions/signed_envelope" }]
+      }
+    },
+
+    "role_assignment": {
+      "allOf": [{ "$ref": "#/definitions/signed_envelope" }],
+      "description": "Who executes and who verifies -- SIGNED. In v2 this was an unsigned `roles` object, so the separation was only as trustworthy as whoever wrote the file: naming a compliant executor costs nothing when nobody signs the naming. The signer must be a POLICY_ADMIN_ROOT whose owner is (a) not one of the principals' own policy domains, and (b) an administrator of at least one of them -- an assignment signed from inside the set it governs is self-assignment with an extra step, and one signed by a root with no authority over the subjects is not authority at all. The payload carries `executor` and `readback_verifier`, and the verifier reads them from the signed payload rather than from any unsigned copy."
+    },
+
+    "decision_receipt_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Must equal the canonical digest of the ballot array, and IS consumed by the verifier. In v1 this field was schema-required and never read -- decorative, which is worse than absent because it reads as a binding."
+    },
+
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional artifact attestation. Generation has no security value until signature, timestamp and signer identity are independently verified, so signer_verified without verified_by is refused.",
+      "required": ["bundle_digest", "signer_verified"],
+      "properties": {
+        "bundle_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "signer_verified": { "type": "boolean" },
+        "verified_by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

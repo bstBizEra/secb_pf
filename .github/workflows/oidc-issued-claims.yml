@@ -1,0 +1,153 @@
+# SECB-WP-FWK-089 — controlled observation of GitHub-issued OIDC claims.
+#
+# The compact JWT is a credential. This workflow masks it immediately and
+# publishes only an allowlisted claims record plus its digest. The record is
+# evidence of issuance, not a ratification receipt and not proof of principal
+# separation.
+name: "OIDC — issued-claim observation"
+
+# Credential issuance is never automatic. The bootstrap PR observation is retained in
+# tests/fixtures/github_oidc_issued_claims_observation.json; future observations
+# require an explicit dispatch after this workflow exists on the default branch.
+on:
+  workflow_dispatch:
+
+# No repository permission is granted. id-token: write is scoped to one job and
+# permits only requesting a short-lived OIDC token.
+permissions: {}
+
+jobs:
+  observe:
+    name: "Observe issued claims without retaining JWT"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+    env:
+      OBSERVATION_AUDIENCE: "secb-pf:oidc-observation"
+      EXPECTED_REPOSITORY_ID: "1328913339"
+      EXPECTED_OWNER_ID: "230689381"
+    steps:
+      - name: Request once, mask credential, validate and emit allowlisted claims
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64
+          import datetime as dt
+          import hashlib
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          required_env = (
+              "ACTIONS_ID_TOKEN_REQUEST_URL",
+              "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
+              "GITHUB_REPOSITORY",
+              "GITHUB_RUN_ID",
+              "GITHUB_RUN_ATTEMPT",
+              "GITHUB_SHA",
+              "GITHUB_EVENT_NAME",
+              "GITHUB_STEP_SUMMARY",
+              "OBSERVATION_AUDIENCE",
+              "EXPECTED_REPOSITORY_ID",
+              "EXPECTED_OWNER_ID",
+          )
+          missing = [name for name in required_env if not os.environ.get(name)]
+          if missing:
+              raise SystemExit(f"OIDC observation unavailable; missing environment: {missing}")
+
+          request_url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
+          separator = "&" if "?" in request_url else "?"
+          request_url += separator + urllib.parse.urlencode(
+              {"audience": os.environ["OBSERVATION_AUDIENCE"]}
+          )
+          request = urllib.request.Request(
+              request_url,
+              headers={
+                  "Authorization": "Bearer " + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"],
+                  "Accept": "application/json",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=20) as response:
+              issued = json.load(response)["value"]
+
+          # Register the exact compact credential before any subsequent output.
+          print(f"::add-mask::{issued}")
+          parts = issued.split(".")
+          if len(parts) != 3:
+              raise SystemExit("issuer returned a value that is not a compact JWT")
+
+          padding = "=" * (-len(parts[1]) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(parts[1] + padding))
+          issued = ""
+          del parts
+
+          expected = {
+              "iss": "https://token.actions.githubusercontent.com",
+              "aud": os.environ["OBSERVATION_AUDIENCE"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "repository_id": os.environ["EXPECTED_REPOSITORY_ID"],
+              "repository_owner_id": os.environ["EXPECTED_OWNER_ID"],
+              "sha": os.environ["GITHUB_SHA"],
+              "event_name": os.environ["GITHUB_EVENT_NAME"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+          }
+          mismatches = {
+              key: {"expected": value, "observed": claims.get(key)}
+              for key, value in expected.items()
+              if str(claims.get(key)) != value
+          }
+          if mismatches:
+              raise SystemExit(
+                  "issued claims are not bound to this run: "
+                  + json.dumps(mismatches, sort_keys=True)
+              )
+
+          for key in ("sub", "jti", "iat", "nbf", "exp"):
+              if key not in claims:
+                  raise SystemExit(f"issued token omits required observation claim {key!r}")
+          now = int(dt.datetime.now(dt.timezone.utc).timestamp())
+          if not int(claims["nbf"]) <= now <= int(claims["exp"]):
+              raise SystemExit("issued token is outside its validity interval")
+          if int(claims["iat"]) > now or int(claims["exp"]) <= int(claims["iat"]):
+              raise SystemExit("issued token carries an incoherent lifetime")
+
+          allowlist = (
+              "iss", "aud", "sub", "repository", "repository_id",
+              "repository_owner", "repository_owner_id", "repository_visibility",
+              "ref", "ref_type", "sha", "workflow", "workflow_ref", "workflow_sha",
+              "job_workflow_ref", "job_workflow_sha", "run_id", "run_number",
+              "run_attempt", "event_name", "actor", "actor_id", "base_ref",
+              "head_ref", "environment", "iat", "nbf", "exp", "jti",
+          )
+          observed = {key: claims[key] for key in allowlist if key in claims}
+          record = {
+              "schema": "secb.github-oidc-issued-claims-observation/v1",
+              "source": {
+                  "repository": os.environ["GITHUB_REPOSITORY"],
+                  "run_id": os.environ["GITHUB_RUN_ID"],
+                  "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+                  "event_name": os.environ["GITHUB_EVENT_NAME"],
+                  "sha": os.environ["GITHUB_SHA"],
+              },
+              "claims": observed,
+          }
+          canonical = json.dumps(record, sort_keys=True, separators=(",", ":"))
+          digest = "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
+
+          print("OIDC_CLAIMS_EVIDENCE_BEGIN")
+          print(json.dumps(record, indent=2, sort_keys=True))
+          print(f"OIDC_CLAIMS_EVIDENCE_DIGEST={digest}")
+          print("OIDC_CLAIMS_EVIDENCE_END")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## GitHub-issued OIDC claims observation\n\n")
+              summary.write("The compact JWT was masked and was not retained. ")
+              summary.write("This claims-only record is not a credential or ratification.\n\n")
+              summary.write("\`\`\`json\n")
+              summary.write(json.dumps(record, indent=2, sort_keys=True))
+              summary.write("\n\`\`\`\n\n")
+              summary.write(f"Digest: \`{digest}\`\n")
+          PY
