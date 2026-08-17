@@ -49,12 +49,13 @@ ratio and never rounds it up: patterns that are honest prose stay visibly prose.
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 OK = 0
 FAIL = 2
@@ -77,16 +78,59 @@ class Refused(ValueError):
     """The ledger contradicts the tree, or an entry is not a pattern."""
 
 
+def validate_citation(citation: dict) -> tuple[str, str]:
+    """Return a confined pytest module/function identity or refuse it.
+
+    A top-level function somewhere on the runner is not a test. Citations are intentionally
+    narrower than arbitrary pytest node IDs: a repository-relative tests/test_*.py module and
+    a top-level test_* function. This makes the same identity checkable in both the worktree
+    and a pinned git tree without executing code from an unmerged commit.
+    """
+    if not isinstance(citation, dict):
+        raise Refused(f"test citation {citation!r} is not an object")
+    raw_path = citation.get("file")
+    name = citation.get("test")
+    if not isinstance(raw_path, str) or not raw_path:
+        raise Refused("test citation requires a non-empty file string")
+    if not isinstance(name, str) or not re.fullmatch(r"test_[A-Za-z0-9_]+", name):
+        raise Refused(
+            f"citation test {name!r} is not a pytest test function name (expected test_*)"
+        )
+    if "\\" in raw_path:
+        raise Refused(f"citation path {raw_path!r} is not a normalized POSIX repository path")
+    path = PurePosixPath(raw_path)
+    if path.is_absolute():
+        raise Refused(f"citation path {raw_path!r} must be repository-relative, not absolute")
+    if str(path) != raw_path or any(part in (".", "..") for part in path.parts):
+        raise Refused(
+            f"citation path {raw_path!r} is not normalized or attempts path traversal"
+        )
+    if len(path.parts) < 2 or path.parts[0] != "tests":
+        raise Refused(f"citation path {raw_path!r} must be inside tests/")
+    if path.suffix != ".py" or not path.name.startswith("test_"):
+        raise Refused(f"citation path {raw_path!r} is not a pytest test module tests/test_*.py")
+    return raw_path, name
+
+
 def defines_test(source: str, name: str) -> bool:
-    return re.search(rf"^def {re.escape(name)}\b", source, re.M) is not None
+    """True only for a top-level pytest-shaped function definition."""
+    try:
+        module = ast.parse(source)
+    except SyntaxError:
+        return False
+    return any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name
+        for node in module.body
+    )
 
 
 def test_exists(root: Path, citation: dict) -> bool:
-    """True when the cited file exists in the working tree AND defines the cited test."""
-    path = root / citation["file"]
+    """True when a confined citation exists and defines the test in the working tree."""
+    file, name = validate_citation(citation)
+    path = root / file
     if not path.is_file():
         return False
-    return defines_test(path.read_text(encoding="utf-8"), citation["test"])
+    return defines_test(path.read_text(encoding="utf-8"), name)
 
 
 def blob_at(root: Path, head: str, file: str) -> str | None:
@@ -144,6 +188,11 @@ def check_entry(root: Path, entry: dict, seen: dict) -> tuple[bool, list[str]]:
 
     if not citations:
         raise Refused(f"{identifier}: guard {guard} cites no tests")
+
+    # Validate every identity before reading either tree. The same confined, pytest-shaped
+    # citation is then used for MECHANICAL and PENDING_MERGE; neither class gets a weaker path.
+    for citation in citations:
+        validate_citation(citation)
 
     present = [c for c in citations if test_exists(root, c)]
     absent = [c for c in citations if c not in present]
