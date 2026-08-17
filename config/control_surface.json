@@ -40,8 +40,8 @@
     },
     {
       "path": "scripts/check_budget.py",
-      "sha256": "b89c49a8fc508017561d6fa1756d114fcbb0eecefd19acd6e1a3caa4c53e03cf",
-      "bytes": 3244,
+      "sha256": "3190abfc0e0a5b49e1fab9b050d4bbf4705ee0ed612d55dace2c78dc2e3a3134",
+      "bytes": 6249,
       "owning_work_package": "SECB-WP-FWK-004",
       "last_changed_commit": "118c819",
       "portability_class": "verbatim",
