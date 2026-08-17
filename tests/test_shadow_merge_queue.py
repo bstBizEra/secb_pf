@@ -849,63 +849,85 @@ def test_untimed_evidence_cannot_be_ordered(tmp_path, repo):
 HOOK = REPO_ROOT / "hooks" / "pre-push"
 
 
-def push_refs(sha, base) -> str:
-    return f"refs/heads/x {sha} refs/heads/x {base}\n"
+@pytest.fixture(scope="module")
+def hook_repo(tmp_path_factory) -> str:
+    """A hermetic repository for the hook, carrying the checker it calls.
+
+    The first version pointed the hook at `origin/main`. It passed locally and failed Gate 5
+    in CI, because the test job checks out with `fetch-depth: 1` and that ref does not
+    exist there. **Third time this session** I wrote a test that reads a ref it did not
+    create -- #139, the SMQ suite, and now this. The generalisable rule is that a test
+    touching git refs must build them.
+    """
+    root = tmp_path_factory.mktemp("hook") / "repo"
+    root.mkdir()
+    cwd = str(root)
+    for args in (["init", "-q", "-b", "main"], ["config", "user.email", "h@t"],
+                 ["config", "user.name", "H"]):
+        subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, timeout=60)
+    (root / "scripts").mkdir()
+    (root / "scripts" / "check_budget.py").write_bytes(
+        (REPO_ROOT / "scripts" / "check_budget.py").read_bytes())
+    (root / "base.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=cwd, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=cwd, check=True, capture_output=True)
+    # A second commit with a known, small diff: 1 file, 3 added lines.
+    (root / "added.txt").write_text("a\nb\nc\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=cwd, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-q", "-m", "change"], cwd=cwd, check=True, capture_output=True)
+    return cwd
 
 
-def run_hook(body: str, sha: str, tmp_path) -> subprocess.CompletedProcess:
+def run_hook(body: str, tmp_path, repo_dir, base="main") -> subprocess.CompletedProcess:
     body_file = tmp_path / "body.txt"
     body_file.write_text(body, encoding="utf-8")
-    base = subprocess.run(["git", "rev-parse", "origin/main"], cwd=str(REPO_ROOT),
-                          capture_output=True, text=True).stdout.strip()
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_dir, capture_output=True,
+                         text=True).stdout.strip()
+    base_sha = subprocess.run(["git", "rev-parse", base], cwd=repo_dir, capture_output=True,
+                              text=True).stdout.strip()
     return subprocess.run(
-        ["bash", str(HOOK)], input=push_refs(sha, base), capture_output=True, text=True,
-        cwd=str(REPO_ROOT), timeout=120,
+        ["bash", str(HOOK)], input=f"refs/heads/x {sha} refs/heads/x {base_sha}\n",
+        capture_output=True, text=True, cwd=repo_dir, timeout=120,
         env={"PATH": "/usr/bin:/bin", "BUDGET_BODY_FILE": str(body_file),
-             "BUDGET_BASE_REF": "origin/main"},
+             "BUDGET_BASE_REF": f"{base}~1"},
     )
 
 
-def head_sha() -> str:
-    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(REPO_ROOT),
-                          capture_output=True, text=True).stdout.strip()
-
-
-def test_the_hook_refuses_a_push_over_the_declared_budget(tmp_path):
+def test_the_hook_refuses_a_push_over_the_declared_budget(tmp_path, hook_repo):
     """Three times in one session a revision was pushed over budget having been measured in
     the same command. Nothing refused the push; now something does.
     """
-    result = run_hook("BUDGET: max_files=5 max_lines=10\n", head_sha(), tmp_path)
+    result = run_hook("BUDGET: max_files=1 max_lines=1\n", tmp_path, hook_repo)
     assert result.returncode == 1
     assert "exceeds its declared budget" in result.stderr
 
 
-def test_the_hook_allows_a_push_within_budget(tmp_path):
-    result = run_hook("BUDGET: max_files=9 max_lines=99999\n", head_sha(), tmp_path)
+def test_the_hook_allows_a_push_within_budget(tmp_path, hook_repo):
+    result = run_hook("BUDGET: max_files=9 max_lines=99999\n", tmp_path, hook_repo)
     assert result.returncode == 0, result.stderr
 
 
-def test_an_absent_declaration_is_refused_not_treated_as_unconstrained(tmp_path):
-    result = run_hook("no declaration here\n", head_sha(), tmp_path)
+def test_an_absent_declaration_is_refused_not_treated_as_unconstrained(tmp_path, hook_repo):
+    result = run_hook("no declaration here\n", tmp_path, hook_repo)
     assert result.returncode == 1
     assert "not an absent constraint" in result.stderr or "REFUSED" in result.stderr
 
 
-def test_duplicate_declarations_are_refused_by_the_canonical_checker(tmp_path):
+def test_duplicate_declarations_are_refused_by_the_canonical_checker(tmp_path, hook_repo):
     """Inherited, not reimplemented: `check_budget.py` already calls this ambiguous."""
     result = run_hook(
         "BUDGET: max_files=5 max_lines=10\ntext\nBUDGET: max_files=9 max_lines=99999\n",
-        head_sha(), tmp_path)
+        tmp_path, hook_repo)
     assert result.returncode == 1
     assert "ambiguous" in result.stdout + result.stderr
 
 
-def test_a_deleted_ref_is_skipped(tmp_path):
+def test_a_deleted_ref_is_skipped(tmp_path, hook_repo):
     body = tmp_path / "b.txt"
     body.write_text("BUDGET: max_files=1 max_lines=1\n", encoding="utf-8")
     result = subprocess.run(
         ["bash", str(HOOK)], input="refs/heads/x " + "0" * 40 + " refs/heads/x " + "0" * 40 + "\n",
-        capture_output=True, text=True, cwd=str(REPO_ROOT), timeout=60,
+        capture_output=True, text=True, cwd=hook_repo, timeout=60,
         env={"PATH": "/usr/bin:/bin", "BUDGET_BODY_FILE": str(body)},
     )
     assert result.returncode == 0
