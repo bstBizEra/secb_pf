@@ -6,12 +6,11 @@
 # separation.
 name: "OIDC — issued-claim observation"
 
+# Credential issuance is never automatic. The bootstrap PR observation is retained in
+# tests/fixtures/github_oidc_issued_claims_observation.json; future observations
+# require an explicit dispatch after this workflow exists on the default branch.
 on:
   workflow_dispatch:
-  pull_request:
-    types: [synchronize]
-    paths:
-      - ".github/workflows/oidc-issued-claims.yml"
 
 # No repository permission is granted. id-token: write is scoped to one job and
 # permits only requesting a short-lived OIDC token.
@@ -20,9 +19,6 @@ permissions: {}
 jobs:
   observe:
     name: "Observe issued claims without retaining JWT"
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -41,7 +37,6 @@ jobs:
           import hashlib
           import json
           import os
-          import sys
           import urllib.parse
           import urllib.request
 
