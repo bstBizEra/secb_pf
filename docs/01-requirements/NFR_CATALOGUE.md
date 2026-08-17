@@ -111,8 +111,66 @@ worse than the hard-coded gate it replaced.
 | ID | NFR | Target | Basis | Verification |
 |---|---|---|---|---|
 | `NFR-16` | Attacker-controlled text never reaches a shell | PR titles and bodies pass through the environment or a file, never through interpolation into `run:` | Design: `WP_TEXT` and `BUDGET_TEXT` env vars. **The diff body moved from `DIFF_TEXT` to a file read via `DIFF_PATH`** (`SECB-WP-FWK-047/048`) — not a preference but a measured limit: Linux caps a single environment string at `MAX_ARG_STRLEN` = 131,072 bytes, above which `execve` fails with `Argument list too long` and the classifier never runs, making `REJECTED` unreachable. A file has no such cap, so the change *strengthens* this NFR rather than trading it | `ci.yml` inspection; `test_env_var_takes_precedence_over_argv`; `DIFF_PATH` precedence and unreadable-path escalation covered in `tests/test_classify_authority_delta.py` |
-| `NFR-17` | No credential or secret is committed | 0 occurrences | Control: `.gitignore` secret patterns; `AGENTS.md` §4 | **Manual repository scan — still not mechanized.** `scripts/check_committed_secrets.py` exists but is **unmerged, in PR #101**, so it is deliberately not cited as a basis here: naming a control that is not on `main` is how a record comes to claim a check it does not have. Update this row when #101 merges |
+| `NFR-17` | No credential or secret is committed | 0 occurrences | **Continuous control since `SECB-WP-FWK-049`.** `scripts/check_committed_secrets.py` is tracked on `main` and runs on every pull request; `.gitignore` patterns and `AGENTS.md` §4 remain the preventive-by-convention layer beneath it. Corrected from an underclaim by `SECB-WP-FWK-069` — see below for the prior wording and for what the scan does and does not prove | Committed-secret scan in `ci.yml`; `tests/test_check_committed_secrets.py`; `tests/test_nfr_catalogue.py` re-checks this row against the shipped tree |
 | `NFR-18` | The sandbox router performs no external effect | 0 network, subprocess, filesystem-write or dynamic-execution paths | Was two point-in-time static scans (certification and independent review); **now a continuous control** — `scripts/check_prohibited_calls.py` runs as Gate 6 on every PR (`SECB-WP-FWK-048`, merged `2250469`). The scan is `ast`-based and receiver-aware, because a name-only matcher reproduced `DEF-ENGLOOP-MVP-001` by flagging `set.remove()` as a filesystem write | Gate 6 in `ci.yml`; `tests/test_check_prohibited_calls.py` |
+
+### `NFR-17` correction, 2026-08-15 (`SECB-WP-FWK-069`)
+
+The row read *"Manual repository scan — still not mechanized"*, named
+`scripts/check_committed_secrets.py` as **unmerged, in PR #101**, and instructed its own
+successor: *"Update this row when #101 merges."* It merged, the scanner landed as a
+continuous check, and the row went on describing a manual process for two days.
+
+**The prior wording is quoted here and nowhere else.** The guard in
+`tests/test_nfr_catalogue.py` scans the table row for phrases asserting a control is not in
+force, so a row that quoted its own history would fail on its own audit trail — the same
+reason `AUTO_MERGE_STANDARD.md` §2 keeps the discarded `max(...)` formula inside an explicit
+"the first draft wrote" block rather than in the live text.
+
+**This is the mirror of every other defect in this repository's ledger.** The recurring
+failure is a claim stronger than its mechanism; this was a claim *weaker* than its
+mechanism. Both are the same fault — the record and the tree disagreed — and an underclaim
+is the more comfortable one to leave alone, because nobody is embarrassed by a control that
+turns out to exist. It still misleads: a reader planning security work would have budgeted
+for mechanizing a scan that already runs.
+
+```yaml
+control_presence: MERGED
+execution: CONTINUOUS_CI
+evidence_strength: CS3          # forward reference -- see below
+enforcement_level: DETECTIVE
+preventive_branch_enforcement: UNAVAILABLE
+not_proven:
+  - complete secret detection
+  - push protection
+  - provider-side revocation
+  - preventive enforcement
+```
+
+**Two axes, not one token.** The disposition for this correction was written
+`strength: CS3_DETECTIVE`. That fuses an *evidence-strength* level with an
+*enforcement-level* — two different ladders — into a single token, which is the defect
+`C-AMS-04` recorded when a semantic version and a review-revision count shared one field.
+They are recorded here as separate fields.
+
+**Both vocabularies are forward references and neither is registered on `main`.** `CS0`–`CS5`
+is specified in #124 and `ENF0`–`ENF3` in #125, and both are blocked by taxonomy contention.
+So `CS3` is written with this pointer rather than as a resolved term, and the enforcement
+level is written as the plain word `DETECTIVE` rather than as `ENF1_DETECTIVE` — minting an
+unregistered ladder token inside a normative row is exactly what #125 exists to correct.
+
+**What the scan actually covers**, so the boundary is visible rather than assumed:
+
+| | |
+|---|---|
+| Method | Pattern match — unambiguous credential formats, plus identifiers where **name and value together** suggest a secret |
+| Scope | `AGENTS.md README.md docs config scripts src tests .github` — the working tree at the checked-out commit |
+| Not covered | Git history, untracked files, paths outside that list, and any secret whose shape no pattern anticipates |
+| Ceiling | `DETECTIVE`. Branch protection returns `403` on this plan (`NFR-13`), so the scan reports and cannot block a merge |
+
+A pattern scanner cannot prove the absence of secrets — only the absence of the shapes it
+knows. The target stays `0 occurrences` because that is the requirement; the basis now says
+what evidence stands behind it.
 
 ## Known NFR gaps
 
