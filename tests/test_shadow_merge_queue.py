@@ -726,3 +726,60 @@ def test_an_incomplete_measurement_is_not_promotable(tmp_path, repo):
     findings = promote(tmp_path, repo, JAMS, MEASURING_PR_HEAD="deadbeef")
     assert findings["verdict"] in {"MEASUREMENT_INCOMPLETE", "MEASUREMENT_NOT_TERMINAL"}
     assert findings["execution_eligibility"] == "NOT_ELIGIBLE"
+
+
+# --- monotonic execution cursor -------------------------------------------------
+
+
+def cursor_handoff(tmp_path, repo, **overrides) -> dict:
+    document = receipt(repo)
+    entry = document["prefixes"][0]
+    receipt_path = tmp_path / "cr.json"
+    receipt_path.write_text(json.dumps(document), encoding="utf-8")
+    observed = {
+        "cursor": 1, "ordinal": 1, "cohort_digest": document["cohort_digest"],
+        "ref": entry["ref"], "merge_api_success": True, "http_status": 200,
+        "pr_head_sha": entry["handoff"]["preconditions"]["pr_head_sha"],
+        "base_sha_before": entry["handoff"]["preconditions"]["base_sha"],
+        "actual_main_tree": entry["handoff"]["postcondition"]["expected_main_tree"],
+    }
+    observed.update(overrides)
+    observed_path = tmp_path / "co.json"
+    observed_path.write_text(json.dumps(observed), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)], capture_output=True, text=True, timeout=180,
+        cwd=repo, env={"PATH": "/usr/bin:/bin", "RECEIPT": str(receipt_path),
+                       "HANDOFF_OBSERVED": str(observed_path)},
+    )
+    assert result.stdout, result.stderr
+    return json.loads(result.stdout)
+
+
+def test_a_readback_at_the_cursor_advances(tmp_path, repo):
+    assert cursor_handoff(tmp_path, repo)["verdict"] == "ENTRY_LANDED_AS_SIMULATED"
+
+
+def test_a_prior_ordinals_proof_cannot_advance_the_current_step(tmp_path, repo):
+    """Valid proof of a prior step is not proof of the current one.
+
+    Without this, the correct postcondition for ordinal 1 would satisfy ordinal 2
+    unchallenged — the same evidence, a changed cursor.
+    """
+    findings = cursor_handoff(tmp_path, repo, cursor=2, ordinal=1)
+    assert findings["verdict"] == "HISTORICAL_ALREADY_CONSUMED"
+
+
+def test_an_ordinal_ahead_of_the_cursor_is_refused(tmp_path, repo):
+    findings = cursor_handoff(tmp_path, repo, cursor=1, ordinal=3)
+    assert findings["verdict"] == "REFUSE_OUT_OF_ORDER"
+
+
+def test_evidence_from_another_cohort_is_rejected(tmp_path, repo):
+    findings = cursor_handoff(tmp_path, repo, cohort_digest="sha256:" + "0" * 64)
+    assert findings["verdict"] == "REPLAY_REJECTED_FOR_CURRENT_STEP"
+    assert "another binding" in findings["why"]
+
+
+def test_a_cursor_without_an_ordinal_is_unbound(tmp_path, repo):
+    findings = cursor_handoff(tmp_path, repo, ordinal=None)
+    assert findings["verdict"] == "READBACK_UNBOUND"

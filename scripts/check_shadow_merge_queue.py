@@ -372,6 +372,26 @@ def validate_handoff(receipt: dict, observed: dict) -> dict:
     valid — another merge may have landed in between, which is exactly the case a real
     merge queue rebuilds its group for.
     """
+    # Monotonic execution cursor. A readback is evidence for exactly ONE ordinal against
+    # ONE cohort: valid proof of a prior step is not proof of the current one. Without this,
+    # the correct postcondition for ordinal 1 would satisfy ordinal 2 unchallenged.
+    cursor = observed.get("cursor")
+    if cursor is not None:
+        ordinal = observed.get("ordinal")
+        if ordinal is None:
+            return {"verdict": "READBACK_UNBOUND",
+                    "why": "a cursor was supplied but the readback names no ordinal"}
+        if observed.get("cohort_digest") != receipt.get("cohort_digest"):
+            return {"verdict": "REPLAY_REJECTED_FOR_CURRENT_STEP",
+                    "why": ("the readback is bound to a different cohort digest; evidence "
+                            "from another binding cannot advance this one")}
+        if ordinal < cursor:
+            return {"verdict": "HISTORICAL_ALREADY_CONSUMED",
+                    "why": f"ordinal {ordinal} was consumed; the cursor is at {cursor}"}
+        if ordinal > cursor:
+            return {"verdict": "REFUSE_OUT_OF_ORDER",
+                    "why": f"ordinal {ordinal} arrived while the cursor is at {cursor}"}
+
     entries = {p["ref"]: p for p in receipt.get("prefixes", [])}
     ref = observed.get("ref")
     if ref not in entries:
