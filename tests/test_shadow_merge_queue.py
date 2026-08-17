@@ -1070,3 +1070,69 @@ def test_competing_reasons_are_absent_not_merely_unmentioned(tmp_path, repo):
     assert findings["terminal_reason"] == "LANDED_TREE_MISMATCH"
     assert "READBACK_NOT_OBSERVED" not in json.dumps(findings)
     assert findings["policy"] == "FAIL" and findings["measurement"] == "OBSERVED"
+
+
+# --- comparison-strength integrity ------------------------------------------------
+
+
+def test_a_truncated_expected_digest_yields_prefix_match_only(tmp_path, repo):
+    """`verdict_strength ≤ weakest_operand_precision`.
+
+    Measured: an execution record compared a full observed tree against a 12-hex expected
+    summary taken from a published plan table. Every character agreed — which proves a
+    prefix, not identity, and claiming the latter would be stronger than the evidence.
+    """
+    document = receipt(repo)
+    entry = document["prefixes"][0]
+    full = entry["handoff"]["postcondition"]["expected_main_tree"]
+    document["prefixes"][0]["handoff"]["postcondition"]["expected_main_tree"] = full[:12]
+    receipt_path = tmp_path / "trunc.json"
+    receipt_path.write_text(json.dumps(document), encoding="utf-8")
+    observed_path = tmp_path / "obs.json"
+    observed_path.write_text(json.dumps({
+        "ref": entry["ref"], "merge_api_success": True, "http_status": 200,
+        "pr_head_sha": entry["handoff"]["preconditions"]["pr_head_sha"],
+        "base_sha_before": entry["handoff"]["preconditions"]["base_sha"],
+        "actual_main_tree": full,
+    }), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)], capture_output=True, text=True, timeout=180,
+        cwd=repo, env={"PATH": "/usr/bin:/bin", "RECEIPT": str(receipt_path),
+                       "HANDOFF_OBSERVED": str(observed_path)},
+    )
+    findings = json.loads(result.stdout)
+    assert findings["verdict"] == "PREFIX_MATCH_ONLY"
+    assert findings["policy"] == "PASS_AT_RECORDED_PRECISION"
+    assert findings["SIMULATED_TREE_LANDED"] is None, (
+        "a prefix agreement must not be recorded as the tree having landed"
+    )
+    assert "Full identity is not proven" in findings["why"]
+
+
+def test_two_full_digests_still_prove_identity(tmp_path, repo):
+    """The accept path, so the downgrade is not vacuous."""
+    findings = handoff(tmp_path, repo, landed(repo))
+    assert findings["verdict"] == "ENTRY_LANDED_AS_SIMULATED"
+    assert findings["policy"] == "PASS"
+
+
+def test_prefix_match_does_not_release_the_suffix(tmp_path, repo):
+    document = receipt(repo)
+    entry = document["prefixes"][0]
+    full = entry["handoff"]["postcondition"]["expected_main_tree"]
+    document["prefixes"][0]["handoff"]["postcondition"]["expected_main_tree"] = full[:8]
+    rp, op = tmp_path / "r.json", tmp_path / "o.json"
+    rp.write_text(json.dumps(document), encoding="utf-8")
+    op.write_text(json.dumps({
+        "ref": entry["ref"], "merge_api_success": True, "http_status": 200,
+        "pr_head_sha": entry["handoff"]["preconditions"]["pr_head_sha"],
+        "base_sha_before": entry["handoff"]["preconditions"]["base_sha"],
+        "actual_main_tree": full,
+    }), encoding="utf-8")
+    findings = json.loads(subprocess.run(
+        [sys.executable, str(SCRIPT)], capture_output=True, text=True, timeout=180,
+        cwd=repo, env={"PATH": "/usr/bin:/bin", "RECEIPT": str(rp),
+                       "HANDOFF_OBSERVED": str(op)}).stdout)
+    assert findings["NEXT_PREFIX_STILL_VALID"] is None, (
+        "an unproven postcondition must not advance the queue"
+    )

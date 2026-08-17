@@ -54,6 +54,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -85,6 +86,9 @@ DEFAULT_TEST = "python3 -m pytest -p no:cacheprovider -q tests/"
 REASON_AXES = {
     # verdict: (execution, measurement, policy)
     "ENTRY_LANDED_AS_SIMULATED":        ("PROCEEDED", "OBSERVED",     "PASS"),
+    # A comparison against a truncated operand cannot prove full identity, however many
+    # characters agree. `verdict_strength <= weakest_operand_precision`.
+    "PREFIX_MATCH_ONLY":                ("PROCEEDED", "OBSERVED",     "PASS_AT_RECORDED_PRECISION"),
     "LANDED_TREE_MISMATCH":             ("REFUSED",   "OBSERVED",     "FAIL"),
     "SUFFIX_INVALIDATED":               ("REFUSED",   "OBSERVED",     "FAIL"),
     "HEAD_MOVED_409":                   ("REFUSED",   "OBSERVED",     "FAIL"),
@@ -115,7 +119,7 @@ def reason_integrity(verdict: str) -> dict:
         return {"terminal_reason": verdict, "reason_integrity": "UNMAPPED_REASON",
                 "why": "a verdict with no declared axes cannot be audited for diagnosis"}
     execution, measurement, policy = axes
-    if policy != "NOT_EVALUATED" and measurement != "OBSERVED":
+    if policy not in ("NOT_EVALUATED",) and measurement != "OBSERVED":
         return {"terminal_reason": verdict, "reason_integrity": "CONTROL_DIAGNOSIS_FAILURE",
                 "why": (f"{verdict} asserts policy {policy} on measurement {measurement}. A "
                         "policy verdict is only permitted after a valid observation")}
@@ -498,6 +502,25 @@ def validate_handoff(receipt: dict, observed: dict) -> dict:
 
     expected = (handoff.get("postcondition") or {}).get("expected_main_tree")
     actual = observed.get("actual_main_tree")
+
+    # Comparison-strength integrity. A published plan truncates digests for display; a
+    # comparison against that truncation proves a PREFIX, not identity. Measured: an
+    # execution record compared a full observed tree against a 12-hex expected summary and
+    # every character agreed -- which is a prefix match, and calling it full identity would
+    # be a claim stronger than its weakest operand.
+    full = re.compile(r"^[0-9a-f]{40}$")
+    if actual and expected and not (full.match(expected) and full.match(actual)):
+        if actual.startswith(expected) or expected.startswith(actual):
+            findings["verdict"] = "PREFIX_MATCH_ONLY"
+            findings["SIMULATED_TREE_LANDED"] = None
+            findings["why"] = (
+                f"expected {expected!r} and observed {actual!r} agree on every character "
+                "compared, but at least one operand is truncated. Full identity is not "
+                "proven; obtain the full digest from the artifact receipt"
+            )
+            findings["NEXT_PREFIX_STILL_VALID"] = None
+            return findings
+
     if not actual:
         findings["verdict"] = "READBACK_NOT_OBSERVED"
         findings["why"] = "no actual_main_tree supplied; acceptance is not landing"
