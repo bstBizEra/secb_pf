@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.learning-candidate/v1",
+  "title": "Learning candidate",
+  "description": "A proposed skill, policy, schema or runbook derived from completed work. It is a CANDIDATE: learning does not self-activate, and an iteration may not make its own candidate authoritative unless a pre-existing adoption policy independently permits that exact class of change. Canonical serialization: UTF-8 JSON, keys sorted, separators (',',':'). Digest is sha256 over those bytes as 'sha256:<hex>'. Backward compatibility: additive optional fields are minor; removing a field, narrowing an enum or adding a required field is MAJOR and takes a new $id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "candidate_id",
+    "kind",
+    "source_evidence",
+    "proposed_change",
+    "negative_cases",
+    "activation_state",
+    "adopted"
+  ],
+  "properties": {
+    "schema": {
+      "const": "secb.learning-candidate/v1"
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^SECB-LC-\\d{4}$"
+    },
+    "kind": {
+      "enum": [
+        "skill",
+        "policy",
+        "schema",
+        "runbook",
+        "gate"
+      ]
+    },
+    "source_evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "description": "A generalisation from no identified observation is an opinion."
+    },
+    "proposed_change": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generalisability_tested_against": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "negative_cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "description": "Required. A candidate with only positive cases has not been tested, it has been illustrated."
+    },
+    "activation_state": {
+      "enum": [
+        "CANDIDATE",
+        "SANDBOX_TESTED",
+        "SHADOW_VALIDATED",
+        "APPROVED",
+        "ACTIVE",
+        "DEPRECATED",
+        "RETIRED"
+      ]
+    },
+    "adopted": {
+      "const": false,
+      "description": "const false. Adoption is recorded by the adopting authority elsewhere; a candidate that can mark itself adopted is a candidate that self-activates."
+    },
+    "adoption_authority_required": {
+      "type": "string"
+    }
+  }
+}

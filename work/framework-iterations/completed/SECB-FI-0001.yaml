@@ -1,0 +1,64 @@
+# The first Framework Iteration Receipt, recording real work rather than illustrating the schema.
+# Measurements are taken from the repository, and the verdict is constrained by them: IMPROVED
+# requires measurements_after to differ from measurements_before.
+schema: secb.framework-iteration/v1
+
+iteration_id: SECB-FI-0001
+framework_version_before: 0.1.0
+framework_version_after: 0.1.0
+target_capability: scope_freeze_and_control_kernel_object_model
+target_scope_ref: SECB-SCOPE-001
+gap_ref: SECB-GAP-001
+
+hypothesis:
+  current_problem: three expanding scope documents arrived in four turns, so convergence was unprovable
+  proposed_control: freeze the scope by version at a named ref and measure capability from the tree
+  expected_measurement:
+    frozen_scope_versions_before: 0
+    frozen_scope_versions_after: 1
+
+work_package_refs:
+  - SECB-WP-FWK-095
+  - SECB-WP-FWK-096
+
+base_sha: ace1e579597f768c34b222a91d66ed445dfe34d3
+test_set_epoch: pre-FWK-093-ci-scope
+
+positive_results:
+  - the shipped secb.yaml validates against schemas/project.schema.json
+  - the frozen scope register validates against schemas/framework-scope.schema.json
+  - 480 tests pass under CI unscoped collection, 41 of them new across the two work packages
+
+negative_results:
+  - a verdict claiming confers_merge_authority true is rejected by the verdict schema
+  - a transition without merge_base_sha is rejected
+  - a mandate declaring no exclusions is rejected
+  - a project declaring no prohibited actions is rejected
+  - inverting execute_as_super_agent in the frozen scope fails validation
+  - a context receipt without an expiry is rejected
+
+adversarial_results:
+  - making the kernel validator return no errors fails 8 tests, so the suite is not vacuous
+  - the YAML reader silently dropped a section and four assertions passed against absent data
+
+regressions: []
+reconciliation_result: no divergence between declared and repository state at base_sha
+
+measurements_before:
+  frozen_scope_versions: 0
+  machine_readable_project_descriptor: false
+  kernel_schemas: 0
+  capability_matrix_cells_measured: 0
+  declared_maturity_state: undeclared
+
+measurements_after:
+  frozen_scope_versions: 1
+  machine_readable_project_descriptor: true
+  kernel_schemas: 11
+  capability_matrix_cells_measured: 140
+  capability_matrix_cells_present: 0
+  declared_maturity_state: IMPLEMENTED
+
+verdict: IMPROVED
+next_action: merges, not building; 12 pull requests await review and throughput is gated on authority
+authority_note: this receipt records work; it confers no authority and adopts nothing

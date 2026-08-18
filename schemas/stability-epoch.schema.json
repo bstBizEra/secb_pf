@@ -1,0 +1,121 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.stability-epoch/v1",
+  "title": "Stability epoch",
+  "description": "One epoch measured against a FROZEN scope version. An epoch whose scope version differs from its predecessor is not the next epoch in a sequence -- it is the first of a new one, which is why frozen_scope_version is required and why a test-set change starts a new epoch. Canonical serialization: UTF-8 JSON, keys sorted, separators (',',':'). Digest is sha256 over those bytes as 'sha256:<hex>'. Backward compatibility: additive optional fields are minor; removing a field, narrowing an enum or adding a required field is MAJOR and takes a new $id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "epoch_id",
+    "frozen_scope_version",
+    "test_set_epoch",
+    "started_at",
+    "contents",
+    "outcome"
+  ],
+  "properties": {
+    "schema": {
+      "const": "secb.stability-epoch/v1"
+    },
+    "epoch_id": {
+      "type": "string",
+      "pattern": "^SECB-EPOCH-\\d{3}$"
+    },
+    "frozen_scope_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "test_set_epoch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "started_at": {
+      "type": "string",
+      "minLength": 20
+    },
+    "completed_at": {
+      "type": "string"
+    },
+    "pilot_projects": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "contents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "framework_validation_run",
+        "complete_lifecycle_execution",
+        "scheduled_reconciliation",
+        "fault_injection_suite",
+        "recovery_exercise",
+        "evidence_reverification"
+      ],
+      "properties": {
+        "framework_validation_run": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NOT_EXECUTED"
+          ]
+        },
+        "complete_lifecycle_execution": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NOT_EXECUTED"
+          ]
+        },
+        "scheduled_reconciliation": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NOT_EXECUTED"
+          ]
+        },
+        "fault_injection_suite": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NOT_EXECUTED"
+          ]
+        },
+        "recovery_exercise": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NOT_EXECUTED"
+          ]
+        },
+        "evidence_reverification": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NOT_EXECUTED"
+          ]
+        }
+      },
+      "description": "NOT_EXECUTED is a first-class value. An epoch that omitted a component must say so; a missing key would read as an epoch that ran everything."
+    },
+    "zero_tolerance_violations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "outcome": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "INVALIDATED",
+        "NOT_STARTED"
+      ]
+    },
+    "invalidation_reason": {
+      "type": "string"
+    }
+  }
+}
