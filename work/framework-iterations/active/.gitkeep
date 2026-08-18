@@ -1,0 +1,9 @@
+Placeholder so git tracks this directory.
+
+An iteration in active is a real state in the receipt lifecycle, and a state whose
+directory does not exist in the committed tree cannot hold a receipt. git does
+not track empty directories: the first version of this work package created
+these with mkdir, passed 498 local tests, and failed CI because only the
+directory containing a file survived the commit.
+
+    LOCAL_TREE != COMMITTED_TREE

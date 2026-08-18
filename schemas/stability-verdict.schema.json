@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.stability-verdict/v1",
+  "title": "Stability verdict",
+  "description": "Whether the framework may claim a maturity state. The aggregate score may never override a zero-tolerance failure: a scoreboard that can average away a violated invariant is not a control. Canonical serialization: UTF-8 JSON, keys sorted, separators (',',':'). Digest is sha256 over those bytes as 'sha256:<hex>'. Backward compatibility: additive optional fields are minor; removing a field, narrowing an enum or adding a required field is MAJOR and takes a new $id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "assessed_at",
+    "frozen_scope_version",
+    "maturity_state",
+    "zero_tolerance_all_clear",
+    "consecutive_passing_epochs",
+    "evidence_against_advancing",
+    "stable"
+  ],
+  "properties": {
+    "schema": {
+      "const": "secb.stability-verdict/v1"
+    },
+    "assessed_at": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "frozen_scope_version": {
+      "type": "string"
+    },
+    "maturity_state": {
+      "enum": [
+        "UNDEFINED",
+        "SCOPED",
+        "SPECIFIED",
+        "IMPLEMENTED",
+        "SANDBOX_VERIFIED",
+        "SHADOW_VALIDATED",
+        "PILOT_PROVEN",
+        "RELEASE_CANDIDATE",
+        "FRAMEWORK_STABLE",
+        "OPERATING",
+        "SUPERSEDED"
+      ]
+    },
+    "framework_stability_score": {
+      "type": "number",
+      "minimum": 0
+    },
+    "zero_tolerance_all_clear": {
+      "type": "boolean"
+    },
+    "consecutive_passing_epochs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pilot_project_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "evidence_against_advancing": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "description": "Required even when advancing. A maturity claim with no stated counter-evidence is a self-assessment, and the reviewer has nothing to check."
+    },
+    "stable": {
+      "const": false,
+      "description": "const false in v1. FRAMEWORK_STABLE requires three consecutive epochs against a frozen scope on two pilot projects; zero epochs have started. A schema that could express stability today would let it be claimed today."
+    }
+  }
+}

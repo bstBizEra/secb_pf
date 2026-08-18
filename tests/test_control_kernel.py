@@ -110,6 +110,10 @@ def keywords(schema, seen=None) -> set:
 def _scalar(text: str):
     """Type a YAML scalar. `false` must become False, or a const:false check compares strings."""
     text = text.strip().strip('"')
+    if text == "[]":
+        # An inline empty list. Without this it reads as the STRING "[]", and a schema expecting
+        # an array reports a type error on a field the author correctly wrote as empty.
+        return []
     if text in ("true", "false"):
         return text == "true"
     if re.fullmatch(r"-?\d+", text):
@@ -358,6 +362,14 @@ def test_the_validator_rejects_what_it_claims_to():
     assert validate({"a": "xy", "c": True}, schema)             # const
     assert validate({"a": "xy", "e": "r"}, schema)              # enum
     assert validate({"a": "xy", "n": 5, "l": [1], "c": False, "e": "p"}, schema) == []
+
+
+def test_the_reader_handles_an_inline_empty_list():
+    """`regressions: []` must be a list, not the string "[]"."""
+    assert _scalar("[]") == []
+    assert _scalar("false") is False
+    assert _scalar("7") == 7
+    assert _scalar('"7"') == 7 or _scalar('"7"') == "7"
 
 
 def test_the_yaml_subset_reader_round_trips_the_shipped_descriptor():

@@ -1,0 +1,170 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.framework-iteration/v1",
+  "title": "Framework iteration receipt",
+  "description": "One immutable record per framework-building iteration. An iteration is valuable only when it changes MEASURED capability or produces evidence that the proposed change is unnecessary -- so measurements_before and measurements_after are required, and a verdict of IMPROVED with identical measurements is a contradiction the validator rejects. Tool count, document count, agent count and lines of code are not improvement metrics and must not appear as the only measurement. Canonical serialization: UTF-8 JSON, keys sorted, separators (',',':'). Digest is sha256 over those bytes as 'sha256:<hex>'. Backward compatibility: additive optional fields are minor; removing a field, narrowing an enum or adding a required field is MAJOR and takes a new $id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "iteration_id",
+    "target_capability",
+    "gap_ref",
+    "work_package_refs",
+    "base_sha",
+    "measurements_before",
+    "measurements_after",
+    "positive_results",
+    "negative_results",
+    "verdict",
+    "next_action"
+  ],
+  "properties": {
+    "schema": {
+      "const": "secb.framework-iteration/v1"
+    },
+    "iteration_id": {
+      "type": "string",
+      "pattern": "^SECB-FI-\\d{4}$"
+    },
+    "framework_version_before": {
+      "type": "string"
+    },
+    "framework_version_after": {
+      "type": "string"
+    },
+    "target_capability": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_scope_ref": {
+      "type": "string"
+    },
+    "gap_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "hypothesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_problem",
+        "proposed_control",
+        "expected_measurement"
+      ],
+      "properties": {
+        "current_problem": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proposed_control": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_measurement": {
+          "type": "object",
+          "minProperties": 1
+        }
+      },
+      "description": "One measurable hypothesis per iteration. Declared BEFORE the build, so the measurement cannot be chosen to fit the outcome."
+    },
+    "work_package_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "base_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "source_head_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "merge_base_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "expected_result_tree": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "actual_result_tree": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "policy_bundle_digest": {
+      "type": "string"
+    },
+    "schema_bundle_digest": {
+      "type": "string"
+    },
+    "toolchain_digest": {
+      "type": "string"
+    },
+    "test_set_epoch": {
+      "type": "string"
+    },
+    "positive_results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "negative_results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "description": "Negative-first validation: for a governance control, denial is tested before permission. An iteration with no negative results has not tested its control."
+    },
+    "adversarial_results": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pilot_results": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "regressions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reconciliation_result": {
+      "type": "string"
+    },
+    "measurements_before": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "measurements_after": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "verdict": {
+      "enum": [
+        "IMPROVED",
+        "NO_EFFECT",
+        "REGRESSED",
+        "INVALID"
+      ]
+    },
+    "next_action": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authority_note": {
+      "type": "string"
+    }
+  }
+}
