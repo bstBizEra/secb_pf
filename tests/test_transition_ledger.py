@@ -44,7 +44,7 @@ def ledger(*transitions, **over) -> dict:
     return body
 
 
-def step(seq, subject="WP-1", frm="DETECTED", to="ELIGIBLE", **over) -> dict:
+def step(seq, subject="WP-1", frm="DETECTED", to="ADMISSION_PENDING", **over) -> dict:
     body = {"id": f"T-{seq}", "sequence": seq, "subject_id": subject, "from_state": frm,
             "to_state": to, "occurred_at": f"2026-08-18T00:{seq:02d}:00+00:00"}
     body.update(over)
@@ -144,7 +144,8 @@ def test_a_reused_sequence_position_is_refused(tmp_path):
 
 def test_a_gap_in_the_sequence_is_refused(tmp_path):
     """A gap is indistinguishable from a deleted transition."""
-    refuses(ledger(step(1), step(3, frm="ELIGIBLE", to="EFFECTIVE")), tmp_path, "gaps at")
+    refuses(ledger(step(1), step(3, frm="ADMISSION_PENDING", to="ADMITTED")), tmp_path,
+            "gaps at")
 
 
 def test_a_non_integer_sequence_is_refused(tmp_path):
@@ -156,7 +157,7 @@ def test_a_non_integer_sequence_is_refused(tmp_path):
 
 def test_a_broken_continuity_is_refused(tmp_path):
     """from_state must equal the subject's previous to_state; a gap is an unrecorded transition."""
-    refuses(ledger(step(1, to="ELIGIBLE"), step(2, frm="VERIFYING", to="EFFECTIVE")),
+    refuses(ledger(step(1, to="ADMISSION_PENDING"), step(2, frm="VERIFYING", to="CHALLENGING")),
             tmp_path, "previous recorded state")
 
 
@@ -173,15 +174,16 @@ def test_a_mid_history_start_is_allowed_when_justified(tmp_path):
 
 
 def test_time_may_not_move_backwards_within_a_subject(tmp_path):
-    body = ledger(step(1, to="ELIGIBLE"),
-                  step(2, frm="ELIGIBLE", to="VERIFYING",
+    body = ledger(step(1, to="ADMISSION_PENDING"),
+                  step(2, frm="ADMISSION_PENDING", to="ADMITTED",
                        occurred_at="2026-08-17T00:00:00+00:00"))
     refuses(body, tmp_path, "moves backwards")
 
 
 def test_a_naive_timestamp_is_refused(tmp_path):
-    body = ledger(step(1, to="ELIGIBLE"),
-                  step(2, frm="ELIGIBLE", to="VERIFYING", occurred_at="2026-08-18T05:00:00"))
+    body = ledger(step(1, to="ADMISSION_PENDING"),
+                  step(2, frm="ADMISSION_PENDING", to="ADMITTED",
+                       occurred_at="2026-08-18T05:00:00"))
     refuses(body, tmp_path, "no timezone")
 
 
@@ -191,8 +193,8 @@ def test_a_naive_timestamp_is_refused(tmp_path):
 def test_a_replayed_receipt_is_refused(tmp_path):
     """One verification must not authorise two state changes."""
     d = "sha256:" + "f" * 64
-    body = ledger(step(1, to="ELIGIBLE", receipt_digest=d),
-                  step(2, frm="ELIGIBLE", to="VERIFYING", receipt_digest=d))
+    body = ledger(step(1, to="ADMISSION_PENDING", receipt_digest=d),
+                  step(2, frm="ADMISSION_PENDING", to="ADMITTED", receipt_digest=d))
     stderr = refuses(body, tmp_path, "was already applied by")
     assert "two state changes" in stderr
 
@@ -200,15 +202,37 @@ def test_a_replayed_receipt_is_refused(tmp_path):
 # ------------------------------------------------------------ terminal states
 
 
-@pytest.mark.parametrize("terminal", ["CLOSED", "SUPERSEDED", "OUTSIDE_MANDATE", "QUARANTINED",
-                                      "ROLLED_BACK"])
-def test_nothing_follows_a_terminal_state_without_a_reopen(tmp_path, terminal):
-    body = ledger(step(1, to=terminal), step(2, frm=terminal, to="EXECUTING"))
+@pytest.mark.parametrize("terminal,entry_from,reopen_to", [
+    ("CLOSED", "RECONCILED", "EXECUTING"),
+    ("QUARANTINED", "SECURITY_HOLD", "EXECUTING"),
+    ("ROLLED_BACK", "EFFECTIVE", "PLANNED")])
+def test_a_reopenable_terminal_still_needs_a_justification(tmp_path, terminal, entry_from,
+                                                           reopen_to):
+    body = ledger(step(1, frm=entry_from, to=terminal, genesis_justification="imported"),
+                  step(2, frm=terminal, to=reopen_to))
     refuses(body, tmp_path, "requires an explicit reopen_justification")
 
 
+@pytest.mark.parametrize("terminal,entry_from", [
+    ("SUPERSEDED", "ELIGIBLE"), ("OUTSIDE_MANDATE", "ADMISSION_PENDING"),
+    ("DUPLICATE", "ADMISSION_PENDING")])
+def test_a_settled_terminal_cannot_be_reopened_even_with_a_justification(tmp_path, terminal,
+                                                                        entry_from):
+    """Justification is not a legality bypass.
+
+    DUPLICATE, SUPERSEDED and OUTSIDE_MANDATE declare no reopen edge: the right move is a new
+    subject, not the resurrection of a settled one. A justification that could make any edge legal
+    would turn the state machine into a suggestion.
+    """
+    body = ledger(step(1, frm=entry_from, to=terminal, genesis_justification="imported"),
+                  step(2, frm=terminal, to="EXECUTING",
+                       reopen_justification="we would like to continue"))
+    refuses(body, tmp_path, "not a declared edge")
+
+
 def test_a_justified_reopen_is_allowed(tmp_path):
-    body = ledger(step(1, to="QUARANTINED"),
+    body = ledger(step(1, frm="SECURITY_HOLD", to="QUARANTINED",
+                       genesis_justification="imported"),
                   step(2, frm="QUARANTINED", to="EXECUTING",
                        reopen_justification="containment lifted after evidence re-verification"))
     assert run(body, tmp_path).returncode == 0
@@ -218,7 +242,9 @@ def test_a_justified_reopen_is_allowed(tmp_path):
 
 
 def test_a_landing_without_compare_and_swap_is_refused(tmp_path):
-    refuses(ledger(step(1, to="EFFECTIVE")), tmp_path, "carries no compare_and_swap")
+    refuses(ledger(step(1, frm="COMMITTING", to="EFFECTIVE",
+                    genesis_justification="imported")), tmp_path,
+            "carries no compare_and_swap")
 
 
 @pytest.mark.parametrize("missing", ["merge_base_sha", "expected_result_tree",
@@ -226,11 +252,13 @@ def test_a_landing_without_compare_and_swap_is_refused(tmp_path):
 def test_a_landing_missing_a_binding_field_is_refused(tmp_path, missing):
     partial = cas()
     del partial[missing]
-    refuses(ledger(step(1, to="EFFECTIVE", compare_and_swap=partial)), tmp_path, missing)
+    refuses(ledger(step(1, frm="COMMITTING", to="EFFECTIVE", compare_and_swap=partial,
+                        genesis_justification="imported")), tmp_path, missing)
 
 
 def test_a_landing_whose_tree_differs_from_the_prediction_is_refused(tmp_path):
-    body = ledger(step(1, to="EFFECTIVE", compare_and_swap=cas(actual_result_tree="d" * 40)))
+    body = ledger(step(1, frm="COMMITTING", to="EFFECTIVE", genesis_justification="imported",
+                       compare_and_swap=cas(actual_result_tree="d" * 40)))
     refuses(body, tmp_path, "is not the predicted")
 
 
@@ -241,18 +269,22 @@ def test_a_landing_off_the_chain_is_refused(tmp_path):
     was built on something other than the first. Every per-merge check passes; the history is
     still wrong.
     """
-    first = step(1, subject="WP-1", to="EFFECTIVE",
+    first = step(1, subject="WP-1", frm="COMMITTING", to="EFFECTIVE",
+                 genesis_justification="imported",
                  compare_and_swap=cas(actual_result_sha=B, actual_parent_sha=A))
-    second = step(2, subject="WP-2", to="EFFECTIVE",
+    second = step(2, subject="WP-2", frm="COMMITTING", to="EFFECTIVE",
+                  genesis_justification="imported",
                   compare_and_swap=cas(actual_result_sha=C, actual_parent_sha="e" * 40))
     stderr = refuses(ledger(first, second, genesis_commit=A), tmp_path, "out of band")
     assert "verifies individually and the chain still breaks" in stderr
 
 
 def test_a_chained_landing_sequence_is_accepted(tmp_path):
-    first = step(1, subject="WP-1", to="EFFECTIVE",
+    first = step(1, subject="WP-1", frm="COMMITTING", to="EFFECTIVE",
+                 genesis_justification="imported",
                  compare_and_swap=cas(actual_result_sha=B, actual_parent_sha=A))
-    second = step(2, subject="WP-2", to="EFFECTIVE",
+    second = step(2, subject="WP-2", frm="COMMITTING", to="EFFECTIVE",
+                  genesis_justification="imported",
                   compare_and_swap=cas(actual_result_sha=C, actual_parent_sha=B))
     assert run(ledger(first, second, genesis_commit=A), tmp_path).returncode == 0
 
@@ -282,3 +314,122 @@ def test_it_confers_no_authority(tmp_path):
     assert report["confers_merge_authority"] is False
     assert any("does not prove" in n or "not proven" in n.lower() or "completeness" in n
                for n in report["not_proven"]) or report["not_proven"]
+
+
+# ============================================================================
+# FWK-103: the state machine itself. Before it, this validator enforced
+# CONTINUITY and never LEGALITY -- a ledger recording DETECTED -> EFFECTIVE,
+# skipping eleven states including every verification and authority gate, was
+# accepted and the check exited 0.
+#
+#     CONTINUOUS != LEGAL
+# ============================================================================
+
+MACHINE = ROOT / "config" / "state_machine.json"
+
+
+def machine() -> dict:
+    return json.loads(MACHINE.read_text(encoding="utf-8"))
+
+
+def test_the_canonical_skip_is_refused(tmp_path):
+    """The exact ledger this file accepted before the state machine existed."""
+    body = ledger(step(1, frm="DETECTED", to="EFFECTIVE", compare_and_swap=cas()))
+    stderr = refuses(body, tmp_path, "not a declared edge")
+    assert "CONTINUOUS != LEGAL" in stderr
+
+
+def test_an_undeclared_state_is_refused(tmp_path):
+    body = ledger(step(1, frm="DETECTED", to="ALMOST_DONE"))
+    refuses(body, tmp_path, "not declared by the state machine")
+
+
+def test_the_full_canonical_path_is_legal(tmp_path):
+    """Every consecutive pair of the declared canonical path must be an edge."""
+    path = machine()["canonical_path"]
+    steps = []
+    for index, (frm, to) in enumerate(zip(path, path[1:]), start=1):
+        extra = {"compare_and_swap": cas()} if to == "EFFECTIVE" else {}
+        steps.append(step(index, frm=frm, to=to, **extra))
+    assert run(ledger(*steps, genesis_commit=A), tmp_path).returncode == 0
+
+
+def test_quarantine_is_reachable_from_anywhere(tmp_path):
+    """Containment must never be an illegal move; integrity can become uncertain at any point."""
+    assert machine()["quarantine_from_any"] is True
+    for frm in ("ADMITTED", "EXECUTING", "CHALLENGING", "OBSERVING"):
+        body = ledger(step(1, frm=frm, to="QUARANTINED", genesis_justification="imported"))
+        assert run(body, tmp_path).returncode == 0, frm
+
+
+def test_a_repair_edge_returns_to_work_not_to_the_gate_that_failed(tmp_path):
+    """VERIFICATION_FAILED -> EXECUTING, never -> VERIFYING.
+
+    Re-verifying an unchanged candidate and reporting the second look as a result is how a retry
+    launders a failure into a pass.
+    """
+    edges = machine()["edges"]
+    assert edges["VERIFICATION_FAILED"] == ["EXECUTING"]
+    assert "VERIFYING" not in edges["VERIFICATION_FAILED"]
+    body = ledger(step(1, frm="VERIFYING", to="VERIFICATION_FAILED",
+                       genesis_justification="imported"),
+                  step(2, frm="VERIFICATION_FAILED", to="VERIFYING"))
+    refuses(body, tmp_path, "not a declared edge")
+
+
+def test_the_machine_is_well_formed():
+    """No dead vocabulary, no terminal state with an exit."""
+    m = machine()
+    declared = set(m["canonical_path"]) | set(m["exceptional_states"])
+    referenced = set(m["edges"]) | {t for v in m["edges"].values() for t in v}
+    assert referenced <= declared, sorted(referenced - declared)
+    assert not (set(m["terminal_states"]) & set(m["edges"])), "a terminal state with an exit"
+    reachable, frontier = {"DETECTED"}, ["DETECTED"]
+    while frontier:
+        for target in m["edges"].get(frontier.pop(), []):
+            if target not in reachable:
+                reachable.add(target)
+                frontier.append(target)
+    unreachable = declared - reachable - {"QUARANTINED"}
+    assert unreachable == set(), f"states nothing can enter: {sorted(unreachable)}"
+
+
+def test_a_malformed_machine_is_refused_not_worked_around(tmp_path):
+    """Without a machine, legality is unevaluable, and continuity alone would report clean."""
+    broken = tmp_path / "machine.json"
+    broken.write_text(json.dumps({"schema": "secb.state-machine/v1", "edges": {},
+                                  "canonical_path": [], "exceptional_states": []}),
+                      encoding="utf-8")
+    path = tmp_path / "ledger.json"
+    path.write_text(json.dumps(ledger(step(1))), encoding="utf-8")
+    result = subprocess.run([sys.executable, str(TOOL)], capture_output=True, text=True,
+                            env={**os.environ, "LEDGER": str(path), "REPO_ROOT": str(ROOT),
+                                 "STATE_MACHINE": str(broken),
+                                 "PYTHONDONTWRITEBYTECODE": "1"}, check=False)
+    assert result.returncode == 2
+    assert "declares no states" in result.stderr
+
+
+def test_an_absent_machine_is_refused(tmp_path):
+    path = tmp_path / "ledger.json"
+    path.write_text(json.dumps(ledger(step(1))), encoding="utf-8")
+    result = subprocess.run([sys.executable, str(TOOL)], capture_output=True, text=True,
+                            env={**os.environ, "LEDGER": str(path), "REPO_ROOT": str(ROOT),
+                                 "STATE_MACHINE": "config/absent.json",
+                                 "PYTHONDONTWRITEBYTECODE": "1"}, check=False)
+    assert result.returncode == 2
+    assert "legality cannot be evaluated" in result.stderr
+
+
+def test_the_shipped_ledger_records_only_what_was_observed():
+    """The first draft recorded DETECTED -> ELIGIBLE -> EFFECTIVE, which the machine proved
+    impossible. The landings were real; that PATH was not.
+
+        RECORDED_PATH != OBSERVED_PATH
+    """
+    body = json.loads(REAL.read_text(encoding="utf-8"))
+    assert len(body["transitions"]) == 3
+    for entry in body["transitions"]:
+        assert entry["from_state"] == "COMMITTING" and entry["to_state"] == "EFFECTIVE"
+        assert "genesis_justification" in entry
+    assert "RECORDED_PATH != OBSERVED_PATH" in body["_purpose"]
