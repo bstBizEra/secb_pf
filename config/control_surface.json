@@ -120,6 +120,13 @@
       "reason": "Not CI enforcement and not portable. No workflow invokes it -- it is an operator tool that measures whether SecB's own pull-request queue drains, against SecB's own branches. Under the graph-derived discovery of SECB-WP-FWK-082 (#148) it would not be demanded at all; it is classified here only because that discovery change is unmerged and the filename glob still applies on this base.",
       "trigger_to_cover": "Track it if ci.yml ever invokes it. Note that once #148 lands, discovery derives from the execution graph and this entry becomes informational rather than required.",
       "why_declared": "An undeclared exclusion is indistinguishable from an oversight. Recorded rather than renamed: naming the script verify_* would have hidden it from the glob, which is the evasion SECB-WP-FWK-082 exists to remove."
+    },
+    {
+      "path": "scripts/check_startability.py",
+      "portability_class": "do_not_copy",
+      "reason": "An advisory resolver, not a control. It recommends which work package is startable and grants nothing -- confers_work_authority is false, no workflow invokes it, and no gate consumes its output. Under #148's graph-derived discovery it is not a member of the control surface.",
+      "trigger_to_cover": "Any workflow invoking this script. Graph-derived discovery would then make it a member, and it must move to `controls` with a digest in the SAME pull request that wires it up.",
+      "why_declared": "Declared rather than omitted so the completeness gate can see it was CLASSIFIED rather than overlooked. An unlisted script is indistinguishable from a forgotten one, which is the distinction this list exists to preserve."
     }
   ],
   "known_limits": [
