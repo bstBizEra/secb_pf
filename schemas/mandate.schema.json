@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.mandate/v1",
+  "title": "Project mandate",
+  "description": "The pre-authorised boundary. Autonomous activity is legitimate only inside it; work that exceeds it returns OUTSIDE_MANDATE and stops rather than manufacturing authority. Canonical serialization: UTF-8 JSON, keys sorted, separators (',',':'), no trailing newline. Digest is sha256 over those bytes, rendered 'sha256:<hex>'. Two spellings of one object must not produce two digests. Backward compatibility: additive optional fields are a minor bump; removing a field, narrowing an enum or making a field required is a MAJOR bump and a new $id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "mandate_id",
+    "effective_from",
+    "expires_at",
+    "scope",
+    "autonomy_ceiling",
+    "prohibited_actions",
+    "rollback_owner"
+  ],
+  "properties": {
+    "schema": {
+      "const": "secb.mandate/v1"
+    },
+    "mandate_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "effective_from": {
+      "type": "string",
+      "minLength": 20
+    },
+    "expires_at": {
+      "type": "string",
+      "minLength": 20
+    },
+    "authority_source": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "included",
+        "excluded"
+      ],
+      "properties": {
+        "included": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excluded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Exclusions are required, not optional. A scope with no stated exclusions cannot answer 'is this outside the mandate?' -- it can only answer 'is this mentioned?'"
+    },
+    "autonomy_ceiling": {
+      "enum": [
+        "A0",
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6"
+      ]
+    },
+    "prohibited_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "budget_ceilings": {
+      "type": "object"
+    },
+    "rollback_owner": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Named before autonomy begins. Deciding who reverses a change while it is going wrong is the worst possible time to decide it."
+    },
+    "signature": {
+      "type": "object"
+    }
+  }
+}

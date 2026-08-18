@@ -1,0 +1,178 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.transition/v1",
+  "title": "Transition receipt",
+  "description": "The atomic state change. A file moving between directories is not a transition; the receipt is. It binds the exact before and after so a landing can be proven rather than assumed. Canonical serialization: UTF-8 JSON, keys sorted, separators (',',':'), no trailing newline. Digest is sha256 over those bytes, rendered 'sha256:<hex>'. Two spellings of one object must not produce two digests. Backward compatibility: additive optional fields are a minor bump; removing a field, narrowing an enum or making a field required is a MAJOR bump and a new $id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "subject_id",
+    "from_state",
+    "to_state",
+    "occurred_at",
+    "actor_id",
+    "verdict_ref",
+    "compare_and_swap"
+  ],
+  "properties": {
+    "schema": {
+      "const": "secb.transition/v1"
+    },
+    "subject_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "from_state": {
+      "enum": [
+        "DETECTED",
+        "ADMISSION_PENDING",
+        "ADMITTED",
+        "CONTEXT_BOUND",
+        "PLANNED",
+        "AUTHORIZED",
+        "EXECUTING",
+        "CANDIDATE_READY",
+        "VERIFYING",
+        "CHALLENGING",
+        "ELIGIBLE",
+        "COMMITTING",
+        "EFFECTIVE",
+        "OBSERVING",
+        "RECONCILED",
+        "CLOSED",
+        "DUPLICATE",
+        "SUPERSEDED",
+        "CONTENTION",
+        "DEPENDENCY_BLOCKED",
+        "CONTEXT_INVALID",
+        "AUTHORITY_DENIED",
+        "BUDGET_EXCEEDED",
+        "EVIDENCE_INCOMPLETE",
+        "VERIFICATION_FAILED",
+        "SECURITY_HOLD",
+        "STALE_CANDIDATE",
+        "POLICY_CONFLICT",
+        "QUARANTINED",
+        "ROLLED_BACK",
+        "OUTSIDE_MANDATE"
+      ]
+    },
+    "to_state": {
+      "enum": [
+        "DETECTED",
+        "ADMISSION_PENDING",
+        "ADMITTED",
+        "CONTEXT_BOUND",
+        "PLANNED",
+        "AUTHORIZED",
+        "EXECUTING",
+        "CANDIDATE_READY",
+        "VERIFYING",
+        "CHALLENGING",
+        "ELIGIBLE",
+        "COMMITTING",
+        "EFFECTIVE",
+        "OBSERVING",
+        "RECONCILED",
+        "CLOSED",
+        "DUPLICATE",
+        "SUPERSEDED",
+        "CONTENTION",
+        "DEPENDENCY_BLOCKED",
+        "CONTEXT_INVALID",
+        "AUTHORITY_DENIED",
+        "BUDGET_EXCEEDED",
+        "EVIDENCE_INCOMPLETE",
+        "VERIFICATION_FAILED",
+        "SECURITY_HOLD",
+        "STALE_CANDIDATE",
+        "POLICY_CONFLICT",
+        "QUARANTINED",
+        "ROLLED_BACK",
+        "OUTSIDE_MANDATE"
+      ]
+    },
+    "occurred_at": {
+      "type": "string",
+      "minLength": 20
+    },
+    "actor_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verdict_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "compare_and_swap": {
+      "type": "object",
+      "required": [
+        "target_base_sha",
+        "source_head_sha",
+        "merge_base_sha",
+        "expected_result_tree",
+        "merge_method"
+      ],
+      "properties": {
+        "target_base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "source_head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "merge_base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "expected_result_tree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "actual_result_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "actual_result_tree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "merge_method": {
+          "enum": [
+            "squash",
+            "merge",
+            "rebase"
+          ]
+        },
+        "ordered_prefix_position": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolchain_identity": {
+          "type": "string"
+        },
+        "test_set_epoch": {
+          "type": "string"
+        }
+      },
+      "description": "merge_base_sha is required, and it is the field whose absence made an earlier landing protocol assert the wrong invariant: SQUASH_RESULT_TREE equals SOURCE_HEAD_TREE only when the target base has not moved past the merge base. Recording all three makes that checkable instead of assumed."
+    },
+    "readback": {
+      "type": "object",
+      "properties": {
+        "verified": {
+          "type": "boolean"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "A landing is proven by reading it back on more than one path. MERGE_API_SUCCESS != SIMULATED_TREE_LANDED."
+    }
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.verdict/v1",
+  "title": "Stage verdict",
+  "description": "A policy decision over evidence, computed OUTSIDE the producing agent. evaluator_id must differ from the producer: the producer may not issue its own final verdict. Canonical serialization: UTF-8 JSON, keys sorted, separators (',',':'), no trailing newline. Digest is sha256 over those bytes, rendered 'sha256:<hex>'. Two spellings of one object must not produce two digests. Backward compatibility: additive optional fields are a minor bump; removing a field, narrowing an enum or making a field required is a MAJOR bump and a new $id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "subject_id",
+    "stage",
+    "outcome",
+    "policy_version",
+    "evaluated_conditions",
+    "evidence_refs",
+    "evaluator_id",
+    "valid_until"
+  ],
+  "properties": {
+    "schema": {
+      "const": "secb.verdict/v1"
+    },
+    "subject_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject_head_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "stage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "outcome": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "BLOCKED",
+        "HUMAN_REQUIRED"
+      ]
+    },
+    "terminal_reason": {
+      "enum": [
+        "DUPLICATE",
+        "SUPERSEDED",
+        "CONTENTION",
+        "DEPENDENCY_BLOCKED",
+        "CONTEXT_INVALID",
+        "AUTHORITY_DENIED",
+        "BUDGET_EXCEEDED",
+        "EVIDENCE_INCOMPLETE",
+        "VERIFICATION_FAILED",
+        "SECURITY_HOLD",
+        "STALE_CANDIDATE",
+        "POLICY_CONFLICT",
+        "QUARANTINED",
+        "ROLLED_BACK",
+        "OUTSIDE_MANDATE",
+        "NONE"
+      ]
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "evaluated_conditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "condition",
+          "result"
+        ],
+        "properties": {
+          "condition": {
+            "type": "string"
+          },
+          "result": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "UNKNOWN",
+              "NOT_APPLICABLE"
+            ]
+          },
+          "evidence_ref": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "UNKNOWN is a first-class result. A condition that could not be evaluated must not be recorded as PASS or omitted -- both read as satisfied."
+    },
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "dissent": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evaluator_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producer_id": {
+      "type": "string"
+    },
+    "valid_until": {
+      "type": "string",
+      "minLength": 20
+    },
+    "confers_merge_authority": {
+      "const": false
+    }
+  }
+}
