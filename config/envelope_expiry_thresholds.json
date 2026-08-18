@@ -1,0 +1,9 @@
+{
+  "schema": "secb.envelope-expiry-thresholds/v1",
+  "_purpose": "SECB-WP-FWK-071. Thresholds for the delegation-envelope expiry monitor, held as CONFIGURATION rather than as constants inside the script, so a change to the warning window is a reviewable diff to a control-surface file instead of an edit buried in code.",
+  "warning_days": 30,
+  "critical_days": 7,
+  "fail_states": ["CRITICAL", "EXPIRED", "OBSERVATION_INCOMPLETE"],
+  "_fail_states_rationale": "The work package names EXPIRED and OBSERVATION_INCOMPLETE as non-success. CRITICAL is included here because the monitor runs on a schedule: a scheduled job that exits 0 is a green check nobody is notified about, so a CRITICAL state that succeeds delivers no warning at the moment warning matters most. This is a declared policy choice in configuration, visible and reversible, not a hidden constant -- remove CRITICAL from this list to follow the work package literally.",
+  "_inclusivity": "expires_at is the LAST VALID DAY. This matches the enforcing comparison in scripts/classify_authority_delta.py, `str(expires_at) < date.today().isoformat()`, which treats the envelope as expired only strictly after that date. A monitor that disagreed with the enforcer by a day would warn about the wrong day."
+}

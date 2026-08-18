@@ -1,0 +1,73 @@
+# Delegation-envelope expiry early warning (SECB-WP-FWK-071, issue #130).
+#
+# A separate workflow rather than a step in ci.yml, for two reasons the work package names: the
+# check must run on a CLOCK rather than on repository activity, and ci.yml is claimed by two
+# long-open branches. Expiry is otherwise first discovered when it BLOCKS an unrelated pull
+# request, which is enforcement without warning.
+#
+# This job observes. It has no authority to renew or extend the envelope, it never writes to
+# config/delegation_envelope.json, and it is granted no permission that would let it.
+name: envelope-expiry-monitor
+
+on:
+  schedule:
+    # 07:00 UTC daily. A fixed early-morning slot rather than midnight: GitHub delays scheduled
+    # runs under load at the top of the hour, and a monitor whose whole value is a day count
+    # should not be the job that gets deferred across a date boundary.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+# Read-only by default and by declaration. Nothing here needs to write.
+permissions:
+  contents: read
+
+jobs:
+  observe:
+    name: "Envelope — days until expiry"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The evaluation and the reporting are separate steps so that a failure to PUBLISH the
+      # summary can never turn a CRITICAL or EXPIRED evaluation into a green job. The script's
+      # exit status is captured, the summary is written, and the status is re-raised last.
+      #
+      #     NOTIFICATION_DELIVERY_FAILED != EVALUATION_PASSED
+      - name: Evaluate the envelope
+        id: evaluate
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set +e
+          python scripts/check_envelope_expiry.py > "$RUNNER_TEMP/expiry.json" 2> "$RUNNER_TEMP/expiry.err"
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          set -e
+          cat "$RUNNER_TEMP/expiry.json"
+          cat "$RUNNER_TEMP/expiry.err" >&2 || true
+
+      - name: Publish the observation
+        if: always()
+        run: |
+          {
+            echo "### Delegation envelope"
+            echo ""
+            echo '```json'
+            cat "$RUNNER_TEMP/expiry.json" 2>/dev/null || echo '{"state":"OBSERVATION_INCOMPLETE"}'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Re-raise the evaluation result
+        if: always()
+        env:
+          STATUS: ${{ steps.evaluate.outputs.status }}
+        run: |
+          # An absent status is not a passing one: the evaluation step did not report.
+          if [ -z "$STATUS" ]; then
+            echo "OBSERVATION_INCOMPLETE -- the evaluation step recorded no status" >&2
+            exit 2
+          fi
+          exit "$STATUS"

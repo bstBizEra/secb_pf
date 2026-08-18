@@ -83,6 +83,17 @@
       "claimed_transferable_by": "not listed in docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md",
       "field_observation": "Not yet instantiated anywhere. 'configure' because the emitter's logic is reusable while the envelope prefix it reads and the workflow that supplies its environment are project-specific.",
       "staleness_consequence": "None derivable. Configure-class: a downstream copy is supposed to differ, so a digest mismatch says nothing about staleness."
+    },
+    {
+      "path": "scripts/check_envelope_expiry.py",
+      "sha256": "4f484bcea8f00c036967b55696efc33b8d75f3ca46654b2d36eb5c4897a781c9",
+      "bytes": 8233,
+      "owning_work_package": "SECB-WP-FWK-071",
+      "last_changed_commit": "PENDING_MERGE",
+      "portability_class": "configure",
+      "claimed_transferable_by": "config/envelope_expiry_thresholds.json",
+      "field_observation": "Not yet instantiated downstream, so there is no field observation to report. Recorded as absent rather than as clean: NO_OBSERVATION != OBSERVED_CLEAN. The logic is project-independent -- a date, two thresholds and a fail-closed ladder -- but the envelope path and the threshold values are SecB's, which is why the class is `configure` and not `verbatim`.",
+      "staleness_consequence": "None derivable. This control is configure-class: a downstream copy is expected to diverge at its envelope path and threshold values, so its digest carries no staleness signal and no downstream should re-apply anything on the strength of it. A separate coupling risk is worth naming because the digest cannot express it: the monitor copies the enforcing inclusivity `expires_at < today` from classify_authority_delta.py by convention rather than by construction, so if that comparison changes, the two disagree at the boundary and no digest comparison reveals it. DIGEST_STALENESS != SEMANTIC_COUPLING_DRIFT."
     }
   ],
   "declared_exclusions": [
