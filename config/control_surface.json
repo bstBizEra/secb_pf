@@ -120,6 +120,13 @@
       "reason": "Not CI enforcement and not portable. No workflow invokes it -- it is an operator tool that measures whether SecB's own pull-request queue drains, against SecB's own branches. Under the graph-derived discovery of SECB-WP-FWK-082 (#148) it would not be demanded at all; it is classified here only because that discovery change is unmerged and the filename glob still applies on this base.",
       "trigger_to_cover": "Track it if ci.yml ever invokes it. Note that once #148 lands, discovery derives from the execution graph and this entry becomes informational rather than required.",
       "why_declared": "An undeclared exclusion is indistinguishable from an oversight. Recorded rather than renamed: naming the script verify_* would have hidden it from the glob, which is the evasion SECB-WP-FWK-082 exists to remove."
+    },
+    {
+      "path": "scripts/check_traceability_envelope.py",
+      "portability_class": "adapt",
+      "reason": "Validates an End-to-End Traceability Envelope against the pre-existing schema in docs/13-evidence/. It reads an envelope and reports; it seals nothing, mutates nothing and confers no authority. No workflow invokes it, so graph-derived discovery does not make it a member of the control surface.",
+      "trigger_to_cover": "Any workflow invoking it -- most plausibly a release or reconcile job. It must then move to `controls` with a digest in the SAME pull request that wires it up.",
+      "why_declared": "Declared so the completeness gate sees it was classified, not overlooked. The class is `adapt` rather than `verbatim` because the node-type and relationship vocabularies come from SecB's own schema; a downstream project with a different evidence graph must adapt the schema first and the validator follows it."
     }
   ],
   "known_limits": [

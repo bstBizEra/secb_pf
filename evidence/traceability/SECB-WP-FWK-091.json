@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.0.0",
+  "episode_id": "SECB-EP-FWK-091",
+  "work_package_id": "SECB-WP-FWK-091",
+  "nodes": [
+    {
+      "id": "TICKET-162",
+      "type": "TICKET",
+      "sha256": "ae340e8a62a2c56ac9d473499a8e26004309ec10b019cc1dd1f413b59a06bcd6",
+      "producer": "operator",
+      "timestamp": "2026-08-17T17:10:00Z"
+    },
+    {
+      "id": "REPO",
+      "type": "REPOSITORY",
+      "sha256": "431508946854fa3676a89e8056347e6da3e9edcffe8d1155e1949ceb99469120",
+      "producer": "github",
+      "timestamp": "2026-08-17T17:10:00Z"
+    },
+    {
+      "id": "BRANCH-091",
+      "type": "BRANCH",
+      "sha256": "e345d562b64ade03f5ed419448c127fe2027ae12ff3a6c9c9ad9eada4dff5366",
+      "producer": "agent",
+      "timestamp": "2026-08-17T17:20:00Z"
+    },
+    {
+      "id": "PR-163",
+      "type": "PR",
+      "sha256": "567a8ac8540a4238fe0b1f422201c4c53f6326f6ef72796614da633693edc5eb",
+      "producer": "agent",
+      "timestamp": "2026-08-17T17:30:00Z"
+    },
+    {
+      "id": "CHECK-CI",
+      "type": "CHECK",
+      "sha256": "12187d338fa7d9357a09218cad065bad3ddabf5d43ce084fc1f536d2ecdbbba1",
+      "producer": "github-actions",
+      "timestamp": "2026-08-17T17:40:00Z"
+    },
+    {
+      "id": "CHECK-QUEUE",
+      "type": "CHECK",
+      "sha256": "3719bf54ce404e0d438c26889eec6860bd08a819038a0702fee9d1a6eec37798",
+      "producer": "shadow-queue",
+      "timestamp": "2026-08-17T17:45:00Z"
+    },
+    {
+      "id": "REVIEW-163",
+      "type": "REVIEW",
+      "sha256": "5fc1eaa249b1e09954c7e0fbb922425c9672a84b8e5cbe4aff08849fd0c929f4",
+      "producer": "operator",
+      "timestamp": "2026-08-17T17:52:00Z"
+    },
+    {
+      "id": "COMMIT-163",
+      "type": "COMMIT",
+      "sha256": "ef2135a061bfb3acc678e474e0ff7a746c77e204f2936f6b0d64fadda17b9142",
+      "producer": "operator",
+      "timestamp": "2026-08-17T17:55:26Z"
+    },
+    {
+      "id": "OBS-LANDING",
+      "type": "OBSERVATION",
+      "sha256": "3d602f6684152bffb675c13142dcd3ced649fb4f01512f8154bf313b365b37c5",
+      "producer": "agent",
+      "timestamp": "2026-08-17T18:00:00Z"
+    }
+  ],
+  "edges": [
+    {
+      "from": "BRANCH-091",
+      "to": "TICKET-162",
+      "relationship": "IMPLEMENTS"
+    },
+    {
+      "from": "BRANCH-091",
+      "to": "REPO",
+      "relationship": "DERIVED_FROM"
+    },
+    {
+      "from": "PR-163",
+      "to": "BRANCH-091",
+      "relationship": "DERIVED_FROM"
+    },
+    {
+      "from": "CHECK-CI",
+      "to": "PR-163",
+      "relationship": "VERIFIES"
+    },
+    {
+      "from": "CHECK-QUEUE",
+      "to": "PR-163",
+      "relationship": "VERIFIES"
+    },
+    {
+      "from": "REVIEW-163",
+      "to": "PR-163",
+      "relationship": "APPROVES"
+    },
+    {
+      "from": "COMMIT-163",
+      "to": "PR-163",
+      "relationship": "BUILT_FROM"
+    },
+    {
+      "from": "COMMIT-163",
+      "to": "REVIEW-163",
+      "relationship": "AUTHORIZES"
+    },
+    {
+      "from": "OBS-LANDING",
+      "to": "COMMIT-163",
+      "relationship": "VERIFIES"
+    }
+  ],
+  "root_sha256": "a92b52378c747519bd4bce9a1f8cf81cec622c04f161b5456460913f1a830b83",
+  "sealed_at": "2026-08-18T12:00:00Z",
+  "sealed_by": "secb-agent"
+}
