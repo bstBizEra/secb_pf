@@ -1,0 +1,98 @@
+# SecB project descriptor -- the machine-readable identity the MANDATE_EFFECTIVE gate reads.
+#
+# SecB describes ITSELF here. That is deliberate: a control plane whose own project is not
+# expressible in its own schema has not yet proven the schema fits a real project.
+#
+# The autonomy level below is MEASURED, not targeted. The loop design targets A5; SecB is at A3,
+# because 0 of 20 sampled merges were agent-performed and no deployment surface exists.
+# Recording the target here instead would make the descriptor an aspiration document, and every
+# gate reading it would compute against a level the project does not hold.
+#
+#     DECLARED_AUTONOMY must equal OBSERVED_AUTONOMY, or the descriptor is fiction.
+schema: secb.project/v1
+
+project:
+  project_id: SECB-PF
+  product: SecB Project Framework
+  repository: bstBizEra/secb_pf
+  default_branch: main
+  description: >-
+    Agentic team control plane. Assigns work, constrains authority, verifies evidence and
+    advances projects under a pre-authorised mandate.
+
+mandate:
+  authority_source: config/delegation_envelope.json
+  expires_at: "2026-11-08"
+  # The envelope is the authority root. This descriptor points at it rather than restating it:
+  # two copies of an expiry date is one copy too many.
+
+classification:
+  risk_class: R3
+  risk_rationale: >-
+    The framework governs merge and (in target state) deployment authority for other projects.
+    A defect here is an authority defect elsewhere, which is why R3 rather than R1.
+  autonomy_profile: A3
+  autonomy_measured_at: ace1e579597f768c34b222a91d66ed445dfe34d3
+  autonomy_evidence:
+    implement_in_isolation: DEMONSTRATED
+    merge_verified_work: NOT_DEMONSTRATED   # 0 of 20 sampled merges agent-performed
+    deploy_and_operate: NO_SURFACE
+
+environments:
+  permitted:
+    - name: repository
+      kind: source_control
+      autonomous_deployment: false
+  production: NONE_DECLARED
+
+prohibited_actions:
+  - id: PA-01
+    action: agent-performed merge to the default branch
+    reason: >-
+      confers_merge_authority is false on every evidence path. Landings are operator
+      compare-and-swap. This is intentional retained authority, not an unimplemented feature.
+  - id: PA-02
+    action: extending or renewing the delegation envelope
+    reason: An agent cannot enlarge the mandate that bounds it.
+  - id: PA-03
+    action: adopting a policy or design proposal authored in the same change
+    reason: A policy proposal cannot activate itself.
+  - id: PA-04
+    action: writing a secret to a log, artifact, evidence bundle, issue or pull request
+    reason: Secrets never enter prompts, logs, evidence or repositories.
+  - id: PA-05
+    action: weakening or bypassing a gate to make a candidate pass
+    reason: >-
+      A gate exists to be informative when it refuses. Editing it to admit the change under
+      review destroys the only signal it carries.
+
+budgets:
+  default_change_budget:
+    max_files: 6
+    max_lines: 900
+  enforcement: scripts/check_budget.py
+  # Declared per pull request in the body; this is the default a work package inherits.
+
+evidence:
+  store: repository
+  manifest_root: evidence/
+  retention: indefinite_while_referenced
+  binding_requirements:
+    - target_base_sha
+    - source_head_sha
+    - merge_base_sha
+    - expected_result_tree
+    - merge_method
+    - toolchain_identity
+    - test_set_epoch
+
+authority_model:
+  runtime_identity_grants_authority: false
+  producer_may_self_verify: false
+  final_verdict_authority: operator
+  # runtime identity != role != capability != authority. All four resolve independently.
+
+status:
+  descriptor_state: EFFECTIVE_ON_MERGE
+  loop_design: PROPOSED          # docs/00-governance/AUTONOMOUS_LOOP_DESIGN.md
+  target_autonomy: A5

@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.context-receipt/v1",
+  "title": "Context receipt",
+  "description": "Proves WHAT THE AGENT KNEW when it decided. Without it a verdict cannot be reproduced, because the inputs that produced it are unrecoverable. Canonical serialization: UTF-8 JSON, keys sorted, separators (',',':'), no trailing newline. Digest is sha256 over those bytes, rendered 'sha256:<hex>'. Two spellings of one object must not produce two digests. Backward compatibility: additive optional fields are a minor bump; removing a field, narrowing an enum or making a field required is a MAJOR bump and a new $id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "work_package_id",
+    "agent_id",
+    "repository_base_sha",
+    "artifact_digests",
+    "policy_versions",
+    "tool_versions",
+    "received_at",
+    "expires_at"
+  ],
+  "properties": {
+    "schema": {
+      "const": "secb.context-receipt/v1"
+    },
+    "work_package_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authoritative_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "artifact_digests": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      }
+    },
+    "repository_base_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "policy_versions": {
+      "type": "object"
+    },
+    "tool_versions": {
+      "type": "object"
+    },
+    "received_at": {
+      "type": "string",
+      "minLength": 20
+    },
+    "expires_at": {
+      "type": "string",
+      "minLength": 20,
+      "description": "A context receipt expires. Stale context that never expires is how a decision made against a superseded tree keeps looking valid."
+    }
+  }
+}
