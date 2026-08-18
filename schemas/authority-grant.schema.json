@@ -1,0 +1,149 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.authority-grant/v1",
+  "title": "Authority grant (capability token)",
+  "description": "What an agent invocation is BOUNDED by. Every bound is a required field, because a bound that is not written down is not a bound -- an omitted scope reads as unlimited to anyone reading the grant. Authority is explicit, scoped, expiring and NON-TRANSITIVE: there is no delegation field, and `may_delegate` is prohibited by name so that adding one is a schema change a reviewer sees rather than a property that quietly appears. The framework's load-bearing separation: runtime identity != role != capability != authority. All four resolve independently. Identity lives in config/agent_identity_registry.schema.json (FWK-081) and is NOT redefined here. Canonical serialization: UTF-8 JSON, keys sorted, separators (',',':'). Digest is sha256 over those bytes as 'sha256:<hex>'. Backward compatibility: additive optional fields are minor; removing a field, narrowing an enum or adding a required field is MAJOR and takes a new $id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "grant_id",
+    "agent_id",
+    "work_package_id",
+    "issued_by",
+    "issued_at",
+    "expires_at",
+    "repository",
+    "branch",
+    "permitted_paths",
+    "tool_allowlist",
+    "environment",
+    "network_policy",
+    "budget",
+    "required_evidence",
+    "prohibited_actions",
+    "confers_merge_authority",
+    "may_delegate"
+  ],
+  "properties": {
+    "schema": {
+      "const": "secb.authority-grant/v1"
+    },
+    "grant_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "work_package_id": {
+      "type": "string",
+      "pattern": "^SECB-WP-[A-Z0-9-]+$",
+      "description": "No work package, no work. A grant with no subject authorises open-ended action."
+    },
+    "issued_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Never equal to agent_id: an agent may not issue its own authority."
+    },
+    "issued_at": {
+      "type": "string",
+      "minLength": 20
+    },
+    "expires_at": {
+      "type": "string",
+      "minLength": 20,
+      "description": "Authority expires. A grant with no expiry is a standing permission that outlives the work it was issued for."
+    },
+    "repository": {
+      "type": "string",
+      "minLength": 1
+    },
+    "branch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "permitted_paths": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "An empty path list is not 'anywhere', it is an unclassified grant."
+    },
+    "tool_allowlist": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "What the authority engine GRANTED -- distinct from the agent's tool_requests, which is what it asked for. Tool availability is capability, not permission."
+    },
+    "environment": {
+      "type": "string",
+      "minLength": 1
+    },
+    "network_policy": {
+      "enum": [
+        "none",
+        "github_only",
+        "allowlist",
+        "unrestricted"
+      ]
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_files",
+        "max_lines"
+      ],
+      "properties": {
+        "max_files": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_lines": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_runtime_minutes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_cost_usd": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "required_evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "description": "Declared at grant time, not chosen at closure time. Evidence selected after the fact is evidence selected to fit."
+    },
+    "prohibited_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "confers_merge_authority": {
+      "const": false,
+      "description": "const false at A3. Merge authority is retained by the operator; a grant able to express it would let it be granted by writing a field."
+    },
+    "may_delegate": {
+      "const": false,
+      "description": "Authority is non-transitive. Named and pinned false so that transitivity cannot arrive as an undeclared default."
+    },
+    "identity_ref": {
+      "type": "string",
+      "description": "Optional pointer into the agent identity registry. Identity is resolved there, not restated here; a grant that carried its own identity claim would let a holder assert both what it is and what it may do."
+    }
+  }
+}
