@@ -1,0 +1,30 @@
+# What SecB is NOT responsible for. Exclusions are load-bearing: a scope with only inclusions can
+# answer "is this mentioned?" but never "is this outside the mandate?"
+schema: secb.framework-exclusions/v1
+scope_ref: SECB-SCOPE-001
+
+exclusions:
+  - id: EX-01
+    excluded: self_creation_of_authority
+    reason: An agent cannot create the authority that bounds it.
+  - id: EX-02
+    excluded: autonomous_constitutional_change
+    reason: >-
+      A policy or design proposal cannot activate itself. Constitutional change stops and produces
+      a non-effective proposal.
+  - id: EX-03
+    excluded: unbounded_irreversible_action
+    reason: >-
+      Irreversible actions require a separately defined authority pathway; they are never inferred
+      from ordinary repository permissions.
+  - id: EX-04
+    excluded: business_objective_change_outside_mandate
+    reason: Technical evidence does not create business authority.
+  - id: EX-05
+    excluded: legal_or_financial_authority
+    reason: Outside the framework's competence and its mandate.
+  - id: EX-06
+    excluded: treating_tool_access_as_authorization
+    reason: >-
+      Tool availability is capability, not permission. runtime identity != role != capability !=
+      authority.
