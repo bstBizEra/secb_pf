@@ -69,7 +69,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 AUTO_APPROVED = "AUTO_APPROVED"
@@ -298,6 +298,44 @@ def read_diff_body() -> str:
     return os.environ.get("DIFF_TEXT", "")
 
 
+def utc_today() -> date:
+    """The evaluation date, in UTC.
+
+    Deliberately NOT overridable by the environment. The expiry comparison decides whether the
+    delegation envelope still grants authority, so an injectable "now" would be a bypass: set it
+    to any past date and a lapsed envelope reads as valid. `check_envelope_expiry.py` does accept
+    an EVALUATE_AT override, and that is correct there for the opposite reason -- it OBSERVES and
+    grants nothing, so a caller who lies to it only misleads themselves.
+
+        TESTABILITY_SEAM_IN_A_MONITOR != TESTABILITY_SEAM_IN_AN_ENFORCER
+
+    Testability comes from `envelope_expired` being pure instead.
+
+    Previously this was `date.today()`, which is the runner's LOCAL date. GitHub's hosted runners
+    are UTC so the two agreed in CI, but a self-hosted runner, a container with TZ set, or any
+    local invocation on a non-UTC machine -- which is how this repository is worked on -- put the
+    enforcer a day out from every other date in the system. Measured at the time of this change,
+    Pacific/Kiritimati reported 2026-08-19 while UTC reported 2026-08-18: an envelope expiring on
+    the 18th was simultaneously expired and valid depending on who asked.
+    """
+    return datetime.now(timezone.utc).date()
+
+
+def envelope_expired(expires_at: str, today: date) -> bool:
+    """True when `today` is strictly after `expires_at`.
+
+    `expires_at` is the LAST VALID DAY -- expiry is exclusive of the stated date. That boundary is
+    unchanged by this function; it was already the behaviour of the string comparison it replaces,
+    and `check_envelope_expiry.py` copies it deliberately so monitor and enforcer agree.
+
+        MONITOR_SEMANTICS must equal ENFORCER_SEMANTICS
+
+    Pure, so the boundary can be tested from both sides without moving the clock or opening an
+    override the enforcer must not have.
+    """
+    return expires_at < today.isoformat()
+
+
 def main() -> int:
     envelope_path = os.environ.get("ENVELOPE", "config/delegation_envelope.json")
     try:
@@ -309,7 +347,7 @@ def main() -> int:
         )
         return EXIT_ESCALATE
 
-    if str(envelope["expires_at"]) < date.today().isoformat():
+    if envelope_expired(str(envelope["expires_at"]), utc_today()):
         print(
             f"VERDICT: {CONSTITUTIONAL_REQUIRED} — envelope expired "
             f"{envelope['expires_at']}; renewal is a constitutional act",

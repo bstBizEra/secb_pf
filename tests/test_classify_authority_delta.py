@@ -502,3 +502,96 @@ def test_a_malformed_family_size_fails_closed():
         result = run_family("5\t0\tdocs/a.md\n", family=bad)
         assert result.returncode == EXIT_ESCALATE, bad
         assert "CONSTITUTIONAL_REQUIRED" in result.stderr, bad
+
+
+# --- the expiry boundary is evaluated in UTC (SECB-WP-FWK-108) ---------------
+
+def _pure():
+    """Import the module for its pure predicate, without running it."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("_cad", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_expires_at_is_the_last_valid_day_not_the_first_invalid_one():
+    from datetime import date as _date
+
+    mod = _pure()
+    assert mod.envelope_expired("2026-11-08", _date(2026, 11, 7)) is False
+    assert mod.envelope_expired("2026-11-08", _date(2026, 11, 8)) is False, (
+        "expires_at is the LAST VALID DAY. Treating it as the first invalid day would revoke "
+        "authority a day early and would disagree with check_envelope_expiry.py, which copies "
+        "this boundary deliberately."
+    )
+    assert mod.envelope_expired("2026-11-08", _date(2026, 11, 9)) is True
+
+
+@pytest.mark.parametrize("override", ["EVALUATE_AT", "FAKE_TODAY", "NOW_OVERRIDE", "SOURCE_DATE_EPOCH"])
+def test_no_environment_variable_can_move_the_enforcer_evaluation_date(override, custom_envelope):
+    # An injectable "now" on the ENFORCER is a bypass: point it at any past date and a lapsed
+    # envelope reads as valid. check_envelope_expiry.py may take EVALUATE_AT because it OBSERVES
+    # and grants nothing -- a caller who lies to it only misleads themselves.
+    #
+    #     TESTABILITY_SEAM_IN_A_MONITOR != TESTABILITY_SEAM_IN_AN_ENFORCER
+    #
+    # Asserted behaviourally by ATTEMPTING the bypass. The first version of this test grepped the
+    # source for these names and failed on utc_today's own docstring, which explains why the seam
+    # is absent -- a grep cannot tell a mention from a use, and the property is what the code DOES.
+    from datetime import datetime, timedelta, timezone as _tz
+
+    lapsed = (datetime.now(_tz.utc).date() - timedelta(days=1)).isoformat()
+    envelope = custom_envelope(expires_at=lapsed)
+    env = {k: v for k, v in os.environ.items() if k not in ("ENVELOPE", "DIFF_TEXT", "DIFF_PATH")}
+    env["ENVELOPE"] = str(envelope)
+    env[override] = "2020-01-01T00:00:00+00:00"
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        input="1\t0\tdocs/14-plans/SECB-WP-FWK-999.md\n",
+        capture_output=True, text=True, env=env, cwd=ROOT,
+    )
+    assert "expired" in result.stderr and result.returncode == EXIT_ESCALATE, (
+        f"setting {override} to a date before the envelope lapsed changed the enforcer's verdict. "
+        "An expiry an attacker can move is not an expiry."
+    )
+
+
+def _run_under_tz(tz: str, envelope, numstat: str):
+    env = {k: v for k, v in os.environ.items() if k not in ("ENVELOPE", "DIFF_TEXT", "DIFF_PATH")}
+    env["ENVELOPE"] = str(envelope)
+    env["TZ"] = tz
+    return subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        input=numstat, capture_output=True, text=True, env=env, cwd=ROOT,
+    )
+
+
+@pytest.mark.parametrize("tz", ["Pacific/Kiritimati", "Pacific/Niue"])
+def test_expiry_verdict_is_identical_across_timezones(tz, custom_envelope):
+    # Kiritimati is UTC+14 and Niue is UTC-11, so at EVERY instant at least one of them reports a
+    # local date different from the UTC date. Running both, in both directions, means the pair
+    # always exercises the divergence rather than only during part of the day.
+    #
+    # Verified against the pre-fix implementation: with date.today(), the UTC-today envelope was
+    # reported expired under Kiritimati whenever it was a day ahead, and the UTC-yesterday
+    # envelope was reported valid under Niue whenever it was a day behind.
+    from datetime import datetime, timedelta, timezone as _tz
+
+    utc_today = datetime.now(_tz.utc).date()
+    docs = "1\t0\tdocs/14-plans/SECB-WP-FWK-999.md\n"
+
+    valid = _run_under_tz(tz, custom_envelope(expires_at=utc_today.isoformat()), docs)
+    assert "expired" not in valid.stderr, (
+        f"under TZ={tz} an envelope expiring on the UTC date {utc_today} was reported expired. "
+        "expires_at is the last valid day and the evaluation must not depend on the host's zone."
+    )
+
+    lapsed = utc_today - timedelta(days=1)
+    expired = _run_under_tz(tz, custom_envelope(expires_at=lapsed.isoformat()), docs)
+    assert "expired" in expired.stderr, (
+        f"under TZ={tz} an envelope that lapsed on {lapsed} (UTC date {utc_today}) was NOT "
+        "reported expired. A permissive one-day error admits a change under a lapsed mandate."
+    )
+    assert expired.returncode == EXIT_ESCALATE
