@@ -216,6 +216,86 @@ def test_ci_workflow_exclusion_is_declared_not_implicit():
         )
 
 
+@pytest.mark.parametrize("excluded", EXCLUSIONS, ids=lambda e: e["path"])
+def test_every_declared_exclusion_exists(excluded):
+    # The counterpart of test_every_declared_control_exists, which this module has
+    # had since SECB-WP-FWK-052 while the exclusion half was never written. The
+    # asymmetry was not arbitrary -- it followed from the digest. A declared control
+    # that leaves the tree is caught by test_declared_digests_match_the_tree, because
+    # a digest cannot match a file that is not there. Exclusions carry no digest by
+    # design (that is what makes them exclusions), so nothing bound them to the tree
+    # and a dangling entry was fully green.
+    #
+    #     NO_DIGEST -> CHEAP_TO_MERGE  AND  UNBOUND_TO_THE_TREE
+    #
+    # Measured, not assumed: appending an exclusion for a path that does not exist
+    # left the suite at 439 passed. The sibling completeness guard cannot see it,
+    # because it asks whether every discovered script is accounted for -- a subset
+    # check in one direction only. An accounted path that no longer exists satisfies
+    # `on_disk <= accounted` trivially.
+    #
+    # Why this is more than untidiness. An exclusion means "this path is not a
+    # control, do not require a digest for it". While the file is absent the entry is
+    # inert. If a file is later created at that path it arrives PRE-EXCLUDED: the
+    # completeness guard that refused SECB-WP-FWK-071 finds it already accounted for
+    # and never asks for a digest or a registration. The declaration is written at a
+    # moment when it looks harmless and takes effect at a moment when nobody is
+    # looking at it.
+    #
+    #     DECLARED_HARMLESS_NOW != HARMLESS_WHEN_THE_PATH_IS_POPULATED
+    #
+    # So an exclusion must name something that exists. Pre-declaring a path for a
+    # script not yet written is refused here on purpose: the exclusion belongs in the
+    # same pull request that adds the script, where a reviewer sees both together.
+    target = REPO_ROOT / excluded["path"]
+    assert target.is_file(), (
+        f"{excluded['path']} is declared in `declared_exclusions` but is not in the "
+        "tree. Because exclusions carry no digest, nothing else in this suite binds "
+        "them to a real file, so this entry would otherwise sit green indefinitely.\n\n"
+        "Two ways to get here, and they need opposite fixes:\n"
+        "  - the script was moved, renamed or deleted and its exclusion was left "
+        "behind. Remove the entry, or repoint it, in this pull request.\n"
+        "  - the exclusion was written before the script existed. Do not pre-declare: "
+        "a path that is excused before it is populated arrives already outside the "
+        "control surface, and the completeness gate will not ask for it again. Add "
+        "the exclusion in the pull request that adds the script.\n\n"
+        "If a path genuinely must be excused before it exists, that is a decision "
+        "with a blast radius and belongs on a work package, not in a manifest edit."
+    )
+
+
+def test_no_path_is_both_tracked_and_excluded():
+    # A path in `controls` AND in `declared_exclusions` says two contradictory
+    # things: digest me, and do not require a digest for me. Neither the digest
+    # tests nor the completeness guard notice -- the digest test happily verifies
+    # the control entry, the exclusion test happily verifies the exclusion entry,
+    # and `accounted` is a set union that cannot represent the disagreement.
+    #
+    # This is currently caught, but by accident and in the wrong place: the shard
+    # builder refuses it ("REFUSED (closed): duplicate path ... in e5.json and
+    # c2.json") and test_registry_shards.py surfaces that refusal. That guard is
+    # SECB-WP-FWK-085's deliverable and its subject is shard/monolith equivalence,
+    # not manifest coherence. Relying on it means the monolith's own invariant is
+    # held by an artifact of the migration that intends to replace the monolith --
+    # so whichever way that migration resolves, the check can move or vanish under
+    # a change that has no reason to consider this property at all.
+    #
+    #     DETECTED_SOMEWHERE != OWNED_BY_THE_INVARIANT_HOLDER
+    #
+    # Asserted here so the manifest's coherence is checked by the manifest's tests.
+    # This deliberately duplicates a check that already passes; the point is where
+    # it lives, not whether it currently fires.
+    both = {c["path"] for c in CONTROLS} & {e["path"] for e in EXCLUSIONS}
+    assert not both, (
+        f"These paths are simultaneously tracked controls and declared exclusions: "
+        f"{sorted(both)}. An entry cannot both carry a digest and be excused from "
+        "carrying one. Decide which the path is and remove the other entry.\n\n"
+        "A merge is the likely origin: two branches classified the same new script "
+        "differently, and a resolution that unioned each array independently kept "
+        "both verdicts. Union by array is not union by path."
+    )
+
+
 def test_configure_class_controls_are_not_reported_as_staleness():
     # The envelope is meant to differ downstream. If the manifest ever claimed a
     # digest mismatch there implied staleness, it would flag every instantiated
