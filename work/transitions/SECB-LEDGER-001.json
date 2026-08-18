@@ -1,27 +1,18 @@
 {
   "schema": "secb.transition-ledger/v1",
   "genesis_commit": "75a3b12246b50e0f0480ba09548438b884801d5b",
-  "_purpose": "A real transition ledger for three verified landings. Trees and parents are read from git, not transcribed: the chain invariant is only meaningful if the values come from the objects themselves. source_head_sha is recorded as the parent because the squashed source head is not reachable from main -- an honest limitation of reconstructing a ledger after the fact rather than writing it during the landing.",
+  "_purpose": "A real transition ledger for three verified landings. Trees and parents are read from git, not transcribed. Each subject records ONE transition, COMMITTING -> EFFECTIVE, with a genesis justification: these landings predate the ledger, so their earlier transitions were never observed. The first draft recorded DETECTED -> ELIGIBLE -> EFFECTIVE, which the state machine (FWK-103) proved impossible -- DETECTED -> ELIGIBLE is not an edge. The landings were real; that PATH was not. RECORDED_PATH != OBSERVED_PATH.",
   "transitions": [
     {
       "id": "T-001",
       "sequence": 1,
       "subject_id": "PR-153",
-      "from_state": "DETECTED",
-      "to_state": "ELIGIBLE",
-      "occurred_at": "2026-08-17T10:07:37+00:00",
-      "work_package": "SECB-WP-FWK-084",
-      "actor_id": "agent"
-    },
-    {
-      "id": "T-002",
-      "sequence": 2,
-      "subject_id": "PR-153",
-      "from_state": "ELIGIBLE",
+      "from_state": "COMMITTING",
       "to_state": "EFFECTIVE",
       "occurred_at": "2026-08-17T10:07:37+00:00",
       "work_package": "SECB-WP-FWK-084",
       "actor_id": "operator",
+      "genesis_justification": "Imported from a pre-ledger landing. The transitions before COMMITTING were never recorded, because the ledger did not exist when they occurred. Recording an invented path to satisfy continuity would fabricate history to please a control.",
       "compare_and_swap": {
         "target_base_sha": "75a3b12246b50e0f0480ba09548438b884801d5b",
         "source_head_sha": "75a3b12246b50e0f0480ba09548438b884801d5b",
@@ -34,24 +25,15 @@
       }
     },
     {
-      "id": "T-003",
-      "sequence": 3,
+      "id": "T-002",
+      "sequence": 2,
       "subject_id": "PR-146",
-      "from_state": "DETECTED",
-      "to_state": "ELIGIBLE",
-      "occurred_at": "2026-08-17T13:42:57+00:00",
-      "work_package": "SECB-WP-FWK-081",
-      "actor_id": "agent"
-    },
-    {
-      "id": "T-004",
-      "sequence": 4,
-      "subject_id": "PR-146",
-      "from_state": "ELIGIBLE",
+      "from_state": "COMMITTING",
       "to_state": "EFFECTIVE",
       "occurred_at": "2026-08-17T13:42:57+00:00",
       "work_package": "SECB-WP-FWK-081",
       "actor_id": "operator",
+      "genesis_justification": "Imported from a pre-ledger landing. The transitions before COMMITTING were never recorded, because the ledger did not exist when they occurred. Recording an invented path to satisfy continuity would fabricate history to please a control.",
       "compare_and_swap": {
         "target_base_sha": "eea51b2c9c8a41de3ddd5572fe0ca6f5dc9a7222",
         "source_head_sha": "eea51b2c9c8a41de3ddd5572fe0ca6f5dc9a7222",
@@ -64,24 +46,15 @@
       }
     },
     {
-      "id": "T-005",
-      "sequence": 5,
+      "id": "T-003",
+      "sequence": 3,
       "subject_id": "PR-163",
-      "from_state": "DETECTED",
-      "to_state": "ELIGIBLE",
-      "occurred_at": "2026-08-17T17:55:26+00:00",
-      "work_package": "SECB-WP-FWK-091",
-      "actor_id": "agent"
-    },
-    {
-      "id": "T-006",
-      "sequence": 6,
-      "subject_id": "PR-163",
-      "from_state": "ELIGIBLE",
+      "from_state": "COMMITTING",
       "to_state": "EFFECTIVE",
       "occurred_at": "2026-08-17T17:55:26+00:00",
       "work_package": "SECB-WP-FWK-091",
       "actor_id": "operator",
+      "genesis_justification": "Imported from a pre-ledger landing. The transitions before COMMITTING were never recorded, because the ledger did not exist when they occurred. Recording an invented path to satisfy continuity would fabricate history to please a control.",
       "compare_and_swap": {
         "target_base_sha": "f5aa26aef86250a7dfb68223f8f0b5d63f54ea52",
         "source_head_sha": "f5aa26aef86250a7dfb68223f8f0b5d63f54ea52",

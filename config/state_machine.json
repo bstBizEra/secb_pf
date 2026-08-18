@@ -1,0 +1,168 @@
+{
+  "schema": "secb.state-machine/v1",
+  "version": "1.0.0",
+  "_purpose": "The canonical loop state machine as DATA. Before this file, scripts/check_transition_ledger.py enforced CONTINUITY -- each transition's from_state equalled the subject's previous to_state -- and never LEGALITY. A ledger recording DETECTED -> EFFECTIVE, skipping eleven states including every verification and authority gate, was accepted. Demonstrated, not theorised: the check ran and exited 0. CONTINUOUS != LEGAL.",
+  "genesis_states": [
+    "DETECTED"
+  ],
+  "terminal_states": [
+    "CLOSED",
+    "DUPLICATE",
+    "SUPERSEDED",
+    "OUTSIDE_MANDATE",
+    "QUARANTINED",
+    "ROLLED_BACK"
+  ],
+  "canonical_path": [
+    "DETECTED",
+    "ADMISSION_PENDING",
+    "ADMITTED",
+    "CONTEXT_BOUND",
+    "PLANNED",
+    "AUTHORIZED",
+    "EXECUTING",
+    "CANDIDATE_READY",
+    "VERIFYING",
+    "CHALLENGING",
+    "ELIGIBLE",
+    "COMMITTING",
+    "EFFECTIVE",
+    "OBSERVING",
+    "RECONCILED",
+    "CLOSED"
+  ],
+  "exceptional_states": [
+    "DUPLICATE",
+    "SUPERSEDED",
+    "CONTENTION",
+    "DEPENDENCY_BLOCKED",
+    "CONTEXT_INVALID",
+    "AUTHORITY_DENIED",
+    "BUDGET_EXCEEDED",
+    "EVIDENCE_INCOMPLETE",
+    "VERIFICATION_FAILED",
+    "SECURITY_HOLD",
+    "STALE_CANDIDATE",
+    "POLICY_CONFLICT",
+    "QUARANTINED",
+    "ROLLED_BACK",
+    "OUTSIDE_MANDATE"
+  ],
+  "quarantine_from_any": true,
+  "_quarantine_note": "QUARANTINED is reachable from any state, because framework integrity can become uncertain at any point and containment must never be an illegal move. It is declared as a flag rather than as thirty edges so the exception is visible instead of buried in the edge list.",
+  "_repair_note": "Repair edges return to a state that REDOES the work. VERIFICATION_FAILED -> EXECUTING, never -> VERIFYING: re-verifying an unchanged candidate and reporting the second look as a result is how a retry launders a failure into a pass.",
+  "edges": {
+    "DETECTED": [
+      "ADMISSION_PENDING"
+    ],
+    "ADMISSION_PENDING": [
+      "ADMITTED",
+      "DUPLICATE",
+      "CONTENTION",
+      "DEPENDENCY_BLOCKED",
+      "OUTSIDE_MANDATE"
+    ],
+    "ADMITTED": [
+      "CONTEXT_BOUND",
+      "CONTEXT_INVALID"
+    ],
+    "CONTEXT_BOUND": [
+      "PLANNED",
+      "CONTEXT_INVALID"
+    ],
+    "PLANNED": [
+      "AUTHORIZED",
+      "AUTHORITY_DENIED",
+      "OUTSIDE_MANDATE"
+    ],
+    "AUTHORIZED": [
+      "EXECUTING",
+      "AUTHORITY_DENIED"
+    ],
+    "EXECUTING": [
+      "CANDIDATE_READY",
+      "BUDGET_EXCEEDED",
+      "SECURITY_HOLD",
+      "EVIDENCE_INCOMPLETE"
+    ],
+    "CANDIDATE_READY": [
+      "VERIFYING",
+      "STALE_CANDIDATE"
+    ],
+    "VERIFYING": [
+      "CHALLENGING",
+      "VERIFICATION_FAILED",
+      "EVIDENCE_INCOMPLETE"
+    ],
+    "CHALLENGING": [
+      "ELIGIBLE",
+      "VERIFICATION_FAILED",
+      "SECURITY_HOLD",
+      "POLICY_CONFLICT"
+    ],
+    "ELIGIBLE": [
+      "COMMITTING",
+      "STALE_CANDIDATE",
+      "SUPERSEDED"
+    ],
+    "COMMITTING": [
+      "EFFECTIVE",
+      "STALE_CANDIDATE"
+    ],
+    "EFFECTIVE": [
+      "OBSERVING",
+      "ROLLED_BACK"
+    ],
+    "OBSERVING": [
+      "RECONCILED",
+      "ROLLED_BACK",
+      "SECURITY_HOLD"
+    ],
+    "RECONCILED": [
+      "CLOSED"
+    ],
+    "VERIFICATION_FAILED": [
+      "EXECUTING"
+    ],
+    "EVIDENCE_INCOMPLETE": [
+      "EXECUTING"
+    ],
+    "STALE_CANDIDATE": [
+      "EXECUTING"
+    ],
+    "SECURITY_HOLD": [
+      "EXECUTING",
+      "QUARANTINED"
+    ],
+    "POLICY_CONFLICT": [
+      "PLANNED"
+    ],
+    "BUDGET_EXCEEDED": [
+      "PLANNED"
+    ],
+    "CONTEXT_INVALID": [
+      "ADMITTED"
+    ],
+    "DEPENDENCY_BLOCKED": [
+      "ADMISSION_PENDING"
+    ],
+    "CONTENTION": [
+      "ADMISSION_PENDING"
+    ],
+    "AUTHORITY_DENIED": [
+      "PLANNED"
+    ]
+  },
+  "reopen_edges": {
+    "CLOSED": [
+      "EXECUTING"
+    ],
+    "QUARANTINED": [
+      "EXECUTING"
+    ],
+    "ROLLED_BACK": [
+      "PLANNED"
+    ]
+  },
+  "_reopen_note": "Reopening is DECLARED and justified, never justified alone. A justification that could make any edge legal would turn the state machine into a suggestion. Only three terminal states are reopenable: CLOSED (the reconciler's FALSE_CLOSURE class exists precisely because closure can be wrong), QUARANTINED (containment is meant to be liftable) and ROLLED_BACK (a rollback is followed by re-planning). DUPLICATE, SUPERSEDED and OUTSIDE_MANDATE are NOT reopenable: the right move there is a new subject, not the resurrection of a settled one."
+}
