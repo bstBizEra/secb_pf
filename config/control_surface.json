@@ -120,6 +120,13 @@
       "reason": "Not CI enforcement and not portable. No workflow invokes it -- it is an operator tool that measures whether SecB's own pull-request queue drains, against SecB's own branches. Under the graph-derived discovery of SECB-WP-FWK-082 (#148) it would not be demanded at all; it is classified here only because that discovery change is unmerged and the filename glob still applies on this base.",
       "trigger_to_cover": "Track it if ci.yml ever invokes it. Note that once #148 lands, discovery derives from the execution graph and this entry becomes informational rather than required.",
       "why_declared": "An undeclared exclusion is indistinguishable from an oversight. Recorded rather than renamed: naming the script verify_* would have hidden it from the glob, which is the evasion SECB-WP-FWK-082 exists to remove."
+    },
+    {
+      "path": "scripts/check_policy_decision.py",
+      "portability_class": "configure",
+      "reason": "Evaluates a request against a declared policy bundle and returns a typed decision. It decides; it enforces nothing, mutates nothing and confers no authority. No workflow invokes it, so graph-derived discovery does not make it a member of the control surface.",
+      "trigger_to_cover": "Any workflow invoking it. It must then move to `controls` with a digest in the SAME pull request that wires it up -- and at that point the policy bundle becomes an authority surface in its own right, which is a governance decision rather than a wiring one.",
+      "why_declared": "Declared so the completeness gate sees it was classified, not overlooked. The class is `configure` because the evaluator is project-independent while the RULES are SecB's: a downstream project copies the engine and writes its own bundle. It is also explicitly NOT OPA -- the decision interface is preserved, the Rego language is not -- so a downstream adopting real OPA replaces the engine without changing the interface."
     }
   ],
   "known_limits": [

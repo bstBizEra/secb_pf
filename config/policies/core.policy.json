@@ -1,0 +1,131 @@
+{
+  "schema": "secb.policy-bundle/v1",
+  "version": "1.0.0",
+  "_purpose": "Declarative policy evaluated OUTSIDE the executing agent. This is deliberately NOT Rego and NOT OPA: NFR-12 keeps gates stdlib-only, CI installs only pytest, and a hand-written Rego interpreter would be a large dependency-shaped liability with no upside. What matters about policy-as-code is preserved -- the decision is computed from declared rules by a component the requester does not control, and returns a typed decision -- so the OPA DECISION INTERFACE is kept even though the language is not. If real OPA is adopted later, the interface does not change. POLICY_INTERFACE_PRESERVED != OPA_ADOPTED.",
+  "_default": "Default is DENY. A request matching no rule is denied, never allowed: an unmatched request is an unclassified one, and the whole point of an external decision is that silence is not consent.",
+  "rules": [
+    {
+      "id": "POL-ADM-001",
+      "effect": "allow",
+      "operation": "admit_work",
+      "when": {
+        "work_package_present": true,
+        "duplicate": false,
+        "contention": false
+      },
+      "reason_codes": [
+        "WORK_PACKAGE_PRESENT",
+        "NO_DUPLICATE",
+        "NO_CONTENTION"
+      ],
+      "required_evidence": [
+        "admission_verdict"
+      ]
+    },
+    {
+      "id": "POL-ADM-002",
+      "effect": "deny",
+      "operation": "admit_work",
+      "when": {
+        "work_package_present": false
+      },
+      "reason_codes": [
+        "NO_WORK_PACKAGE"
+      ],
+      "_note": "No ticket, no work. Stated as its own rule so the denial names a cause."
+    },
+    {
+      "id": "POL-AUTH-001",
+      "effect": "allow",
+      "operation": "grant_capability",
+      "when": {
+        "envelope_valid": true,
+        "within_autonomy_ceiling": true,
+        "paths_within_scope": true,
+        "issuer_independent": true
+      },
+      "reason_codes": [
+        "ENVELOPE_VALID",
+        "WITHIN_CEILING",
+        "PATHS_IN_SCOPE",
+        "ISSUER_INDEPENDENT"
+      ],
+      "required_evidence": [
+        "authority_grant",
+        "context_receipt"
+      ]
+    },
+    {
+      "id": "POL-AUTH-002",
+      "effect": "deny",
+      "operation": "grant_capability",
+      "when": {
+        "issuer_independent": false
+      },
+      "reason_codes": [
+        "SELF_ISSUED_AUTHORITY"
+      ],
+      "_note": "An agent may not issue its own authority, whatever else is satisfied."
+    },
+    {
+      "id": "POL-AUTH-003",
+      "effect": "deny",
+      "operation": "grant_capability",
+      "when": {
+        "envelope_valid": false
+      },
+      "reason_codes": [
+        "ENVELOPE_INVALID_OR_EXPIRED"
+      ]
+    },
+    {
+      "id": "POL-MRG-001",
+      "effect": "conditional",
+      "operation": "merge_candidate",
+      "when": {
+        "checks_green": true,
+        "head_unchanged": true,
+        "expected_tree_proven": true,
+        "contention_resolved": true
+      },
+      "reason_codes": [
+        "CHECKS_GREEN",
+        "HEAD_UNCHANGED",
+        "TREE_PROVEN",
+        "NO_CONTENTION"
+      ],
+      "required_evidence": [
+        "queue_receipt",
+        "transition_receipt"
+      ],
+      "obligations": [
+        "human_merge_authority",
+        "post_merge_tree_readback"
+      ],
+      "_note": "CONDITIONAL, never allow. Every mechanical precondition can hold and the merge still requires an authority this policy does not hold: at A3 merge is retained by the operator. A policy that could return allow here would be granting what it cannot."
+    },
+    {
+      "id": "POL-MRG-002",
+      "effect": "deny",
+      "operation": "merge_candidate",
+      "when": {
+        "head_unchanged": false
+      },
+      "reason_codes": [
+        "STALE_CANDIDATE"
+      ]
+    },
+    {
+      "id": "POL-POL-001",
+      "effect": "deny",
+      "operation": "adopt_policy",
+      "when": {
+        "proposal_is_self_referential": true
+      },
+      "reason_codes": [
+        "POLICY_CANNOT_ADOPT_ITSELF"
+      ],
+      "_note": "A policy change cannot authorise its own adoption. Encoded as a rule so the refusal is computed rather than remembered."
+    }
+  ]
+}
