@@ -120,6 +120,13 @@
       "reason": "Not CI enforcement and not portable. No workflow invokes it -- it is an operator tool that measures whether SecB's own pull-request queue drains, against SecB's own branches. Under the graph-derived discovery of SECB-WP-FWK-082 (#148) it would not be demanded at all; it is classified here only because that discovery change is unmerged and the filename glob still applies on this base.",
       "trigger_to_cover": "Track it if ci.yml ever invokes it. Note that once #148 lands, discovery derives from the execution graph and this entry becomes informational rather than required.",
       "why_declared": "An undeclared exclusion is indistinguishable from an oversight. Recorded rather than renamed: naming the script verify_* would have hidden it from the glob, which is the evasion SECB-WP-FWK-082 exists to remove."
+    },
+    {
+      "path": "scripts/check_reconciliation.py",
+      "portability_class": "verbatim",
+      "reason": "An advisory reconciler, not a control. It compares a supplied snapshot of declared state against observed state and reports divergences; it repairs nothing, closes nothing and confers no authority. No workflow invokes it, so under #148's graph-derived discovery it is not a member of the control surface.",
+      "trigger_to_cover": "Any workflow invoking it -- most likely a scheduled reconcile.yml. Graph-derived discovery would then make it a member, and it must move to `controls` with a digest in the SAME pull request that wires it up.",
+      "why_declared": "Declared rather than omitted so the completeness gate sees it was classified, not overlooked. Its logic is project-independent -- the six divergence classes assume nothing about SecB -- which is why the portability class is verbatim rather than configure."
     }
   ],
   "known_limits": [
