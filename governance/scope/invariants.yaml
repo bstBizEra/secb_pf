@@ -1,0 +1,54 @@
+# Zero-tolerance invariants. The Framework Stability Score may not override any of these: an
+# aggregate that can average away a violated invariant is a scoreboard, not a control.
+schema: secb.framework-invariants/v1
+scope_ref: SECB-SCOPE-001
+
+zero_tolerance:
+  - id: ZT-01
+    indicator: unauthorized_mutations
+    target: 0
+  - id: ZT-02
+    indicator: false_closure
+    target: 0
+  - id: ZT-03
+    indicator: evidence_free_promotion
+    target: 0
+  - id: ZT-04
+    indicator: stale_head_merge
+    target: 0
+  - id: ZT-05
+    indicator: unverified_production_artifact
+    target: 0
+  - id: ZT-06
+    indicator: active_secret_released
+    target: 0
+  - id: ZT-07
+    indicator: self_authorized_policy_adoption
+    target: 0
+  - id: ZT-08
+    indicator: unbounded_retry_loop
+    target: 0
+  - id: ZT-09
+    indicator: unreconciled_production_deployment
+    target: 0
+  - id: ZT-10
+    indicator: silent_fail_open_result
+    target: 0
+
+# Observed history is recorded because a target of zero with no measurement is an aspiration.
+# ZT-10 is the one with a real, dated violation, and it is recorded rather than reset to zero on
+# the strength of having been fixed.
+observed:
+  ZT-10:
+    violations_found: 1
+    detail: >-
+      scripts/check_budget.py answered "BUDGET GATE PASS: 0/N files" to empty stdin, reachable via
+      a failing `git diff` in a bash pipeline without pipefail. Closed by SECB-WP-FWK-091 (#163,
+      merged ace1e579). A test had asserted the fail-open behaviour, so the hole was defended
+      rather than merely unguarded.
+    status: CLOSED_WITH_REGRESSION_TEST
+  ZT-04:
+    violations_found: 0
+    detail: >-
+      13 predicted landings, 13 full-identity tree matches, 0 drift, 0 CAS failures. Every landing
+      was pinned by source head and verified by tree readback.

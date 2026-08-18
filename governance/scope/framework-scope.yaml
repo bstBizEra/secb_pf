@@ -1,0 +1,76 @@
+# The FROZEN framework scope. Convergence cannot be proven against a moving target, and SecB has
+# received three expanding scope documents in four turns. This file is the thing that stops.
+#
+# Freezing is not a claim that the scope is complete or correct. It is a claim that THIS version is
+# the one a stability epoch is measured against. Additions do not silently join it; they raise the
+# version and start a new epoch, per the scope-change classification below.
+schema: secb.framework-scope/v1
+
+framework_scope:
+  id: SECB-SCOPE-001
+  version: 1.0.0
+  frozen_at: ace1e579597f768c34b222a91d66ed445dfe34d3
+  frozen_on: "2026-08-18"
+  sources:
+    - docs/00-governance/AUTONOMOUS_LOOP_DESIGN.md   # PROPOSED, recorded not adopted
+    - SECB-FRAMEWORK-STABILITY-MANDATE-001
+
+  mission:
+    assign_and_verify_authority: true
+    execute_as_super_agent: false
+
+  lifecycle_stages:
+    S00_initialization: required
+    S01_research_prd: required
+    S02_architecture: required
+    S03_planning: required
+    S04_implementation: required
+    S05_verification: required
+    S06_security: required
+    S07_release: required
+    S08_production: required
+    S09_operations: required
+
+  cross_cutting_capabilities:
+    authority: required
+    context_binding: required
+    evidence: required
+    reconciliation: required
+    rollback: required
+    learning: required
+
+  # The 14 dimensions every stage is measured against. A stage with missing cells is not stable
+  # even when its happy path works.
+  capability_dimensions:
+    - trigger_defined
+    - context_schema
+    - authority_policy
+    - agent_team
+    - tool_allowlist
+    - skill_contract
+    - positive_tests
+    - negative_tests
+    - adversarial_tests
+    - evidence_contract
+    - retry_repair_limit
+    - reconciliation
+    - rollback_compensation
+    - stability_target
+
+scope_change_classification:
+  clarification_no_semantic_effect: patch
+  new_optional_capability: minor
+  new_required_lifecycle_control: minor_and_new_epoch
+  authority_model_change: constitutional
+  invariant_removal_or_weakening: breaking
+  evidence_schema_change: new_evidence_epoch
+  test_threshold_reduction: invalidates_stability_claim
+
+freeze_rule:
+  during_a_stability_epoch:
+    - requirements cannot be silently added
+    - gate definitions cannot be weakened
+    - test-set changes start a new epoch
+    - policy changes start a new epoch
+    - schema-breaking changes start a new epoch
+    - unresolved expansion requests remain outside the candidate

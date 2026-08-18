@@ -1,0 +1,63 @@
+# What "stable" would mean, declared BEFORE the measurement that could be tempted to fit it.
+#
+# List items are single-line by construction. The repository's YAML subset reader does not support
+# folded scalars inside list items, and a file whose reader silently drops a section makes every
+# test reading that section vacuous -- which is exactly how the first draft of this file passed
+# four assertions against data it had lost.
+schema: secb.stability-targets/v1
+scope_ref: SECB-SCOPE-001
+scope_version: 1.0.0
+
+maturity_states:
+  - UNDEFINED
+  - SCOPED
+  - SPECIFIED
+  - IMPLEMENTED
+  - SANDBOX_VERIFIED
+  - SHADOW_VALIDATED
+  - PILOT_PROVEN
+  - RELEASE_CANDIDATE
+  - FRAMEWORK_STABLE
+  - OPERATING
+  - SUPERSEDED
+
+current_assessment:
+  state: IMPLEMENTED
+  assessed_at: ace1e579597f768c34b222a91d66ed445dfe34d3
+  assessed_on: "2026-08-18"
+  evidence_for:
+    - control-plane functions exist and run deterministically (12 scripts, 471 tests)
+    - positive and negative paths are tested for the controls that exist
+    - 13 predicted landings with full tree identity, zero drift, zero CAS failures
+  evidence_against_advancing:
+    - M4 needs adversarial coverage across the scope; it exists per-control, not per-lifecycle
+    - fail-open paths were still being discovered this cycle (ZT-10), which is M3 by definition
+    - 0 of 10 lifecycle stages are instrumented; the measured capability matrix is near-empty
+  not_claimed:
+    - SHADOW_VALIDATED - no shadow verdict has been compared against an actual outcome
+    - PILOT_PROVEN - no PRD-to-production execution has occurred on any project
+    - FRAMEWORK_STABLE - no stability epoch has started
+
+stability_requirement:
+  consecutive_epochs: 3
+  frozen_scope_version: 1.0.0
+  minimum_pilot_projects: 2
+  full_lifecycle_executions_per_epoch: 1
+  exercised_rollback_paths_per_epoch: 1
+  critical_unexplained_divergences_permitted: 0
+  note: starting governance targets, not scientific constants; recalibrate from observed baselines
+
+epoch_contents:
+  - framework validation run
+  - complete lifecycle execution
+  - scheduled reconciliation
+  - fault-injection suite
+  - recovery exercise
+  - evidence re-verification
+
+blocking_the_first_epoch:
+  - no lifecycle stage is instrumented, so a complete lifecycle execution has nothing to execute
+  - no fault-injection suite exists
+  - no recovery exercise exists
+  - no pilot project exists
+  - 11 pull requests await operator review, so framework throughput is gated on authority
