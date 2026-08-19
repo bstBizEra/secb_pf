@@ -222,7 +222,13 @@ def authorize_invocation(plan: RoutePlan, skill_id: str, *, request: dict,
 def authorize_effect(plan: RoutePlan, skill_id: str, effect: str, *, confirmation: bool) -> str:
     if skill_id not in plan.invocation_warrants:
         raise RouteHeld("invocation not authorized")
-    skill = next(s for s in plan.selected if s.skill_id == skill_id)
+    # `next(...)` on an exhausted generator raises bare StopIteration, which is NOT this module's
+    # refusal contract: a caller writing `except RouteHeld` does not catch it, and inside a
+    # generator Python converts it to RuntimeError -- so the failure mode changed with the call
+    # site. It never granted anything, which made it fail-closed by accident rather than by design.
+    skill = next((s for s in plan.selected if s.skill_id == skill_id), None)
+    if skill is None:
+        raise RouteHeld("skill not in plan")
     if effect not in skill.effects:
         raise RouteHeld("effect outside skill contract")
     if effect in HIGH_IMPACT_EFFECTS and not confirmation:
@@ -260,6 +266,14 @@ def reconcile(status: str, readback_status: str | None) -> str:
 
 def fallback(original_controls: dict, fallback_controls: dict) -> int:
     for floor in ("risk", "authority", "validation", "data"):
+        # An OMITTED floor is the likeliest way to weaken one, and it was the only way to leave
+        # this function by an uncontrolled exception: `fallback_controls[floor]` raised KeyError
+        # where the contract promises RouteHeld. Absence is refused before comparison, so a
+        # missing floor and a lowered one are both refusals rather than two different exception
+        # types a caller has to know about.
+        if floor not in fallback_controls or floor not in original_controls:
+            missing = "fallback" if floor not in fallback_controls else "original"
+            raise RouteHeld(f"{missing} controls declare no {floor} floor")
         if fallback_controls[floor] < original_controls[floor]:
             raise RouteHeld(f"fallback weakens {floor} floor")
     return 2  # a fallback creates a new route version
