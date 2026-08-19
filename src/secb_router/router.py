@@ -37,6 +37,39 @@ class RouteHeld(RuntimeError):
     """A fail-closed routing or authorization decision."""
 
 
+# Which plan statuses an invocation may be authorized FROM.
+#
+# The vocabulary is not invented here. It is the `status` enum of
+# docs/06-agent-orchestration/skill-router/route-plan.schema.json, and the split below must cover
+# it exactly -- test_router_hold_is_terminal asserts the totality, so adding a status to the schema
+# without classifying it fails there rather than silently defaulting to permitted.
+#
+# Expressed as an ALLOWLIST on purpose. A denylist would admit any status added later, which is the
+# same fail-open shape this split exists to close.
+#
+# The three excluded statuses are the ones that mean STOP. Before this split, authorize_invocation
+# never read plan.status and assigned "AUTHORIZED" unconditionally, so a plan sitting in HELD -- the
+# fail-closed state the whole design rests on, and the state this module's exception is named for --
+# was flipped to AUTHORIZED and issued a warrant. A hold that the next authorization call clears is
+# not a hold.
+#
+#     STATUS_RECORDED != STATUS_ENFORCED
+AUTHORIZABLE_STATUSES = frozenset({
+    "PLANNED",    # the ordinary first authorization
+    "AUTHORIZED", # a later skill in the same multi-skill plan
+    "EXECUTING",  # the next skill in the DAG while earlier ones run
+    "VALIDATING",
+    "REPAIRING",  # repair() has already refused any weakening of acceptance criteria
+    "FALLBACK",   # fallback() has already refused any weakening of a control floor
+})
+
+NON_AUTHORIZABLE_STATUSES = frozenset({
+    "HELD",                   # a fail-closed decision; clearing it here would defeat it
+    "CLARIFICATION_REQUIRED", # waiting on an answer nobody has given yet
+    "COMPLETED",              # terminal; re-authorizing would reopen a closed route
+})
+
+
 @dataclass(frozen=True)
 class Skill:
     skill_id: str
@@ -205,6 +238,11 @@ def route(request: dict, skills: list[Skill], policy_hash: str, now: datetime | 
 
 def authorize_invocation(plan: RoutePlan, skill_id: str, *, request: dict,
                          skills: list[Skill], policy_hash: str) -> str:
+    # Checked BEFORE the hashes: a held or completed route is refused whatever its subject looks
+    # like. Verifying hashes first would let a held plan produce "request changed" and imply that a
+    # matching request would have been authorized.
+    if plan.status not in AUTHORIZABLE_STATUSES:
+        raise RouteHeld(f"plan status {plan.status} is not authorizable")
     if plan.request_hash != canonical_hash(request):
         raise RouteHeld("request changed")
     if plan.registry_hash != registry_hash(skills):
