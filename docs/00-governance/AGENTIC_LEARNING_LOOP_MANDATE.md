@@ -136,6 +136,65 @@ mandate — *"avoid duplicate or superseded work"* — it is the case that rule 
 Registration is owed under the sequence recorded in the identifier-registration issue: **home → use →
 register**. This document is the home; none is in use yet.
 
+## 6.5 Vocabulary
+
+Declared in the form `tests/test_mandate_vocabulary.py` (SECB-WP-FWK-116) verifies against
+`config/identifier_taxonomy.json`. Status vocabulary is closed: `COLLIDES`, `NEW`, `REGISTERED`.
+
+| Prefix | Used for | Registry status |
+| :--- | :--- | :--- |
+| `K` | K0–K9 knowledge ladder | COLLIDES — registered `K-01..K-12`, Key Performance Indicators |
+| `C` | `risk_class: C2` | COLLIDES — registered `C0-C5`, conflict impact, 3 recorded meanings |
+| `R` | *(unused by the mandate)* | REGISTERED `R0-R4` — the risk ladder `risk_class` should use |
+| `KN` | *(unused by the mandate)* | REGISTERED `KN-001..KN-005` — the knowledge register that ships |
+| `KC` | KC-001 knowledge candidates | NEW |
+| `CC` | CC-001 capability candidates | NEW |
+| `LL` | LL-01…LL-07 implementation phases | NEW |
+| `SECB-KNOW` | SECB-KNOW-001 knowledge objects | NEW |
+| `EPISODE` | EPISODE-001 | NEW |
+
+## 6.6 Operator disposition — vocabulary resolved 2026-08-20
+
+The operator's loop verdict on this PR resolves every finding above. Recorded here as a
+**disposition on the record**, not as an edit to the mandate text: §2 and §6 state the mandate **as
+given**, and rewriting the identifiers there would make this document disagree with what was actually
+mandated.
+
+```text
+RECORDED_AS_GIVEN  +  DISPOSITION  ≠  SILENTLY_AMENDED_RECORD
+```
+
+| Proposed | Resolution |
+| :--- | :--- |
+| `K0–K9` knowledge ladder | rename **`KL0–KL9`**; `K-01..K-12` stays with KPIs |
+| `risk_class: C2` | replace with registered **`risk_tier: R2`** |
+| `SECB-KNOW-*` | do not introduce — extend **`KN-*`** |
+| parallel `knowledge/` tree | do not create — extend the current Knowledge Register/Layer |
+| `KC-*` | **`KN-CAND-*`** |
+| `EPISODE-*` | **`KN-EP-*`** |
+| `LL-*` | descriptive Work Package IDs; no new ladder |
+| `CC-*` | reserve only if capability candidates are materially distinct |
+
+The verdict's normalized model collapses five proposed namespaces into extensions of the existing
+knowledge home. **The `knowledge/` hierarchy in §5 must therefore not be implemented** — the existing
+knowledge layer is extended, or deliberately superseded through an explicit migration.
+
+### Consequences for §5 and §6.3
+
+§6.3 recorded that a knowledge register already ships and that a parallel tree would verdict
+`DUPLICATE` under the mandate's own §14. The disposition adopts that reading. §5's absence measurement
+stands as a measurement; it is no longer a gap to be filled by the structure the mandate proposed.
+
+### Adoption is still not granted
+
+```text
+RECORDED ≠ ADOPTED ≠ AUTHORIZED ≠ IMPLEMENTED
+```
+
+The verdict states `LEARNING_ADOPTION: NOT_ADOPTED` and `LEARNING_IMPLEMENTATION: NOT_AUTHORIZED`, and
+requires an explicit `ADOPT | ADOPT_WITH_CONDITIONS | REJECT | DEFER` verdict after the collisions are
+resolved. Resolving the vocabulary does not adopt the mandate.
+
 ## 7. What this document is not
 
 - Not an adoption. No promotion verdict, knowledge object or capability candidate may cite it.
