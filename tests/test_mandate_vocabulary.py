@@ -193,7 +193,32 @@ def test_the_parser_extracted_rows_from_every_mandate(path: Path):
 # calling it NEW hides that the base already has an owner and a shape. EXTENDS names it exactly.
 
 
+# The status must be structurally parseable, not merely start with the keyword. Checking only that
+# the registered form text APPEARS anywhere in the status let a row name one base while deriving
+# another: `EXTENDS \`A\` beyond registered form \`KN-001..KN-005\`` on prefix `KN-CAND` derived KN,
+# found KN registered, found the KN form present -- and never rejected the false base `A`.
+#
+#     SUBSTRING_PRESENT != FIELD_BOUND
+EXTENDS_STATUS = re.compile(
+    r"EXTENDS\s+`([^`]+)`\s+beyond its registered form\s+`([^`]+)`\s*"
+)
+
+
 def base_prefix(prefix: str) -> str:
+    """The longest REGISTERED prefix that `prefix` extends.
+
+    Splitting on the first hyphen was wrong: `SECB-WP` is itself a registered prefix, so
+    `SECB-WP-FWK` derived `SECB`, which is not registered -- refusing a legitimate row with a
+    message blaming the wrong thing. Longest-match resolves against the registry rather than
+    against punctuation.
+
+    Falls back to the first-hyphen split when nothing matches, so the caller's assertion still
+    reports a sensible base in its failure message.
+    """
+    candidates = [p for p in LADDERS
+                  if prefix == p or prefix.startswith(p + "-")]
+    if candidates:
+        return max(candidates, key=len)
     return prefix.split("-", 1)[0]
 
 
@@ -214,16 +239,34 @@ def test_an_EXTENDS_row_names_a_registered_base(path: Path):
 
 
 @pytest.mark.parametrize("path", mandates(), ids=lambda p: p.name)
-def test_an_EXTENDS_row_states_the_form_it_departs_from(path: Path):
-    # The reader has to be able to see WHAT is being extended without opening the registry. Without
-    # the registered form in the row, EXTENDS is just a nicer-looking NEW.
+def test_an_EXTENDS_row_binds_the_base_and_form_it_declares(path: Path):
+    """The declared base must BE the derived base, and the declared form the registered one.
+
+    Substring presence is not binding. A row may name any base and any form and still contain the
+    right characters somewhere; the fields have to be parsed and compared.
+    """
     for prefix, purpose, status in vocabulary(path):
         if not status.startswith("EXTENDS"):
             continue
-        registered_form = LADDERS[base_prefix(prefix)]["form"]
-        assert registered_form in status, (
-            f"{path.name}: {prefix!r} is declared EXTENDS but the row does not name the registered "
-            f"form it departs from ({registered_form!r}). Include it so the extension is legible."
+        parsed = EXTENDS_STATUS.fullmatch(status)
+        assert parsed, (
+            f"{path.name}: {prefix!r} has status {status!r}. An EXTENDS row must read exactly "
+            "``EXTENDS `<base>` beyond its registered form `<form>` `` so both fields can be "
+            "compared rather than searched for."
+        )
+        declared_base, declared_form = parsed.groups()
+        derived = base_prefix(prefix)
+        assert declared_base == derived, (
+            f"{path.name}: {prefix!r} declares it extends {declared_base!r}, but the prefix "
+            f"resolves to {derived!r}. A row that names one base while extending another is worse "
+            "than an undeclared extension: it reads as verified."
+        )
+        assert declared_base in LADDERS, (
+            f"{path.name}: declared base {declared_base!r} is not registered"
+        )
+        assert declared_form == LADDERS[declared_base]["form"], (
+            f"{path.name}: {prefix!r} declares form {declared_form!r}; the registry records "
+            f"{LADDERS[declared_base]['form']!r} for {declared_base!r}."
         )
 
 
@@ -250,3 +293,47 @@ def test_an_extends_row_round_trips_its_full_status(tmp_path):
     assert prefix == "KN-EP"
     assert status.startswith("EXTENDS")
     assert LADDERS["KN"]["form"] in status, status
+
+
+def _one_row_doc(tmp_path, prefix: str, status: str) -> Path:
+    doc = tmp_path / "Z_MANDATE.md"
+    doc.write_text(
+        "# Z\n\n## Vocabulary\n\n| Prefix | Used for | Registry status |\n| :--- | :--- | :--- |\n"
+        f"| `{prefix}` | x | {status} |\n",
+        encoding="utf-8",
+    )
+    return doc
+
+
+def test_an_extends_row_naming_a_false_base_is_refused(tmp_path):
+    # The exact malformed row the operator's verdict produced. It derives KN, finds KN registered,
+    # and contains the KN form -- and must still be refused for declaring base `A`.
+    doc = _one_row_doc(tmp_path, "KN-CAND",
+                       "EXTENDS `A` beyond its registered form `KN-001..KN-005`")
+    prefix, _, status = vocabulary(doc)[0]
+    parsed = EXTENDS_STATUS.fullmatch(status)
+    assert parsed
+    assert parsed.group(1) != base_prefix(prefix), "the probe is not exercising the false base"
+
+
+def test_an_extends_row_naming_a_wrong_form_is_refused(tmp_path):
+    doc = _one_row_doc(tmp_path, "KN-EP",
+                       "EXTENDS `KN` beyond its registered form `KN-999..KN-000`")
+    prefix, _, status = vocabulary(doc)[0]
+    parsed = EXTENDS_STATUS.fullmatch(status)
+    assert parsed and parsed.group(2) != LADDERS["KN"]["form"]
+
+
+def test_an_unstructured_extends_status_is_refused(tmp_path):
+    doc = _one_row_doc(tmp_path, "KN-EP", "EXTENDS KN a bit")
+    _, _, status = vocabulary(doc)[0]
+    assert EXTENDS_STATUS.fullmatch(status) is None
+
+
+def test_the_base_of_a_hyphenated_registered_prefix_resolves_by_longest_match():
+    # SECB-WP is registered and contains a hyphen. First-hyphen splitting derived "SECB", which is
+    # not registered, so a legitimate SECB-WP extension was refused with the wrong reason.
+    assert "SECB-WP" in LADDERS
+    assert base_prefix("SECB-WP-FWK") == "SECB-WP"
+    assert base_prefix("KN-CAND") == "KN"
+    assert base_prefix("KL") == "KL"  # unregistered: falls back, still reports something usable
