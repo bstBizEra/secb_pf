@@ -38,7 +38,8 @@ become a super-agent, and that production capability does not grant unlimited au
 ## 2. Stage ladder, as given
 
 Ten stages, each with a single exit verdict. **This is a new ladder in this repository** and is
-registered as `PROPOSED` in `config/identifier_taxonomy.json` — see §6.
+**proposed but unregistered**; registration is deferred until an in-tree consumer exists, per
+**home → use → register** — see §6.
 
 | Stage | Name | Exit verdict |
 | :--- | :--- | :--- |

@@ -135,3 +135,37 @@ def test_every_stage_in_the_ladder_declares_exactly_one_exit_verdict():
     assert len(verdicts) == len(set(verdicts)) == 10
     for v in verdicts:
         assert v in TEXT, f"stage ladder is missing its exit verdict {v}"
+
+
+def test_the_document_never_claims_the_stage_ladder_is_registered():
+    """The internal contradiction the operator's landing verdict caught.
+
+    §2 said the Stage ladder was "registered as PROPOSED in config/identifier_taxonomy.json" while
+    §6 and the live registry both show it unregistered. Two sections of one document disagreeing
+    about the same fact is worse than either being wrong alone: whichever a reader reaches first
+    becomes what they believe.
+
+        SECTION_A_ASSERTS != SECTION_B_ASSERTS  →  the document has no position
+    """
+    import json
+
+    taxonomy = json.loads(
+        (REPO_ROOT / "config" / "identifier_taxonomy.json").read_text(encoding="utf-8")
+    )
+    registered = {e["prefix"] for e in taxonomy["ladders"]}
+    registered |= {e["prefix"] for e in taxonomy["reserved_unbound"]}
+    stage_is_registered = any(p in registered for p in ("Stage", "STAGE", "S"))
+    flat = " ".join(TEXT.split())
+
+    if not stage_is_registered:
+        assert "registered as `PROPOSED`" not in flat, (
+            "the document claims the Stage ladder is registered, but the registry has no Stage, "
+            "STAGE or S entry. Say 'proposed but unregistered' until an in-tree consumer exists."
+        )
+        assert "proposed but unregistered" in flat, (
+            "§2 must state the Stage ladder's real registry status, so it cannot contradict §6"
+        )
+    else:
+        assert "proposed but unregistered" not in flat, (
+            "Stage is now registered; §2 and §6 must both be updated to say so"
+        )
