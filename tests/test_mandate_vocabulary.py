@@ -72,7 +72,14 @@ def vocabulary(path: Path) -> list[tuple[str, str, str]]:
     found = HEADING.search(text)
     if not found:
         return []
-    return [(m.group(1).strip(), m.group(2).strip(), m.group(3).strip())
+    # The status is returned WHOLE, not just its leading keyword. The first version returned only
+    # group 3 (`[A-Z][A-Z -]*[A-Z]`), so "EXTENDS `KN` beyond its registered form `KN-001..KN-005`"
+    # arrived as bare "EXTENDS" -- and the assertion that an EXTENDS row must name the form it
+    # departs from could never pass. It passed anyway, because no document had an EXTENDS row yet.
+    #
+    #     ASSERTION_NEVER_EXERCISED != ASSERTION_SATISFIED
+    return [(m.group(1).strip(), m.group(2).strip(),
+             (m.group(3) + m.group(4)).strip())
             for m in ROW.finditer(text[found.start():])]
 
 
@@ -130,9 +137,9 @@ def test_every_status_uses_the_closed_vocabulary(path: Path):
     # test, and the row would then be silently unchecked.
     for prefix, purpose, status in vocabulary(path):
         head = status.split()[0]
-        assert head in {"COLLIDES", "NEW", "REGISTERED"}, (
-            f"{path.name}: {prefix!r} has status {head!r}; expected COLLIDES, NEW or REGISTERED. "
-            "An unrecognised status is not checked by anything."
+        assert head in {"COLLIDES", "NEW", "REGISTERED", "EXTENDS"}, (
+            f"{path.name}: {prefix!r} has status {head!r}; expected COLLIDES, NEW, REGISTERED or "
+            "EXTENDS. An unrecognised status is not checked by anything."
         )
 
 
@@ -159,7 +166,7 @@ def test_a_differently_numbered_vocabulary_heading_is_still_found(tmp_path):
         encoding="utf-8",
     )
     rows = vocabulary(doc)
-    assert rows == [("R", "risk tiers", "REGISTERED")], rows
+    assert rows == [("R", "risk tiers", "REGISTERED `R0-R4`")], rows
 
 
 @pytest.mark.parametrize("path", mandates(), ids=lambda p: p.name)
@@ -172,3 +179,74 @@ def test_the_parser_extracted_rows_from_every_mandate(path: Path):
         "table, or the heading/table shape drifted out of what HEADING and ROW match -- and the "
         "row-iterating tests above would then pass while checking nothing."
     )
+
+
+# --- EXTENDS: a new FORM under an already-registered prefix ------------------
+#
+# The check above validates prefix STRINGS. It does not read the registered FORM, and the registry
+# records one: `KN` is `KN-001..KN-005`. So a row declaring `KN` REGISTERED silently covers
+# `KN-CAND-001` and `KN-EP-001`, which are outside that form.
+#
+#     PREFIX_REGISTERED != IDENTIFIER_FORM_REGISTERED
+#
+# Declaring such a form NEW is also wrong: it is not a new prefix, it is an extension of one, and
+# calling it NEW hides that the base already has an owner and a shape. EXTENDS names it exactly.
+
+
+def base_prefix(prefix: str) -> str:
+    return prefix.split("-", 1)[0]
+
+
+@pytest.mark.parametrize("path", mandates(), ids=lambda p: p.name)
+def test_an_EXTENDS_row_names_a_registered_base(path: Path):
+    for prefix, purpose, status in vocabulary(path):
+        if not status.startswith("EXTENDS"):
+            continue
+        base = base_prefix(prefix)
+        assert base in LADDERS, (
+            f"{path.name}: {prefix!r} is declared EXTENDS, but its base {base!r} is not registered. "
+            "An extension of nothing is a new prefix; declare it NEW."
+        )
+        assert prefix != base, (
+            f"{path.name}: {prefix!r} declares EXTENDS but is the bare registered prefix. Use "
+            "REGISTERED for the prefix itself and EXTENDS only for a new form under it."
+        )
+
+
+@pytest.mark.parametrize("path", mandates(), ids=lambda p: p.name)
+def test_an_EXTENDS_row_states_the_form_it_departs_from(path: Path):
+    # The reader has to be able to see WHAT is being extended without opening the registry. Without
+    # the registered form in the row, EXTENDS is just a nicer-looking NEW.
+    for prefix, purpose, status in vocabulary(path):
+        if not status.startswith("EXTENDS"):
+            continue
+        registered_form = LADDERS[base_prefix(prefix)]["form"]
+        assert registered_form in status, (
+            f"{path.name}: {prefix!r} is declared EXTENDS but the row does not name the registered "
+            f"form it departs from ({registered_form!r}). Include it so the extension is legible."
+        )
+
+
+def test_the_form_gap_is_recorded_rather_than_implied():
+    # This suite validates prefixes. It cannot validate that a document's identifiers MATCH the
+    # registered form, because it never sees the identifiers -- only the declaration. Stated here
+    # so the limit is part of the control rather than folklore.
+    assert "PREFIX_REGISTERED != IDENTIFIER_FORM_REGISTERED" in Path(__file__).read_text(
+        encoding="utf-8"
+    )
+
+
+def test_an_extends_row_round_trips_its_full_status(tmp_path):
+    # The regression: the status must arrive whole, or the form assertion above is unfalsifiable.
+    doc = tmp_path / "Y_MANDATE.md"
+    doc.write_text(
+        "# Y\n\n## Vocabulary\n\n| Prefix | Used for | Registry status |\n| :--- | :--- | :--- |\n"
+        "| `KN-EP` | episodes | EXTENDS `KN` beyond its registered form `KN-001..KN-005` |\n",
+        encoding="utf-8",
+    )
+    rows = vocabulary(doc)
+    assert len(rows) == 1
+    prefix, _, status = rows[0]
+    assert prefix == "KN-EP"
+    assert status.startswith("EXTENDS")
+    assert LADDERS["KN"]["form"] in status, status
