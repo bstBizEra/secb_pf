@@ -179,6 +179,44 @@ The verdict's normalized model collapses five proposed namespaces into extension
 knowledge home. **The `knowledge/` hierarchy in §5 must therefore not be implemented** — the existing
 knowledge layer is extended, or deliberately superseded through an explicit migration.
 
+### 6.7 Vocabulary introduced by the disposition itself
+
+The table in §6.5 declares the vocabulary of the mandate **as given**. The disposition introduces
+three identifiers of its own, which that table does not cover:
+
+| Prefix | Used for | Registry status |
+| :--- | :--- | :--- |
+| `KL` | KL0–KL9, the renamed knowledge ladder | NEW |
+| `KN-CAND` | knowledge candidates, replacing `KC-*` | EXTENDS `KN` beyond its registered form `KN-001..KN-005` |
+| `KN-EP` | episodes, replacing `EPISODE-*` | EXTENDS `KN` beyond its registered form `KN-001..KN-005` |
+
+```text
+DECLARED_VOCABULARY_VERIFIED ≠ DISPOSITION_VOCABULARY_VERIFIED
+```
+
+A resolution that renames one identifier into another introduces the second, and a table written
+against the original mandate cannot cover it. Recorded here so the disposition is checkable by the
+same control as the mandate.
+
+### 6.8 The two `KN` forms are PROPOSED EXTENSIONS and are forbidden in implementation
+
+`KN` is registered as `KN-001..KN-005`. `KN-CAND-*` and `KN-EP-*` are **outside that form**. The
+vocabulary control validates prefix strings and does not read the registered form, so nothing would
+refuse `KN-CAND-001` on the strength of `KN` being registered:
+
+```text
+PREFIX_REGISTERED ≠ IDENTIFIER_FORM_REGISTERED
+```
+
+Until form-level validation exists, both forms are proposed only:
+
+- **They may not be used to create any object, file or record.** Extending `KN` to carry candidates
+  and episodes is a change to the registered form of a prefix that already has a home
+  (`docs/13-evidence/KNOWLEDGE_REGISTER.md`) and an owner.
+- Registration must state the extended form explicitly, not merely that `KN` exists.
+- `KL` is a genuinely new prefix and is owed registration under **home → use → register**; it has a
+  home in this document and no use, so it stays deferred like `Stage`.
+
 ### Consequences for §5 and §6.3
 
 §6.3 recorded that a knowledge register already ships and that a parallel tree would verdict
