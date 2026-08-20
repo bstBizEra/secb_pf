@@ -51,15 +51,29 @@ def mandates() -> list[Path]:
     return found
 
 
+HEADING = re.compile(r"^##+\s*(?:[\d.]+\s*)?Vocabulary\s*$", re.MULTILINE)
+
+
 def vocabulary(path: Path) -> list[tuple[str, str, str]]:
-    """Return (prefix, purpose, status) rows from the document's Vocabulary table."""
+    """Return (prefix, purpose, status) rows from the document's Vocabulary table.
+
+    The heading is matched by its TEXT, at any depth and with any section number. The first
+    version of this function hard-coded "## 6. Vocabulary", and the very next mandate recorded
+    numbered its section "## 4" -- so the parser extracted zero rows and every row-iterating test
+    below passed while checking nothing.
+
+        PARSER_FOUND_NOTHING != DOCUMENT_DECLARES_NOTHING
+
+    Only test_every_recorded_mandate_declares_a_vocabulary caught it, because it is the one
+    assertion that fails on an empty result rather than iterating over it. That is why it exists,
+    and why the row count is asserted separately below.
+    """
     text = path.read_text(encoding="utf-8")
-    if "## 6. Vocabulary" not in text and "## Vocabulary" not in text:
+    found = HEADING.search(text)
+    if not found:
         return []
-    marker = "## 6. Vocabulary" if "## 6. Vocabulary" in text else "## Vocabulary"
-    section = text[text.index(marker):]
     return [(m.group(1).strip(), m.group(2).strip(), m.group(3).strip())
-            for m in ROW.finditer(section)]
+            for m in ROW.finditer(text[found.start():])]
 
 
 @pytest.mark.parametrize("path", mandates(), ids=lambda p: p.name)
@@ -131,4 +145,30 @@ def test_the_absorb_mandate_records_the_A5_three_way_overlap():
     )
     assert LADDERS["A"]["form"] == "A0-A4", (
         "the authority ladder is no longer A0-A4, so the three-way overlap must be re-derived"
+    )
+
+
+def test_a_differently_numbered_vocabulary_heading_is_still_found(tmp_path):
+    # The regression that produced the heading fix. A mandate numbering its section "## 4" must not
+    # silently extract zero rows.
+    doc = tmp_path / "X_MANDATE.md"
+    doc.write_text(
+        "# X\n\n## 4. Vocabulary\n\n"
+        "| Prefix | Used for | Registry status |\n| :--- | :--- | :--- |\n"
+        "| `R` | risk tiers | REGISTERED `R0-R4` |\n",
+        encoding="utf-8",
+    )
+    rows = vocabulary(doc)
+    assert rows == [("R", "risk tiers", "REGISTERED")], rows
+
+
+@pytest.mark.parametrize("path", mandates(), ids=lambda p: p.name)
+def test_the_parser_extracted_rows_from_every_mandate(path: Path):
+    # Asserted separately from the declaration test so a parser that stops matching is
+    # distinguishable from a document that stopped declaring. Both are failures; they need
+    # different fixes.
+    assert len(vocabulary(path)) >= 1, (
+        f"the parser found no vocabulary rows in {path.name}. Either the document dropped its "
+        "table, or the heading/table shape drifted out of what HEADING and ROW match -- and the "
+        "row-iterating tests above would then pass while checking nothing."
     )
