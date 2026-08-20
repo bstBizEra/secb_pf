@@ -155,6 +155,38 @@ declaration tables and explicitly excludes machine-readable carriers.
 REGISTRY_INTERNALLY_CONSISTENT ≠ TREE_FREE_OF_COLLISIONS
 ```
 
+## 6. Vocabulary
+
+Declared in the form `tests/test_mandate_vocabulary.py` (SECB-WP-FWK-116) verifies against
+`config/identifier_taxonomy.json`. Status vocabulary is closed: `COLLIDES`, `NEW`, `REGISTERED`.
+
+| Prefix | Used for | Registry status |
+| :--- | :--- | :--- |
+| `Stage` | Stage 0–9 and their ten exit verdicts | NEW — home is this document |
+| `PA` | PA-01…PA-05 prohibited actions, cited from `secb.yaml` | NEW — see §6.1 |
+| `A` | *(cited, not introduced — `max_tier: A4`, `current_tier: A1`)* | REGISTERED `A0-A4` |
+| `G` | *(cited, not introduced — change classes in the authority analysis)* | REGISTERED `G0-G5` |
+
+`A` and `G` are cited rather than coined: §5's blocking analysis reads the envelope's own ladder
+values. Declaring them REGISTERED records that this document consumes the registered meaning and does
+not rebind it — which is exactly what #184 shows `secb.yaml` did do with `A`.
+
+### 6.1 `PA` is unregistered and already in use
+
+```text
+registry     no `PA` ladder, no `PA` reservation
+in use       secb.yaml prohibited_actions PA-01 … PA-05, arriving with #171
+cited by     this document (§3) and the agentic-learning record
+```
+
+A fifth unregistered prefix, and the only one of the five already bound to a file that ships with an
+open pull request. It is not a collision — nothing else claims `PA` — but it is an identifier doing
+governance work with no registry entry, which is the condition #188 exists to close.
+
+Registration is owed under **home → use → register**: `PA` has a home (`secb.yaml`) and is in use, so
+unlike `Stage` it is not speculative. Recorded here rather than registered, because
+`config/identifier_taxonomy.json` is claimed by #113 and #123 and the ordering in #182 is undecided.
+
 ## 7. What this document is not
 
 - Not an adoption of the stage model. No stage verdict may cite this document as authority.
