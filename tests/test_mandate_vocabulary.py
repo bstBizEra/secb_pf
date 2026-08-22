@@ -45,9 +45,37 @@ RESERVED = {entry["prefix"] for entry in TAXONOMY["reserved_unbound"]}
 ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|([^|]*)\|\s*([A-Z][A-Z -]*[A-Z])\b([^|]*)\|", re.MULTILINE)
 
 
+RECORD_CLASS = re.compile(r"^\*\*Record class:\*\*\s*(.+)$", re.MULTILINE)
+
+
+def record_class(path: Path) -> str | None:
+    """The document's declared kind, or None if it declares none."""
+    found = RECORD_CLASS.search(path.read_text(encoding="utf-8"))
+    return found.group(1).strip() if found else None
+
+
 def mandates() -> list[Path]:
-    found = sorted(GOVERNANCE.glob("*MANDATE*.md"))
-    assert found, "no *MANDATE*.md found under docs/00-governance -- this test checks nothing"
+    """Governance records, selected by DECLARED KIND rather than by filename.
+
+    The first version globbed `*MANDATE*.md`. That covered the four mandate records and missed
+    AGENT_COUNCIL_ADOPTION_VERDICT.md, whose Vocabulary table -- carrying a COLLIDES row for `L` --
+    was therefore checked by nothing.
+
+        SUBJECT_SET_BY_FILENAME != SUBJECT_SET_BY_KIND
+
+    The tempting fix was to rename the verdict so the glob would match it. That would make the
+    filename lie about the document's kind in order to satisfy a check whose purpose is to stop
+    documents lying about their content.
+
+    No new convention was needed: every governance record in this repository already opens with a
+    `**Record class:**` line. Selecting on it reads what is there instead of inferring from a title,
+    and keeps the property with the content it classifies rather than beside it.
+    """
+    found = sorted(p for p in GOVERNANCE.glob("*.md") if record_class(p))
+    assert found, (
+        "no governance record declares `**Record class:**` under docs/00-governance -- either the "
+        "header convention changed or this test is checking nothing"
+    )
     return found
 
 
@@ -337,3 +365,30 @@ def test_the_base_of_a_hyphenated_registered_prefix_resolves_by_longest_match():
     assert base_prefix("SECB-WP-FWK") == "SECB-WP"
     assert base_prefix("KN-CAND") == "KN"
     assert base_prefix("KL") == "KL"  # unregistered: falls back, still reports something usable
+
+
+def test_a_file_named_mandate_must_declare_its_kind():
+    """The transition arm, which expires by never firing.
+
+    Selection is by declared kind, so a `*MANDATE*.md` that omits the header would silently drop out
+    of the subject set -- the same coverage gap in the opposite direction. This asserts the legacy
+    filename convention still implies the header, and needs no allowlist: it is satisfied by every
+    record that declares its kind, and fires only for one that does not.
+    """
+    undeclared = [p.name for p in GOVERNANCE.glob("*MANDATE*.md") if not record_class(p)]
+    assert not undeclared, (
+        f"these files are named as mandates but declare no `**Record class:**` header: {undeclared}. "
+        "Selection is by declared kind; without the header the document is not checked at all."
+    )
+
+
+def test_selection_covers_a_record_whose_filename_says_nothing():
+    # The verdict record is the case the glob missed. Named literally so the regression cannot
+    # recur silently if selection is ever narrowed again.
+    names = {p.name for p in mandates()}
+    verdict = GOVERNANCE / "AGENT_COUNCIL_ADOPTION_VERDICT.md"
+    if verdict.is_file():
+        assert verdict.name in names, (
+            "the Agent Council verdict declares a Record class but is not selected -- selection has "
+            "narrowed back toward filenames"
+        )
