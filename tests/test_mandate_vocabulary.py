@@ -71,12 +71,28 @@ def mandates() -> list[Path]:
     `**Record class:**` line. Selecting on it reads what is there instead of inferring from a title,
     and keeps the property with the content it classifies rather than beside it.
     """
-    found = sorted(p for p in GOVERNANCE.glob("*.md") if record_class(p))
-    assert found, (
+    return sorted(p for p in GOVERNANCE.glob("*.md") if record_class(p))
+
+
+def test_the_selected_set_is_not_empty() -> None:
+    """The emptiness guard, deliberately NOT inside `mandates()`.
+
+    An empty subject set makes every parametrized check below vacuously green, so it must be
+    refused. Where that refusal lives decides how it is reported.
+
+    Asserting inside `mandates()` puts it in the `parametrize` argument, which runs at COLLECTION
+    time. Measured cost on the sibling instance in `test_no_byte_order_mark.py`: pytest exits 2
+    with `Interrupted: 1 error during collection`, and all 643 tests in the run are suppressed --
+    one empty set erases every other verdict. Exit 2 is also not exit 1, so a mutation harness
+    counting only failures as kills reads the refusal as `not evaluated`.
+
+    As an ordinary test it fails with exit 1, every other test still reports, and the property is
+    enforced exactly as strictly.
+    """
+    assert mandates(), (
         "no governance record declares `**Record class:**` under docs/00-governance -- either the "
         "header convention changed or this test is checking nothing"
     )
-    return found
 
 
 HEADING = re.compile(r"^##+\s*(?:[\d.]+\s*)?Vocabulary\s*$", re.MULTILINE)
