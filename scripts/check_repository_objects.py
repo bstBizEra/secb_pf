@@ -64,10 +64,21 @@ def validate(instance, schema, path="$") -> list[str]:
     expected = schema.get("type")
     if expected:
         kinds = {"object": dict, "array": list, "string": str, "integer": int,
-                 "number": (int, float), "boolean": bool}
-        py = kinds[expected]
-        ok = isinstance(instance, py) and not (expected in ("integer", "number")
-                                               and isinstance(instance, bool))
+                 "number": (int, float), "boolean": bool, "null": type(None)}
+        # `type` may be a single name or a union of names. The union form was previously reported
+        # UNCHECKABLE rather than evaluated, which left four schemas unenforceable over a construct
+        # that costs three lines to support.
+        names = expected if isinstance(expected, list) else [expected]
+        unknown = sorted(n for n in names if n not in kinds)
+        if unknown:
+            # An unrecognised type NAME is invisible to the keyword guard, which scans keys. Refuse.
+            errors.append(f"{path}: schema declares unsupported type name(s) {unknown}")
+            return errors
+        allowed = tuple(k for n in names
+                        for k in (kinds[n] if isinstance(kinds[n], tuple) else (kinds[n],)))
+        ok = isinstance(instance, allowed)
+        if ok and isinstance(instance, bool) and "boolean" not in names:
+            ok = False  # bool is a subclass of int; an integer/number union must not accept True
         if not ok:
             errors.append(f"{path}: expected {expected}, got {type(instance).__name__}")
             return errors
@@ -79,6 +90,8 @@ def validate(instance, schema, path="$") -> list[str]:
     if isinstance(instance, (int, float)) and not isinstance(instance, bool):
         if "minimum" in schema and instance < schema["minimum"]:
             errors.append(f"{path}: below minimum {schema['minimum']}")
+        if "maximum" in schema and instance > schema["maximum"]:
+            errors.append(f"{path}: {instance} exceeds maximum {schema['maximum']}")
     if isinstance(instance, list):
         if "minItems" in schema and len(instance) < schema["minItems"]:
             errors.append(f"{path}: fewer than minItems {schema['minItems']}")
@@ -104,7 +117,7 @@ def validate(instance, schema, path="$") -> list[str]:
 
 # Keywords this validator ASSERTS.
 ASSERTED = {"type", "additionalProperties", "required", "properties", "const", "enum", "items",
-            "minItems", "minLength", "pattern", "minimum", "minProperties"}
+            "minItems", "minLength", "pattern", "minimum", "maximum", "minProperties"}
 # Keywords it RECOGNISES without asserting. In draft-07 `format` and `default` are ANNOTATIONS, not
 # assertions, so treating them as unsupported was wrong: a schema using them is fully checkable by a
 # validator that ignores them, which is what the specification requires.
@@ -134,7 +147,7 @@ def keywords(schema, seen=None) -> set:
     seen = seen if seen is not None else set()
     if isinstance(schema, dict):
         for key, value in schema.items():
-            seen.add("type[]" if key == "type" and isinstance(value, list) else key)
+            seen.add(key)
             if key in ("properties",) and isinstance(value, dict):
                 for sub in value.values():
                     keywords(sub, seen)

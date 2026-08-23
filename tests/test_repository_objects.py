@@ -25,7 +25,8 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "scripts" / "check_repository_objects.py"
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from check_repository_objects import ANNOTATIONS, ASSERTED, read_instance, run  # noqa: E402
+from check_repository_objects import (ANNOTATIONS, ASSERTED, read_instance, run,  # noqa: E402
+                                      validate)
 
 
 def fixture_repo(tmp_path: Path, schemas: dict, instances: dict) -> Path:
@@ -251,3 +252,42 @@ def test_the_cli_exits_non_zero_when_findings_exist():
     report = json.loads(result.stdout)
     assert (result.returncode == 0) == (report["verdict"] == "REPOSITORY_OBJECTS_VALID")
     assert "observed_at" in report, "the instant is reported beside the body"
+
+
+# --- constructs implemented in place of UNCHECKABLE, and proven to reject ------
+
+
+@pytest.mark.parametrize("declared,instance,rejects", [
+    (["string", "null"], "ok", False),
+    (["string", "null"], None, False),
+    (["string", "null"], 7, True),
+    (["integer", "null"], True, True),      # bool is a subclass of int and must not satisfy it
+    (["boolean", "null"], True, False),
+    ("string", 7, True),                    # the single-name form must be unaffected
+])
+def test_a_union_type_accepts_each_member_and_rejects_the_rest(declared, instance, rejects):
+    """Union `type` was reported UNCHECKABLE, so four schemas were unenforceable over it.
+
+    Implementing a construct is only worth anything if it REJECTS. These cases pin both directions,
+    including the one that is easy to get wrong: `True` is an `int` in Python, so an
+    `["integer","null"]` union must not accept a boolean.
+    """
+    errors = validate(instance, {"type": declared})
+    assert bool(errors) is rejects, f"{declared} vs {instance!r}: {errors}"
+
+
+def test_maximum_is_asserted_now_that_minimum_always_was():
+    """`minimum` was checked and `maximum` was not — an asymmetry, not a decision.
+
+    A schema using `maximum` was reported UNCHECKABLE, which is fail-safe and also means the bound
+    went unenforced. Both directions are pinned so neither can regress into silence.
+    """
+    assert validate(5, {"type": "integer", "maximum": 10}) == []
+    assert validate(11, {"type": "integer", "maximum": 10}), "maximum did not reject 11"
+    assert validate(5, {"type": "integer", "minimum": 1}) == []
+    assert validate(0, {"type": "integer", "minimum": 1}), "minimum did not reject 0"
+
+
+def test_an_unrecognised_type_name_refuses_rather_than_passing():
+    """A bad type NAME is invisible to the keyword guard, which scans keys, not values."""
+    assert validate("anything", {"type": "strng"}), "a misspelled type name was accepted"
