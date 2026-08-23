@@ -77,17 +77,33 @@ def test_every_reported_path_is_repository_relative():
     assert not [p for p in paths if p.startswith("/") or ":" in p[:3]]
 
 
-def test_the_real_repository_still_carries_pre_existing_schema_findings():
-    """Recorded rather than fixed: seven skill-router schemas declare no $id.
+def test_pre_existing_schema_findings_stay_attributed_to_their_surface():
+    """Recorded rather than fixed: at `main@ace1e57`, seven skill-router schemas declared no $id.
 
-    They are unenforceable by construction -- nothing can be matched to them -- but they predate
-    this work package and belong to another surface. Reporting is the right action; editing them
-    would be scope creep into content this package has no mandate over.
+    They are unenforceable by construction -- nothing can be matched to them -- but they predate this
+    work package and belong to another surface. Reporting is the right action; editing them would be
+    scope creep into content this package has no mandate over. **#192 gives all seven an $id**, which
+    takes the count to zero.
+
+    So the count is recorded here and deliberately NOT asserted. The previous form required
+    `len(no_id) >= 5`, which made this test fail on the day the gap closed -- reporting the intended
+    outcome as a defect. Cumulative-prefix simulation caught it: composed with #192, the count is 0.
+
+        DEFICIENCY_PINNED != DEFICIENCY_PERMANENT
+
+    What remains is the durable half: whichever NO_SCHEMA_ID findings the real tree still carries
+    belong to the skill-router surface and not to this package's own schemas -- true at seven and
+    true at zero. That the detector *works* is proven separately and unconditionally by
+    `test_a_schema_without_an_id_is_a_finding_not_an_abort`, on a fixture, so this assertion going
+    vacuous as #192 lands removes no coverage.
     """
     report = run(ROOT)
     no_id = [f for f in report["schema_findings"] if f["finding"] == "NO_SCHEMA_ID"]
-    assert len(no_id) >= 5
-    assert all("skill-router" in f["schema_file"] for f in no_id)
+    assert all("skill-router" in f["schema_file"] for f in no_id), (
+        f"a NO_SCHEMA_ID finding now points outside the skill-router surface, so it is no longer a "
+        f"pre-existing finding this package declined to fix: "
+        f"{[f['schema_file'] for f in no_id if 'skill-router' not in f['schema_file']]}"
+    )
 
 
 # ------------------------------------------------------------- each finding class
