@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "secb.stability-targets/v1",
+  "title": "Stability targets and maturity assessment",
+  "description": "What 'stable' would mean, declared before the measurement that could be tempted to fit it, plus the current maturity assessment and its counter-evidence. Canonical serialization: UTF-8 JSON, keys sorted, separators (',',':').",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "scope_ref",
+    "scope_version",
+    "maturity_states",
+    "current_assessment",
+    "stability_requirement"
+  ],
+  "properties": {
+    "schema": {
+      "const": "secb.stability-targets/v1"
+    },
+    "scope_ref": {
+      "type": "string",
+      "pattern": "^SECB-SCOPE-\\d{3}$"
+    },
+    "scope_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "maturity_states": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "current_assessment": {
+      "type": "object",
+      "required": [
+        "state",
+        "evidence_for",
+        "evidence_against_advancing",
+        "not_claimed"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assessed_at": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "assessed_on": {
+          "type": "string"
+        },
+        "evidence_for": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence_against_advancing": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Required. A maturity claim with no counter-evidence is a self-assessment."
+        },
+        "not_claimed": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "stability_requirement": {
+      "type": "object",
+      "required": [
+        "consecutive_epochs",
+        "frozen_scope_version",
+        "minimum_pilot_projects"
+      ],
+      "properties": {
+        "consecutive_epochs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "frozen_scope_version": {
+          "type": "string"
+        },
+        "minimum_pilot_projects": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "full_lifecycle_executions_per_epoch": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exercised_rollback_paths_per_epoch": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "critical_unexplained_divergences_permitted": {
+          "const": 0
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "epoch_contents": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blocking_the_first_epoch": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Stating the distance stops 'stability' reading as near-term."
+    }
+  }
+}

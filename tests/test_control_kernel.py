@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -34,74 +35,14 @@ def load(name: str) -> dict:
 # --------------------------------------------------------------------- a stdlib validator
 
 
-def validate(instance, schema, path="$") -> list[str]:
-    """Return a list of violations. Empty means valid.
-
-    Deliberately small: it implements only the keywords the kernel schemas use. An unrecognised
-    keyword is NOT silently ignored -- see test_an_unsupported_keyword_is_reported, because a
-    validator that skips what it does not understand reports clean on the constraints it cannot
-    check, which is the fail-open shape this framework keeps finding.
-    """
-    errors: list[str] = []
-    if "const" in schema and instance != schema["const"]:
-        errors.append(f"{path}: {instance!r} != const {schema['const']!r}")
-    if "enum" in schema and instance not in schema["enum"]:
-        errors.append(f"{path}: {instance!r} not in enum")
-    expected = schema.get("type")
-    if expected:
-        kinds = {"object": dict, "array": list, "string": str, "integer": int,
-                 "number": (int, float), "boolean": bool}
-        py = kinds[expected]
-        ok = isinstance(instance, py) and not (expected in ("integer", "number")
-                                               and isinstance(instance, bool))
-        if not ok:
-            errors.append(f"{path}: expected {expected}, got {type(instance).__name__}")
-            return errors
-    if isinstance(instance, str):
-        if "minLength" in schema and len(instance) < schema["minLength"]:
-            errors.append(f"{path}: shorter than minLength {schema['minLength']}")
-        if "pattern" in schema and not re.search(schema["pattern"], instance):
-            errors.append(f"{path}: does not match {schema['pattern']}")
-    if isinstance(instance, (int, float)) and not isinstance(instance, bool):
-        if "minimum" in schema and instance < schema["minimum"]:
-            errors.append(f"{path}: below minimum {schema['minimum']}")
-    if isinstance(instance, list):
-        if "minItems" in schema and len(instance) < schema["minItems"]:
-            errors.append(f"{path}: fewer than minItems {schema['minItems']}")
-        for i, item in enumerate(instance):
-            errors.extend(validate(item, schema.get("items", {}), f"{path}[{i}]"))
-    if isinstance(instance, dict):
-        for field in schema.get("required", []):
-            if field not in instance:
-                errors.append(f"{path}: missing required {field!r}")
-        props = schema.get("properties", {})
-        extra = schema.get("additionalProperties", True)
-        for key, value in instance.items():
-            if key in props:
-                errors.extend(validate(value, props[key], f"{path}.{key}"))
-            elif isinstance(extra, dict):
-                errors.extend(validate(value, extra, f"{path}.{key}"))
-            elif extra is False:
-                errors.append(f"{path}: additional property {key!r} is not permitted")
-    return errors
-
-
-SUPPORTED = {"$schema", "$id", "title", "description", "type", "additionalProperties", "required",
-             "properties", "const", "enum", "items", "minItems", "minLength", "pattern",
-             "minimum"}
-
-
-def keywords(schema, seen=None) -> set:
-    seen = seen if seen is not None else set()
-    if isinstance(schema, dict):
-        for key, value in schema.items():
-            seen.add(key)
-            if key in ("properties",) and isinstance(value, dict):
-                for sub in value.values():
-                    keywords(sub, seen)
-            elif key in ("items", "additionalProperties") and isinstance(value, dict):
-                keywords(value, seen)
-    return seen
+# The validator, the keyword sets and the YAML subset reader live in
+# scripts/check_repository_objects.py so a TOOL can reuse them (FWK-104). Importing rather
+# than re-declaring is the deduplication rule: two copies of a validator would disagree,
+# and the copy a test used would not be the copy a downstream project ran.
+sys.path.insert(0, str(ROOT / "scripts"))
+from check_repository_objects import (  # noqa: E402
+    ANNOTATIONS, ASSERTED, SUPPORTED, _block, _scalar, coerce_lists, keywords, validate,
+)
 
 
 # ------------------------------------------------------------------ the descriptor
@@ -220,6 +161,21 @@ def test_no_schema_uses_a_keyword_the_validator_cannot_check(name):
         f"{name} uses {sorted(unsupported)}, which this validator does not implement. A "
         "constraint nobody checks is decoration."
     )
+
+
+def test_every_shipped_schema_is_checkable_not_only_the_kernel_six():
+    """The gap that let `minProperties` in.
+
+    This guard originally ran over the six KERNEL schemas only, so schemas added by later work
+    packages escaped it entirely -- FWK-104's repository validator found two of mine reported
+    UNCHECKABLE. A guard scoped to a list stops guarding the moment the list stops being complete.
+    """
+    offenders = {}
+    for path in sorted((ROOT / "schemas").glob("*.schema.json")):
+        unsupported = keywords(json.loads(path.read_text(encoding="utf-8"))) - SUPPORTED
+        if unsupported:
+            offenders[path.name] = sorted(unsupported)
+    assert offenders == {}, offenders
 
 
 def test_the_shipped_descriptor_validates_against_the_project_schema():
