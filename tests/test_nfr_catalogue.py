@@ -141,3 +141,41 @@ def test_forward_vocabulary_is_marked_as_a_forward_reference():
         "evidence strength and enforcement level are two ladders; fusing them into one "
         "token is the C-AMS-04 defect"
     )
+
+
+def test_every_gate_k05a_counts_is_a_gate_control_gates_defines():
+    """K-05a's denominator is `CONTROL_GATES.md`'s ten. Its numerator must come from that set.
+
+    The row previously counted "Authority, Test, Budget, and Gate 7". Budget is mechanically
+    fail-able and is NOT one of the ten gates — so the numerator drew from a different population
+    than the denominator. It also excluded Gate 6 on the stated grounds that its two scans were
+    "not on `main`", which was false: both are in `ci.yml`.
+
+        NUMERATOR_POPULATION != DENOMINATOR_POPULATION
+
+    Two errors that happened to cancel, leaving the figure 4 correct and its composition wrong in
+    both directions. This pins the population, not the number.
+    """
+    kpi = (REPO_ROOT / "docs" / "01-requirements" / "KPI_BASELINE.md").read_text(encoding="utf-8")
+    row = next((l for l in kpi.splitlines() if "K-05a" in l and "Enforcement coverage" in l), None)
+    assert row is not None, "K-05a row not found — the KPI table changed shape"
+
+    gates = (REPO_ROOT / "docs" / "00-governance" / "CONTROL_GATES.md").read_text(encoding="utf-8")
+    defined = {}
+    for line in gates.splitlines():
+        cells = [c.strip() for c in line.split("|")]
+        if len(cells) > 3 and cells[1].isdigit():
+            defined[cells[1]] = cells[2]
+    assert len(defined) == 10, f"CONTROL_GATES.md defines {len(defined)} gates, expected 10"
+
+    bold = re.findall(r"\*\*(.+?)\*\*", row)
+    counted = [m for span in bold for m in re.findall(r"([A-Za-z][A-Za-z ]*?) \((\d+)\)", span)]
+    assert counted, (
+        "K-05a names no gate in the form `**Name (n)**`, so this check cannot verify its "
+        "composition — the row must say which gates it counts, not only how many"
+    )
+    for name, number in counted:
+        assert number in defined, f"K-05a counts gate {number} ({name}); CONTROL_GATES.md has no such gate"
+        assert defined[number].lower() == name.strip().lower(), (
+            f"K-05a calls gate {number} {name!r}; CONTROL_GATES.md calls it {defined[number]!r}"
+        )
