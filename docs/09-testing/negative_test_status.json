@@ -33,7 +33,7 @@
       "covered_over_applicable_pct": 75.0,
       "covered_over_target_pct": 16.7
     },
-    "note": "Dormant scenarios are not failures while the capability is absent, and they are not coverage of the target state either. Both fractions are published so neither reading can stand alone. Updated by SECB-WP-FWK-044: FPSA-03 moved from gap to covered, so FPSA is 5 of 11 applicable and 5 of 15 target.",
+    "note": "Dormant scenarios are not failures while the capability is absent, and they are not coverage of the target state either. Both fractions are published so neither reading can stand alone. Updated by SECB-WP-FWK-044: FPSA-03 moved from gap to covered, so FPSA is 6 of 12 applicable and 6 of 16 target. (This sentence stated 5 of 11 and 5 of 15, the figures as at SECB-WP-FWK-044. Both denominators have since grown -- see note_target_grew -- and the prose did not follow the numbers it describes.)",
     "corrections": [
       {
         "date": "2026-08-12",

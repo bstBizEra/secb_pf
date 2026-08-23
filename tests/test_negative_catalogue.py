@@ -352,3 +352,29 @@ def test_the_catalogue_agrees_with_the_machine_readable_status():
             )
 
     assert "GAP" in text and "DORMANT" in text
+
+
+def test_the_coverage_note_states_the_numbers_it_sits_beside():
+    """The prose and the machine-readable block must not disagree.
+
+    `coverage.note` summarises the FPSA fractions in words. It said "5 of 11 applicable and 5 of 15
+    target" while the block beside it read covered 6, applicable 12, target 16 -- stale by one in
+    all three, because the denominators grew (see `note_target_grew`) and the sentence did not.
+
+        NUMBERS_CORRECTED != PROSE_CORRECTED
+
+    The existing checks compare the catalogue to the numbers. Nothing compared the note to them, so
+    the only human-readable summary of this file was free to drift. This closes that.
+    """
+    import json
+
+    status = json.loads(STATUS_FILE.read_text(encoding="utf-8"))
+    fpsa = status["coverage"]["FPSA"]
+    note = status["coverage"]["note"]
+    expected = (f"{fpsa['covered']} of {fpsa['applicable']} applicable and "
+                f"{fpsa['covered']} of {fpsa['target']} target")
+    assert expected in note, (
+        f"coverage.note does not state the fractions recorded beside it. Expected {expected!r} to "
+        f"appear; the block reads covered={fpsa['covered']} applicable={fpsa['applicable']} "
+        f"target={fpsa['target']}."
+    )
