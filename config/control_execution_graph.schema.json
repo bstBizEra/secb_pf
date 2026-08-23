@@ -12,8 +12,11 @@
     "unresolved_edges"
   ],
   "properties": {
-    "schema": {
-      "const": "secb.control-execution-graph/v1"
+    "not_proven": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "parse_fidelity": {
       "type": "object",
@@ -152,6 +155,9 @@
         }
       }
     },
+    "schema": {
+      "const": "secb.control-execution-graph/v1"
+    },
     "unresolved_edges": {
       "type": "array",
       "description": "Edges the parser could not follow. An unresolved edge is reported, never dropped: a silent omission is indistinguishable from an absent control.",
@@ -185,11 +191,12 @@
         }
       }
     },
-    "not_proven": {
+    "workflows_parsed": {
       "type": "array",
       "items": {
         "type": "string"
-      }
+      },
+      "description": "Workflow files the parser actually read. Emitted since the graph was first produced; the schema omitted it while declaring additionalProperties:false, so every document this tool has ever emitted violated its own declared contract."
     }
   }
 }

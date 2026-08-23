@@ -382,3 +382,46 @@ def test_discovery_still_does_not_imply_enforcement(tmp_path):
     assert any("discovery implies enforcement" in n for n in document["not_proven"])
     for record in document["paths"]:
         assert record["axes"]["CI_ENFORCEMENT"] == "NOT_OBSERVED"
+
+
+# --- the emitter must satisfy the schema it stamps on its own output ----------
+
+
+def test_the_emitted_graph_conforms_to_its_declared_schema():
+    """`SCHEMA_DECLARED != SCHEMA_SATISFIED`.
+
+    `check_control_graph.py` stamps `"schema": "secb.control-execution-graph/v1"` onto every
+    document it emits, and that schema sets `additionalProperties: false`. It emitted
+    `workflows_parsed`, which the schema did not declare — so every document this tool has ever
+    produced violated the contract it announced. Schema and emitter were introduced in the same
+    commit and diverged immediately, because nothing compared them.
+
+    No test in this repository validated any emitter against any schema, and there is no
+    JSON-Schema library available (stdlib-only by NFR-12), so this checks the two properties a
+    structural comparison can decide: no undeclared key, and every required key present.
+    """
+    import json as _json
+    import subprocess as _sub
+    import sys as _sys
+
+    schema = _json.loads(
+        (REPO_ROOT / "config" / "control_execution_graph.schema.json").read_text(encoding="utf-8")
+    )
+    emitted = _json.loads(
+        _sub.run([_sys.executable, str(REPO_ROOT / "scripts" / "check_control_graph.py")],
+                 capture_output=True, text=True, cwd=str(REPO_ROOT), check=False).stdout
+    )
+
+    declared = set(schema["properties"])
+    assert schema.get("additionalProperties") is False, (
+        "this test assumes the schema is closed; if it were open, an undeclared key would be legal "
+        "and the comparison below would assert nothing"
+    )
+    undeclared = sorted(set(emitted) - declared)
+    assert not undeclared, (
+        f"the emitter produced keys the schema does not declare, under additionalProperties:false: "
+        f"{undeclared}. Either declare them or stop emitting them — a document cannot claim a $id "
+        f"it does not satisfy."
+    )
+    missing = sorted(set(schema.get("required", [])) - set(emitted))
+    assert not missing, f"the emitter omitted required keys: {missing}"
