@@ -29,6 +29,7 @@ sequencing argument survives -- a regression lint is still cheaper than an adopt
 is 5 against 7, not 0 against 7, and the operator was owed the real number.
 
     CORRECTED_IN_THE_COMMENT != CORRECTED_IN_THE_ARTIFACT
+    CORRECTED_THE_INSTANCE   != CORRECTED_THE_CLASS
 
 The prediction was retracted in the pull request body the day it was made. This docstring went on
 asserting it -- and the docstring is what survives the squash onto `main` and what the next agent
@@ -36,7 +37,9 @@ greps. Found by an independent shadow review of this file, not by its author.
 
 This is the second. It cannot make anyone adopt the pattern; it makes the pattern impossible to
 weaken once adopted, and it starts protecting each new instance the moment that instance appears --
-including the eleven consts arriving with the control-kernel and authority-object work.
+including the consts arriving with the control-kernel and authority-object work -- of which, measured
+on #178 and #180, there are nine `const: false` properties and this regex matches five. `eleven` was
+the figure here and it did not reproduce.
 
     PATTERN_AVAILABLE != PATTERN_ADOPTED    (the audit's finding, not this guard's job)
     PATTERN_ADOPTED   != PATTERN_PROTECTED  (this guard's job)
