@@ -116,10 +116,25 @@ SUPPORTED = ASSERTED | ANNOTATIONS
 
 
 def keywords(schema, seen=None) -> set:
+    """Every keyword a schema uses, so an unimplemented one downgrades instances to UNCHECKED.
+
+    This scan is by keyword NAME, and a name is not a construct. `"type": "string"` and
+    `"type": ["string", "null"]` are the same keyword and different features: the first is
+    implemented below, the second is a union this validator cannot evaluate. Reporting only the
+    name let a union pass the guard and then raise `TypeError: unhashable type: 'list'` inside
+    `validate` -- a crash, on the first real instance, from the guard written to prevent exactly
+    that.
+
+        KEYWORD_SUPPORTED != CONSTRUCT_SUPPORTED
+
+    Union types are therefore reported as the distinct token `type[]`, which is absent from
+    SUPPORTED, so the existing UNCHECKABLE_KEYWORDS path handles them and no second mechanism is
+    introduced.
+    """
     seen = seen if seen is not None else set()
     if isinstance(schema, dict):
         for key, value in schema.items():
-            seen.add(key)
+            seen.add("type[]" if key == "type" and isinstance(value, list) else key)
             if key in ("properties",) and isinstance(value, dict):
                 for sub in value.values():
                     keywords(sub, seen)
@@ -384,6 +399,14 @@ def main(argv: list[str]) -> int:
         return FAIL
     except OSError as exc:
         print(f"REFUSED (closed): repository unreadable ({exc})", file=sys.stderr)
+        return FAIL
+    except Exception as exc:  # noqa: BLE001 -- deliberate: an unexpected crash must fail CLOSED
+        # Only Refused and OSError were caught, so any other exception escaped as an uncaught
+        # traceback and the process exited 1 -- not the declared FAIL = 2, and with no report at
+        # all. A validator that dies without a verdict must not be distinguishable, by exit code,
+        # from one that ran and found nothing wrong.
+        print(f"REFUSED (closed): the audit raised {type(exc).__name__}: {exc}. No verdict was "
+              f"reached, so nothing here says the repository objects are valid", file=sys.stderr)
         return FAIL
     observed = datetime.now(timezone.utc).isoformat()
     print(json.dumps({**report, "observed_at": observed}, indent=2, sort_keys=True))
