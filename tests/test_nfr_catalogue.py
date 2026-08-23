@@ -141,3 +141,25 @@ def test_forward_vocabulary_is_marked_as_a_forward_reference():
         "evidence strength and enforcement level are two ladders; fusing them into one "
         "token is the C-AMS-04 defect"
     )
+
+
+def test_the_executable_gate_count_has_one_source():
+    """`KPI_BASELINE.md` K-05a owns this number; the PRD must not restate it.
+
+    The PRD's summary table carried `3/10` while K-05a carried `4/10 as of e43fca8`, explaining the
+    count (Authority, Test, Budget, Gate 7) and why `governance-verdict` is excluded — it exits 0 by
+    design and "counting a job that cannot fail would inflate this row". The PRD figure was correct
+    before SECB-WP-FWK-045 added Gate 7 and was never updated.
+
+        ONE_FACT_TWO_HOMES -> the copies drift, and the reader cannot tell which is current
+
+    Syncing the two would leave two homes and reschedule the drift. The PRD now defers to K-05a, and
+    this pins that: the row may cite the number, but only alongside its source.
+    """
+    prd = (REPO_ROOT / "docs" / "01-requirements" / "PRD-ENGINEER-LOOP.md").read_text(encoding="utf-8")
+    row = next((line for line in prd.splitlines() if "Executable control gates" in line), None)
+    assert row is not None, "the PRD no longer has an 'Executable control gates' row"
+    assert "KPI_BASELINE" in row, (
+        f"the PRD restates the executable-gate count without naming its source. K-05a in "
+        f"KPI_BASELINE.md owns this figure; a second unsourced copy is what drifted to 3/10. Row: {row}"
+    )

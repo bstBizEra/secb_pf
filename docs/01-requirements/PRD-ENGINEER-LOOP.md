@@ -151,7 +151,7 @@ Grounding sources: `docs/06-agent-orchestration/ENGINEER_LOOP.md` v1.5.0,
 | Unauthorized-action rate | 0 incidents | 0 | Governance review of evidence |
 | Evidence completeness (gate results on ticket) | 5/5 WPs | 100% | Issue audit |
 | First-pass budget compliance | 4/5 (FWK-007 required amendment) | ≥90% | Budget-gate logs |
-| Executable control gates | 3/10 | 10/10 | `ci.yml` vs `CONTROL_GATES.md` |
+| Executable control gates | see `KPI_BASELINE.md` K-05a (**4/10** as of `e43fca8`) | 10/10 | `ci.yml` vs `CONTROL_GATES.md` |
 
 Per `PERFORMANCE_INDICATORS.md`: each KPI still needs owner, formula,
 cadence, and guardrail before it is operational; cost-layer KPIs (tokens,
