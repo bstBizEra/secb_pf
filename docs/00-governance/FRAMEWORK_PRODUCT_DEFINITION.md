@@ -36,7 +36,9 @@ test_modules: 12
 tests_passing: 175
 numbered_documentation_domains: 18
 json_schemas: 14
-skill_registry_instances: 0
+# skill_registry_instances POSTDATES as_of_ref. Its guard compares the figure against the
+# working tree rather than the pinned ref, so a stale count cannot satisfy both.
+skill_registry_instances: 1
 current_tier: A1
 ballot_layer: NOT_ACTIVE
 
@@ -90,7 +92,7 @@ FRAMEWORK_CONTROL_READINESS
 | Axis | Measures | State at `as_of_ref` |
 |---|---|---|
 | **Framework control** | Whether reusable contracts, gates, schemas, evidence rules and tests exist and work at their declared strength | **Substantial.** 7 gates wired into CI, 175 tests, fail-closed paths covered per `NFR-01`. Detective only — branch protection returns `403` on this plan (`NFR-13`) |
-| **Instance population** | Whether a downstream project has named authority, its own envelope, populated registries, executor bindings, triggers, stage evidence and identity separation | **Empty for skills.** `skill_registry_instances: 0`. The router is tested against 20 sealed FIT cases and has nothing registered to route |
+| **Instance population** | Whether a downstream project has named authority, its own envelope, populated registries, executor bindings, triggers, stage evidence and identity separation | **One CANDIDATE skill.** `skill_registry_instances: 1` — `council.issue-intake`, read-only, `permitted_effects: []`, unqualified. The router is tested against 20 sealed FIT cases and still has nothing QUALIFIED to route |
 | **Runtime execution** | Whether executors, external effects, preventive admission control, rollback and telemetry exist | **Absent by design.** The 35-step engineer loop is specified; no executor runs it. SecB can be a reusable framework while remaining non-deployed |
 
 **A tested router with no registry is mechanism-ready and population-empty.** Reporting one

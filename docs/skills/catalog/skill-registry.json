@@ -1,0 +1,31 @@
+{
+  "schema": "secb.skill-registry/v1",
+  "skills": [
+    {
+      "skill_id": "council.issue-intake",
+      "version": "0.1.0",
+      "instruction_digest": "sha256:75efd28a459c4c765cf5a44855cbd8ff2c44061dfd8eeee13b13e4227963684b",
+      "status": "CANDIDATE",
+      "capabilities": [
+        "issue-enumeration",
+        "duplicate-work-detection",
+        "council-subject-routing"
+      ],
+      "risk_ceiling": "R0",
+      "permitted_effects": [],
+      "prerequisites": [
+        "gh CLI authenticated; already invoked 3x in .github/workflows/ci.yml"
+      ],
+      "validation_methods": [
+        "schema-conformance",
+        "effect-boundary-assertion"
+      ],
+      "qualification_evidence": [
+        "NOT QUALIFIED. status is CANDIDATE: no execution evidence exists yet.",
+        "Adapted from openclaw/openclaw skills/gh-issues/SKILL.md, phases 1-3 only.",
+        "Phases 4-6, watch mode and reviews-only mode are deferred and named in the skill document."
+      ],
+      "expires_at": "2026-11-08"
+    }
+  ]
+}
