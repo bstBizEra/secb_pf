@@ -40,11 +40,31 @@ def test_every_prefix_it_declares_is_registered_with_its_registered_meaning():
     assert "conflict" in LADDERS["C"]["bound_to"].lower()
 
 
-def test_the_ordering_blocked_row_still_holds():
-    # §5 row 2: schemas/ absent on main is what makes the learning schemas ORDERING_BLOCKED.
-    assert not (REPO_ROOT / "schemas").exists(), (
-        "schemas/ now exists, so the ORDERING_BLOCKED verdict in §5 is stale and the matrix must "
-        "be re-measured"
+def test_the_ordering_blocked_row_names_its_provider():
+    """§5 row 2 must be SELF-DATING, the way row 1 already is.
+
+    Row 1 reads "absent on `main`, present in #171" and needs no guard: it names both the state and
+    the pull request that changes it, so it stays true after #171 lands. Row 2 read only "absent on
+    `main`" -- a present-tense claim about a moving tree -- and was guarded by asserting that
+    `schemas/` does not exist.
+
+    That guard could only ever fail, because #171 creates `schemas/` and #171 is the whole reason
+    the row says ORDERING_BLOCKED. It would have fired on the day the blockage was cleared, reporting
+    the intended outcome as a defect, and the composed tree confirmed exactly that.
+
+        MEASUREMENT_PINNED != TREE_FROZEN
+
+    A measurement that names the ref it was taken at, and the change that supersedes it, does not
+    drift and needs no tripwire. So the row is now self-dating and this guards the property that
+    makes it so, rather than guarding the tree against moving.
+    """
+    row = next((line for line in DOC.read_text(encoding="utf-8").splitlines()
+                if "ORDERING_BLOCKED" in line and "|" in line), None)
+    assert row is not None, "§5 no longer has an ORDERING_BLOCKED row -- the matrix was re-derived"
+    assert "absent on `main`" in row, f"row 2 no longer states the measured condition: {row}"
+    assert "#171" in row, (
+        f"row 2 states a present-tense condition without naming the pull request that supersedes "
+        f"it, so it becomes false the day #171 lands rather than remaining a dated measurement: {row}"
     )
 
 

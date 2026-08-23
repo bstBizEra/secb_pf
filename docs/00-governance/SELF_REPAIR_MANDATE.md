@@ -83,7 +83,7 @@ registry's ladder boundary.
 | Consumer → Provider | Asserted | Measured |
 | :--- | :--- | :--- |
 | Verdict evaluator → Context Receipt | `DEPENDENCY_BLOCKED` | **CONFIRMED** — `schemas/context-receipt.schema.json` absent on `main`, present in #171 |
-| Learning schema → base `schemas/` | `ORDERING_BLOCKED` | **CONFIRMED** — `schemas/` absent on `main` |
+| Learning schema → base `schemas/` | `ORDERING_BLOCKED` | **CONFIRMED** — `schemas/` absent on `main`, added by #171 |
 | Rego policies → OPA evaluator | `INCOMPATIBLE_DESIGN` | **CONFIRMED, with a refinement** — see §5.1 |
 | Knowledge candidates → KN register | `DUPLICATE_CAPABILITY` | **CONFIRMED, with a refinement** — see §5.1 |
 
