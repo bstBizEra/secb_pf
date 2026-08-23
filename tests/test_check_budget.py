@@ -201,3 +201,31 @@ def test_a_single_real_row_still_measures():
     result = run_gate("1\t0\ta.py\n", BUDGET_2_40)
     assert result.returncode == PASS
     assert "BUDGET GATE PASS: 1/2 files, 1/40 changed lines" in result.stdout
+
+
+def test_a_budget_declaration_may_not_span_two_physical_lines():
+    """One declaration, one line -- and the declared-twice refusal depends on it.
+
+    `\\s` matches newlines, so under `re.MULTILINE` the pattern accepted
+
+        BUDGET: max_files=1
+        max_lines=99999
+
+    as a single valid declaration. The docstring requires "exactly one budget line", and the second
+    consequence is the one that matters: a split declaration is ONE regex match, so it slipped past
+    the duplicate refusal at `len(matches) > 1` while declaring values a reviewer never saw.
+
+        HORIZONTAL_WHITESPACE != ANY_WHITESPACE
+
+    Surfaced by a seeded-recall probe as an UNSEEDED defect in the live gate -- the seeds were
+    elsewhere, and this was found alongside them.
+    """
+    split = run_gate("1\t0\ta.py\n", "BUDGET: max_files=1\nmax_lines=99999")
+    assert split.returncode != 0, (
+        "a budget split across two physical lines was accepted; being one match, it also evades "
+        "the declared-twice refusal:\n" + split.stdout
+    )
+    assert "no budget declared" in (split.stdout + split.stderr)
+
+    intact = run_gate("1\t0\ta.py\n", "BUDGET: max_files=5 max_lines=100")
+    assert intact.returncode == 0, f"a normal one-line declaration must still pass:\n{intact.stdout}"

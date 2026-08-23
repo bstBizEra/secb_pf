@@ -36,7 +36,11 @@ import re
 import sys
 
 BUDGET_PATTERN = re.compile(
-    r"^\s*BUDGET:\s*max_files=(\d+)\s+max_lines=(\d+)\s*$", re.MULTILINE
+    # Horizontal whitespace only. `\s` matches newlines, and under re.MULTILINE a `\s+` between
+    # the two fields let one declaration span two physical lines -- which the docstring forbids
+    # ("exactly one budget line") and which EVADES the duplicate-declaration refusal below, because
+    # a split declaration is a single match. `[^\S\n]` is space and tab and not a line break.
+    r"^[^\S\n]*BUDGET:[^\S\n]*max_files=(\d+)[^\S\n]+max_lines=(\d+)[^\S\n]*$", re.MULTILINE
 )
 
 FAIL = 2
