@@ -20,7 +20,19 @@ would be the stronger control -- and it would turn seven open pull requests red 
 which is a sequencing decision belonging to the operator rather than to a test.
 
     ADOPTION_LINT   forces the pattern onto emitters that lack it   → 7 PRs affected
-    REGRESSION_LINT protects every instance that HAS it             → 0 PRs affected
+    REGRESSION_LINT protects every instance that HAS it             → 5 PRs affected
+
+The second figure was first written as `0`, and that was wrong. Measured across the open queue:
+`schemas/verdict.schema.json` declares `confers_merge_authority` with `const: false` and omits it
+from `required`, so this guard fails on #171 and on the four pull requests stacked over it. The
+sequencing argument survives -- a regression lint is still cheaper than an adoption lint -- but it
+is 5 against 7, not 0 against 7, and the operator was owed the real number.
+
+    CORRECTED_IN_THE_COMMENT != CORRECTED_IN_THE_ARTIFACT
+
+The prediction was retracted in the pull request body the day it was made. This docstring went on
+asserting it -- and the docstring is what survives the squash onto `main` and what the next agent
+greps. Found by an independent shadow review of this file, not by its author.
 
 This is the second. It cannot make anyone adopt the pattern; it makes the pattern impossible to
 weaken once adopted, and it starts protecting each new instance the moment that instance appears --
