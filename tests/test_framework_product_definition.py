@@ -287,3 +287,28 @@ def test_the_known_duplication_is_recorded_rather_than_forgotten():
     assert "NFR_CATALOGUE.md" in text and "Stage 2 in progress" in text, (
         "the known status duplication must be recorded, since it is not fixed here"
     )
+
+
+def test_every_commit_this_document_cites_is_a_full_digest():
+    """§ Projection discipline mandates `<full commit or immutable artifact digest>`. Enforce it.
+
+    The stage-2 ratifier was cited as `c94e4da` — seven characters, in the document that requires
+    full digests four lines further down. An abbreviation is neither full nor immutable: it is
+    ambiguous by construction and grows more so as the repository does.
+
+        DECLARED != ENFORCED   — on the document's own anchor rule
+
+    Both commits cited here are 40 characters and both resolve. This keeps it that way.
+    """
+    text = DEFINITION.read_text(encoding="utf-8")
+    tokens = set(re.findall(r"\b[0-9a-f]{7,40}\b", text))
+    assert tokens, "no commit-shaped token found — the anchor convention changed, or this checks nothing"
+    short = sorted(t for t in tokens if len(t) != 40)
+    assert not short, (
+        f"abbreviated commit reference(s) {short} in a document whose own § Projection discipline "
+        f"requires `<full commit or immutable artifact digest>`."
+    )
+    for token in sorted(tokens):
+        resolved = subprocess.run(["git", "rev-parse", "--verify", "-q", f"{token}^{{commit}}"],
+                                  cwd=REPO_ROOT, capture_output=True, text=True)
+        assert resolved.returncode == 0, f"{token} is cited as a commit but does not resolve"

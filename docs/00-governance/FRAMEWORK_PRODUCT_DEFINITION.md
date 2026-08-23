@@ -74,7 +74,8 @@ PROPOSED_HEAD evidence  ≠  EFFECTIVE_MAIN capability
 ```
 
 Every count above is measurable from `as_of_ref` alone, and
-`tests/test_framework_product_definition.py` recomputes them. **A count with no `as_of_ref`
+`tests/test_framework_product_definition.py` carries assertions that would recompute them --
+which currently **skip**, as recorded above, so they establish nothing today. **A count with no `as_of_ref`
 is not a measurement**, and a count taken from an open pull request is not a property of
 this framework: the 209 tests reported during review of PR #123 belong to that head, not
 to `main`.
@@ -100,7 +101,9 @@ make an operational capability.
 ## Lifecycle position
 
 ```yaml
-stage_2: EFFECTIVE          # 2026-08-12T17:33:16Z, ratified by c94e4da
+stage_2: EFFECTIVE          # 2026-08-12T17:33:16Z (= 2026-08-13T00:33:16+07:00, the local
+                            # time the construction timeline below uses), ratified by
+                            # c94e4da72ad04ec4d928f8268d96af20375cedad
 stage_3: OPEN
 authority_ceiling: ARCHITECTURE_APPROVED
 open_conditions: [C-3, C-4, C-5, C-6, C-7]
