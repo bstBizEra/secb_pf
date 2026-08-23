@@ -52,10 +52,38 @@ def simple_schema(identifier="secb.thing/v1") -> dict:
 
 
 def test_the_real_repository_audit_runs_and_reports():
+    """The audit must have VALIDATED something, not merely have run.
+
+    This asserted `schemas_discovered >= 20`, `instances_discovered >= 5` and `failures == []`.
+    All three survive a tree in which nothing conforms: an instance whose declared schema does not
+    exist is an ORPHAN, and an orphan is not a failure. An independent review demonstrated it by
+    renaming the `$id` in all 17 schemas -- `validated` fell to `[]`, every instance went orphan,
+    and all 15 tests in this file still passed.
+
+        AUDIT_RAN != AUDIT_VALIDATED_ANYTHING
+
+    So the load-bearing assertion is on `validated`. The orphan count is pinned rather than
+    required to be zero, because exactly one real orphan exists and is a finding this package
+    reports rather than fixes: FRAMEWORK_INSTANTIATION_PROFILE.yaml declares
+    `secb.framework-instantiation-profile/v1`, a schema that exists nowhere in the repository.
+    Requiring `orphan_instances == []` would fail on the true state of the tree.
+    """
     report = run(ROOT)
     assert report["schemas_discovered"] >= 20
     assert report["instances_discovered"] >= 5
     assert report["failures"] == [], report["failures"]
+
+    assert report["validated"], (
+        "the audit validated NOTHING. Every discovered instance is an orphan or unchecked, so a "
+        "green result here says only that the walk completed -- which is true of a tree in which "
+        "no schema matches any instance."
+    )
+    orphans = [o["instance"] for o in report["orphan_instances"]]
+    assert orphans == ["docs/16-templates/FRAMEWORK_INSTANTIATION_PROFILE.yaml"], (
+        f"the orphan set changed: {orphans}. One orphan is expected and recorded -- the "
+        "instantiation profile declares a schema that does not exist. A new orphan means an "
+        "instance lost its schema, which this audit exists to surface, not to tolerate."
+    )
 
 
 def test_the_report_is_deterministic_over_one_tree():
