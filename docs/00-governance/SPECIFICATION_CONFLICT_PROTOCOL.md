@@ -105,7 +105,7 @@ If any conjunct fails, the status is **`SPEC_OWNER_REQUIRED`** — never a gener
 *who* must decide and *what* they are deciding, so the escalation arrives
 actionable rather than as a request for attention.
 
-### Vocabulary reconciliation — three sets, deliberately separate
+### Vocabulary reconciliation — eight sets, deliberately separate
 
 | Vocabulary | Question it answers | Values |
 |---|---|---|
@@ -129,8 +129,9 @@ The stage-gate set gains two rendered verdicts from the rendering matrix:
 layer, and the rendering matrix maps between them; a seventh synonym was not added.
 
 **Eight sets now, and three tokens appear in more than one.** `REJECTED` is a
-conflict verdict *and* a stage-gate verdict *and* a merge verdict;
-`APPROVE_WITH_CONDITIONS` is a stage-gate verdict *and* a human ballot choice;
+conflict verdict *and* a stage-gate verdict *and* a merge verdict *and* a Plane A
+disposition — four sets, not three;
+`APPROVED` is a stage-gate verdict *and* a Plane A disposition;
 `HUMAN_REQUIRED` is a stage-gate verdict *and* a metric verdict, and was
 deliberately **retired** from merge authority. A bare token is therefore
 ambiguous: **always name the set.** Write "stage-gate `REJECTED`", never
@@ -183,7 +184,7 @@ not recur.
 ## 8. What this protocol does not authorize
 
 - It does not permit reinterpreting a specification. Principle 1 is absolute.
-- It does not permit a bridge that reduces a control (`C5` → `REJECTED`).
+- It does not permit a bridge that reduces a control (`C5` → conflict `REJECTED`).
 - It does not make evidence into an amendment (`SC-06`).
 - It does not lower the constitutional bar: a resolution touching authority,
   quorum, a ceiling or a trust anchor is `C4` and belongs to the constitutional
