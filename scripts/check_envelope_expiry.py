@@ -126,15 +126,39 @@ def read_thresholds(path: Path) -> tuple[dict, str]:
     return thresholds, thresholds_digest
 
 
+def declared_envelope(env: dict) -> str:
+    """The envelope to observe, which the CALLER must name.
+
+    This used to default to `config/delegation_envelope.json`. That default was the only subject
+    any caller ever wanted, which is precisely what made it dangerous: a caller that MEANT to name
+    an envelope and failed to -- a renamed variable, an edited workflow -- received a confident
+    `VALID` verdict about a different file, with nothing in the output to say so.
+
+        ABSENT_SUBJECT != DEFAULTED_SUBJECT
+
+    `days_remaining: 78` about an envelope nobody asked about is worse than a refusal. The
+    scheduled monitor still observes this repository's own envelope; it now says so at the call
+    site rather than relying on this script to assume it.
+    """
+    declared = env.get("ENVELOPE", "").strip()
+    if not declared:
+        raise Incomplete(
+            "no envelope was named: set ENVELOPE to the path to observe. This gate does not "
+            "default, because a caller whose subject went missing would otherwise be handed a "
+            "confident verdict about a file it never asked about"
+        )
+    return declared
+
+
 def main(argv: list[str]) -> int:
     env = dict(os.environ)
     root = Path(env.get("REPO_ROOT", ".")).resolve()
-    envelope_path = root / env.get("ENVELOPE", "config/delegation_envelope.json")
     thresholds_path = root / env.get("THRESHOLDS", "config/envelope_expiry_thresholds.json")
 
     evaluated_at = datetime.now(timezone.utc).isoformat()
     try:
         thresholds, thresholds_digest = read_thresholds(thresholds_path)
+        envelope_path = root / declared_envelope(env)
         envelope, envelope_digest = load(envelope_path, "the delegation envelope")
         today = evaluation_date(env.get("EVALUATE_AT", ""))
         expires_at = parse_expiry(envelope)

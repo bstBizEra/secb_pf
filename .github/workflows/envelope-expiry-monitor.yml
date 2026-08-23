@@ -41,6 +41,11 @@ jobs:
         id: evaluate
         env:
           PYTHONDONTWRITEBYTECODE: "1"
+          # Named explicitly, not defaulted. The script refuses an unnamed subject, so this
+          # line is what tells it WHICH envelope this scheduled run observes. The intent
+          # lives at the call site where it can be read, rather than being assumed inside
+          # the script -- where a caller whose variable went missing would look identical.
+          ENVELOPE: config/delegation_envelope.json
         run: |
           set +e
           python scripts/check_envelope_expiry.py > "$RUNNER_TEMP/expiry.json" 2> "$RUNNER_TEMP/expiry.err"

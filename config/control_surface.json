@@ -86,8 +86,8 @@
     },
     {
       "path": "scripts/check_envelope_expiry.py",
-      "sha256": "4f484bcea8f00c036967b55696efc33b8d75f3ca46654b2d36eb5c4897a781c9",
-      "bytes": 8233,
+      "sha256": "617212a0dd0ed6d171fbd30ebb7aeb017d3779b2262c9fe1104e6974316c9816",
+      "bytes": 9362,
       "owning_work_package": "SECB-WP-FWK-071",
       "last_changed_commit": "PENDING_MERGE",
       "portability_class": "configure",

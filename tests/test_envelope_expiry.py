@@ -40,7 +40,11 @@ def write(tmp_path: Path, envelope: dict | str | None = None,
 
 
 def run(root: Path, at: str | None = None, **extra: str) -> subprocess.CompletedProcess:
-    env = {**os.environ, "REPO_ROOT": str(root), "PYTHONDONTWRITEBYTECODE": "1", **extra}
+    # The subject is NAMED, never defaulted -- the gate refuses an unnamed envelope, so every
+    # case here says which one it means. `**extra` comes last so a case can override it, and
+    # `ENVELOPE=""` is how a case asks for the absent-subject path.
+    env = {**os.environ, "REPO_ROOT": str(root), "PYTHONDONTWRITEBYTECODE": "1",
+           "ENVELOPE": "config/delegation_envelope.json", **extra}
     if at is not None:
         env["EVALUATE_AT"] = at
     return subprocess.run([sys.executable, str(TOOL)], capture_output=True, text=True,
@@ -246,3 +250,36 @@ def test_the_workflow_reraises_the_evaluation_status():
     assert "if: always()" in text
     # An absent status must not read as success.
     assert 'if [ -z "$STATUS" ]' in text
+
+
+def test_an_unnamed_envelope_is_refused_rather_than_defaulted(tmp_path):
+    """An absent subject must not resolve to the repository's own envelope.
+
+    The gate used to default to `config/delegation_envelope.json`. Every real caller wanted
+    exactly that file, which is what made the default dangerous rather than convenient: a caller
+    that MEANT to name an envelope and failed to -- a renamed variable, an edited workflow --
+    was handed `state: VALID, days_remaining: 78` about a file it never asked about, with nothing
+    in the output to distinguish that from an answer to its actual question.
+
+        ABSENT_SUBJECT != DEFAULTED_SUBJECT
+
+    Paired deliberately, because a refusal alone would also be produced by a broken fixture and
+    would prove nothing: the same root with the subject NAMED must succeed, which is what makes
+    the refusal attributable to the absence rather than to an unusable environment.
+    """
+    root = write(tmp_path, {"expires_at": EXPIRY})
+
+    named = run(root, at="2026-01-01T00:00:00+00:00")
+    assert named.returncode == 0, (
+        f"the paired success arm failed, so this fixture cannot prove anything about absence:\n"
+        f"{named.stdout}\n{named.stderr}"
+    )
+    assert state_of(named) == "VALID"
+
+    unnamed = run(root, at="2026-01-01T00:00:00+00:00", ENVELOPE="")
+    assert unnamed.returncode != 0, (
+        "the gate exited 0 with no envelope named. It measured SOMETHING and called it VALID, "
+        "which is the confident-wrong-answer this refusal exists to prevent."
+    )
+    assert state_of(unnamed) == "OBSERVATION_INCOMPLETE"
+    assert "no envelope was named" in unnamed.stderr
