@@ -112,6 +112,19 @@ G5_PATH_DELETIONS = (
 # on a control file is an edit -> G4, not G5"
 # (tests/test_classify_authority_delta.py::test_editing_a_control_is_not_a_deletion).
 # Only a PURE deletion of a control script is G5, which is unchanged behaviour.
+#
+# DELIBERATELY EXCLUDED, and CONDITIONALLY so: the top-level `evidence/` auto_path.
+# README.md:39 advertises it as "immutable or checksum-verifiable execution
+# evidence", so L0 rule 6 reaches it in spirit. It is NOT in G5_PATH_DELETIONS,
+# and adding it HERE alone was measured to make things worse: a partial removal
+# escalated while deleting the whole file still auto-approved, which prices total
+# destruction below partial. Closing it properly means adding `evidence/` to
+# G5_PATH_DELETIONS, and that expands a never-weighed prohibition -- a policy act,
+# not a parser fix.
+#
+# TRIGGER TO CLOSE: `evidence/` holds only .gitkeep today, so exposure is zero.
+# This deferral MUST close BEFORE the first real artifact lands there. Whoever
+# adds one inherits the obligation.
 G5_APPEND_ONLY = ("docs/13-evidence/",)
 
 # Enforcement steps whose *removal* from CI is prohibited. Matched only on
