@@ -85,7 +85,7 @@ def test_a_rename_onto_a_protected_path_never_auto_approves(tmp_path, src, dst):
 
     numstat = _git(repo, "diff", "--numstat", f"{base}...{head}")
     assert numstat.strip(), "git produced no numstat row"
-    assert _classify(numstat) != EXIT_OK, (
+    assert _classify(numstat) == EXIT_ESCALATE, (
         f"relocation onto {dst} auto-approved; git rendered it as {numstat!r}"
     )
 
@@ -122,7 +122,7 @@ def test_deleting_an_empty_evidence_file_does_not_auto_approve(tmp_path):
     numstat = _git(repo, "diff", "--numstat", f"{base}...HEAD")
 
     assert numstat.split("\t")[:2] == ["0", "0"], f"expected a 0/0 row, got {numstat!r}"
-    assert _classify(numstat) != EXIT_OK
+    assert _classify(numstat) == EXIT_ESCALATE
 
 
 def test_deleting_a_binary_evidence_artifact_does_not_auto_approve(tmp_path):
@@ -139,7 +139,7 @@ def test_deleting_a_binary_evidence_artifact_does_not_auto_approve(tmp_path):
     numstat = _git(repo, "diff", "--numstat", f"{base}...HEAD")
 
     assert numstat.startswith("-\t-\t"), f"expected a binary row, got {numstat!r}"
-    assert _classify(numstat) != EXIT_OK
+    assert _classify(numstat) == EXIT_ESCALATE
 
 
 def test_shrinking_evidence_while_adding_a_line_does_not_auto_approve(tmp_path):
@@ -155,7 +155,7 @@ def test_shrinking_evidence_while_adding_a_line_does_not_auto_approve(tmp_path):
 
     added, deleted, _ = numstat.split("\t", 2)
     assert int(deleted) > int(added), f"expected net shrinkage, got {numstat!r}"
-    assert _classify(numstat) != EXIT_OK
+    assert _classify(numstat) == EXIT_ESCALATE
 
 
 def test_appending_to_evidence_still_auto_approves(tmp_path):
@@ -171,3 +171,79 @@ def test_appending_to_evidence_still_auto_approves(tmp_path):
     numstat = _git(repo, "diff", "--numstat", f"{base}...HEAD")
 
     assert _classify(numstat) == EXIT_OK, f"ordinary evidence growth escalated: {numstat!r}"
+
+
+# --- surfaces a mutation sweep found uncovered ---------------------------------
+
+def test_a_c_quoted_path_is_refused_not_guessed(tmp_path):
+    """Deleting the C-quote guard must fail a test. It previously did not.
+
+    git C-quotes any path with non-ASCII bytes, and this repository already
+    tracks six such files. A quoted path cannot be prefix-matched against any
+    policy list, so classifying it is guessing.
+    """
+    repo = _repo(tmp_path)
+    _seed(repo, "docs/13-evidence/caf\u00e9.md", "x\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "base")
+    base = _git(repo, "rev-parse", "HEAD").strip()
+    _git(repo, "rm", "-q", "docs/13-evidence/caf\u00e9.md")
+    _git(repo, "commit", "-q", "-m", "remove")
+    numstat = _git(repo, "diff", "--numstat", f"{base}...HEAD")
+
+    assert numstat.lstrip().split("\t")[2].startswith('"'), (
+        f"expected git to C-quote this path, got {numstat!r}"
+    )
+    assert _classify(numstat) == EXIT_ESCALATE
+
+
+def test_a_tab_in_a_path_does_not_shift_the_field_split():
+    """Reverting split('\\t', 2) to an unbounded split must fail a test.
+
+    git quotes a literal tab, so this row is synthetic -- but an unbounded
+    split silently reinterprets which field is the path, which is the class of
+    error that produced the source-side bypass.
+    """
+    assert _classify("0\t500\tdocs/note.md\tdocs/13-evidence/sealed.md\n") == EXIT_ESCALATE
+
+
+def test_equal_add_and_delete_on_evidence_still_escalates():
+    """The boundary that defeated an earlier draft of this fix.
+
+    A net-shrinkage discriminator (deleted > added) returns exit 0 here, and a
+    299/299 rewrite of a sealed ledger destroys every line it touches while
+    adding the same number back.
+    """
+    for added, deleted in ((299, 299), (300, 300), (1, 1), (300, 299)):
+        row = f"{added}\t{deleted}\tdocs/13-evidence/EVIDENCE_LEDGER.md\n"
+        assert _classify(row) == EXIT_ESCALATE, f"{added}/{deleted} did not escalate"
+
+
+def test_the_g5_prohibition_is_not_downgraded_by_the_removal_check(tmp_path):
+    """Order matters: the removal check must sit BELOW the CI-step check.
+
+    Placed above it, a row that both removes an enforcement step and removes
+    content from evidence returns CONSTITUTIONAL_REQUIRED -- an escalation a
+    human may approve -- instead of REJECTED, which is never weighed.
+    """
+    diff = tmp_path / "d.diff"
+    diff.write_text("-run: python scripts/check_budget.py\n")
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        input="1\t500\tdocs/13-evidence/x.md\n",
+        capture_output=True, text=True,
+        env={**os.environ, "ENVELOPE": str(ENVELOPE), "DIFF_PATH": str(diff)},
+    )
+    assert proc.returncode == EXIT_REJECTED, (
+        f"a prohibited act was downgraded to {proc.returncode}"
+    )
+
+
+def test_editing_a_control_script_is_still_only_a_ballot():
+    """The append-only rule is scoped to evidence, not to control scripts.
+
+    L0 rule 6 makes evidence append-only; control scripts are meant to be
+    edited, and the repository has already ruled that an edit is G4 not G5.
+    """
+    assert _classify("10\t8\tscripts/check_budget.py\n") == EXIT_ESCALATE
+    assert _classify("0\t80\tscripts/check_budget.py\n") == EXIT_REJECTED

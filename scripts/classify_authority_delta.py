@@ -102,6 +102,18 @@ G5_PATH_DELETIONS = (
     "docs/13-evidence/",
 )
 
+# The subset of G5 surfaces that L0 rule 6 declares APPEND-ONLY: "Evidence, once
+# recorded, is append-only" (L0_ROOT_CONSTITUTION.md:65). Removing content from
+# these is a prohibited act whatever the arithmetic, so a row that removes ANY
+# content from them cannot be settled by line counts and escalates.
+#
+# The control SCRIPTS above are deliberately excluded. They are meant to be
+# edited, and the repository has already ruled on it: "Additions plus deletions
+# on a control file is an edit -> G4, not G5"
+# (tests/test_classify_authority_delta.py::test_editing_a_control_is_not_a_deletion).
+# Only a PURE deletion of a control script is G5, which is unchanged behaviour.
+G5_APPEND_ONLY = ("docs/13-evidence/",)
+
 # Enforcement steps whose *removal* from CI is prohibited. Matched only on
 # removed lines, never on a substring of the whole diff: an added line that
 # merely quotes one of these strings — a test fixture, or documentation of
@@ -149,6 +161,12 @@ def parse_numstat(numstat: str) -> tuple[list[tuple[str, int, bool, bool]], int]
         parts = raw.split("\t", 2)
         if len(parts) < 3:
             raise ValueError(f"unrecognized numstat row: {raw!r}")
+        # git C-quotes a tab inside a path, so a real numstat row has exactly two
+        # tabs. A third means the input did not come from `git diff --numstat`,
+        # and guessing which field is the path is how the source-side bypass
+        # happened. Refuse rather than pick.
+        if "\t" in parts[2]:
+            raise ValueError(f"numstat row has more than three fields: {raw!r}")
         added, deleted, path = parts[0], parts[1], parts[2]
         # FAIL CLOSED on rows whose real paths cannot be recovered from this
         # format. `git diff --numstat` renders a rename as "old => new" or
@@ -173,13 +191,17 @@ def parse_numstat(numstat: str) -> tuple[list[tuple[str, int, bool, bool]], int]
         # uncertain: the counts cannot settle whether a protected artifact lost
         # content. Any removal qualifies, and so does a 0/0 row -- deleting an
         # EMPTY file is byte-identical here to a no-op or a mode-only change.
-        # uncertain: this row may have destroyed protected content, and the counts
-        # cannot settle it. NET SHRINKAGE is the discriminator, not raw deletions:
-        # a row that adds at least as much as it removes cannot have destroyed net
-        # content -- it padded or rewrote. A 0/0 row is also unsettleable, because
-        # deleting an EMPTY file is byte-identical here to a no-op or mode change.
-        # This is why "+1 added / -500 deleted" escalates while "+117/-10" does not.
-        rows.append((path, lines, a == 0 and d > 0, d > a or (a == 0 and d == 0)))
+        # uncertain: this row MAY have removed protected content, and line counts
+        # cannot settle whether it did. Any removal qualifies.
+        #
+        # NOT A DESTRUCTION DETECTOR. Line counts cannot express content. A row
+        # that rewrites 299 lines into 299 different lines destroys everything and
+        # is arithmetically identical to an edit. An earlier draft of this used
+        # net shrinkage (d > a) and claimed a row adding as much as it removes
+        # cannot have destroyed net content -- that is false, and it was refuted
+        # with real git: 299/299 over a sealed ledger auto-approved. The flag is a
+        # REMOVAL flag, nothing stronger; do not restate it as more.
+        rows.append((path, lines, a == 0 and d > 0, d > 0 or (a == 0 and d == 0)))
         total += lines
     return rows, total
 
@@ -209,6 +231,13 @@ def classify(
             "prohibited: deletes a control or evidence artifact — "
             + ", ".join(sorted(deleted_controls)[:3])
         )
+    removed_steps = removed_enforcement_steps(diff_text)
+    if removed_steps:
+        return REJECTED, (
+            "prohibited: removes an enforcement step from CI — "
+            + ", ".join(sorted(set(removed_steps)))
+        )
+
     # A row that removes content from a G5-protected surface, but is not a PURE
     # deletion, cannot be settled from line counts alone: "1 added / 500 deleted"
     # on a sealed evidence file is indistinguishable here from ordinary editing.
@@ -217,19 +246,12 @@ def classify(
     # parser's. It escalates so a human decides.
     uncertain_controls = [
         path for path, _, is_del, uncertain in rows
-        if uncertain and not is_del and path.startswith(G5_PATH_DELETIONS)
+        if uncertain and not is_del and path.startswith(G5_APPEND_ONLY)
     ]
     if uncertain_controls:
         return CONSTITUTIONAL_REQUIRED, (
             "removes content from a control or evidence artifact; deletion cannot be "
             "determined from line counts — " + ", ".join(sorted(uncertain_controls)[:3])
-        )
-
-    removed_steps = removed_enforcement_steps(diff_text)
-    if removed_steps:
-        return REJECTED, (
-            "prohibited: removes an enforcement step from CI — "
-            + ", ".join(sorted(set(removed_steps)))
         )
 
     # Absolute ceiling: never waivable by any tier or ballot.
