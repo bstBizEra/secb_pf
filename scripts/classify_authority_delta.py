@@ -138,30 +138,54 @@ def load_envelope(path: str) -> dict:
     return envelope
 
 
-def parse_numstat(numstat: str) -> tuple[list[tuple[str, int, bool]], int]:
-    """Return ([(path, lines, is_deletion)], total_lines)."""
-    rows: list[tuple[str, int, bool]] = []
+def parse_numstat(numstat: str) -> tuple[list[tuple[str, int, bool, bool]], int]:
+    """Return ([(path, lines, is_deletion, uncertain)], total_lines)."""
+    rows: list[tuple[str, int, bool, bool]] = []
     total = 0
     for raw in numstat.splitlines():
         raw = raw.strip()
         if not raw:
             continue
-        parts = raw.split("\t")
+        parts = raw.split("\t", 2)
         if len(parts) < 3:
             raise ValueError(f"unrecognized numstat row: {raw!r}")
-        added, deleted, path = parts[0], parts[1], parts[-1]
-        if added == "-":  # binary
-            rows.append((path, 0, False))
+        added, deleted, path = parts[0], parts[1], parts[2]
+        # FAIL CLOSED on rows whose real paths cannot be recovered from this
+        # format. `git diff --numstat` renders a rename as "old => new" or
+        # "{old => new}/tail" inside the single path field, and C-quotes any
+        # path with non-ASCII or control bytes. A file may also legitimately be
+        # NAMED "a => b", so the two are not distinguishable here -- the format
+        # is lossy, and any split is a guess. Guessing is what let a rename
+        # carry a path out of its authority class. Refuse instead.
+        if " => " in path or path.startswith('"'):
+            raise ValueError(
+                f"ambiguous numstat row -- paths not recoverable from this format: {raw!r}"
+            )
+        if added == "-":  # binary: line counts and deletion state are both unknowable here
+            rows.append((path, 0, False, True))
             continue
-        lines = int(added) + int(deleted)
-        # A pure deletion has additions == 0 and deletions > 0.
-        rows.append((path, lines, int(added) == 0 and int(deleted) > 0))
+        a, d = int(added), int(deleted)
+        lines = a + d
+        # is_deletion stays a PURE deletion (a == 0 and d > 0) -- widening it would
+        # reject ordinary edits. `uncertain` carries what the counts cannot settle:
+        # any row that removes content might be destroying a protected artifact,
+        # and adding one line must not launder that away.
+        # uncertain: the counts cannot settle whether a protected artifact lost
+        # content. Any removal qualifies, and so does a 0/0 row -- deleting an
+        # EMPTY file is byte-identical here to a no-op or a mode-only change.
+        # uncertain: this row may have destroyed protected content, and the counts
+        # cannot settle it. NET SHRINKAGE is the discriminator, not raw deletions:
+        # a row that adds at least as much as it removes cannot have destroyed net
+        # content -- it padded or rewrote. A 0/0 row is also unsettleable, because
+        # deleting an EMPTY file is byte-identical here to a no-op or mode change.
+        # This is why "+1 added / -500 deleted" escalates while "+117/-10" does not.
+        rows.append((path, lines, a == 0 and d > 0, d > a or (a == 0 and d == 0)))
         total += lines
     return rows, total
 
 
 def classify(
-    rows: list[tuple[str, int, bool]],
+    rows: list[tuple[str, int, bool, bool]],
     total_lines: int,
     envelope: dict,
     diff_text: str,
@@ -173,11 +197,11 @@ def classify(
 
     scope = envelope["scope"]
     ceilings = envelope["absolute_ceilings"]
-    paths = [path for path, _, _ in rows]
+    paths = [path for path, _, _, _ in rows]
 
     # G5 first: prohibited changes are never weighed against anything.
     deleted_controls = [
-        path for path, _, is_del in rows
+        path for path, _, is_del, _u in rows
         if is_del and path.startswith(G5_PATH_DELETIONS)
     ]
     if deleted_controls:
@@ -185,6 +209,22 @@ def classify(
             "prohibited: deletes a control or evidence artifact — "
             + ", ".join(sorted(deleted_controls)[:3])
         )
+    # A row that removes content from a G5-protected surface, but is not a PURE
+    # deletion, cannot be settled from line counts alone: "1 added / 500 deleted"
+    # on a sealed evidence file is indistinguishable here from ordinary editing.
+    # It is not REJECTED -- L0 calls evidence append-only while the repository's
+    # own history edits evidence files, and resolving that is a policy act, not a
+    # parser's. It escalates so a human decides.
+    uncertain_controls = [
+        path for path, _, is_del, uncertain in rows
+        if uncertain and not is_del and path.startswith(G5_PATH_DELETIONS)
+    ]
+    if uncertain_controls:
+        return CONSTITUTIONAL_REQUIRED, (
+            "removes content from a control or evidence artifact; deletion cannot be "
+            "determined from line counts — " + ", ".join(sorted(uncertain_controls)[:3])
+        )
+
     removed_steps = removed_enforcement_steps(diff_text)
     if removed_steps:
         return REJECTED, (
