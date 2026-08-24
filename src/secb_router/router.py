@@ -170,16 +170,15 @@ def route(request: dict, skills: list[Skill], policy_hash: str, now: datetime | 
             rejected[skill.skill_id] = reason
 
     explicit = tuple(request.get("explicit_skill_priorities", []))
-    eligible_by_id: dict[str, Skill] = {}
-    for skill in eligible:
-        # A duplicate skill_id makes every later resolution ambiguous, and a
-        # dict would silently keep the last one -- so an entry rejected as
-        # REVOKED could still be the one that `selected` resolves to and that
-        # a warrant is issued against. "old version REVOKED, new version
-        # QUALIFIED" is an ordinary registry shape, so this is reachable.
-        if skill.skill_id in eligible_by_id:
-            raise RouteHeld(f"duplicate skill_id in registry: {skill.skill_id}")
-        eligible_by_id[skill.skill_id] = skill
+    # Last-wins is the deliberate choice: a duplicate skill_id means two versions
+    # are live, which is ordinary registry practice. What must NOT happen is an
+    # INELIGIBLE entry winning that resolution, which is why every lookup below
+    # goes through this map rather than the full registry. A registry-wide
+    # uniqueness guard was tried and withdrawn: it held routes for duplicates
+    # that were never required by the request, and it inverted monotonicity --
+    # lowering a request's risk tier made routing FAIL, because a stricter tier
+    # filtered one duplicate out and a looser one did not.
+    eligible_by_id = {skill.skill_id: skill for skill in eligible}
     eligible_ids = set(eligible_by_id)
     missing_named = [skill_id for skill_id in explicit if skill_id not in eligible_ids]
     if missing_named:

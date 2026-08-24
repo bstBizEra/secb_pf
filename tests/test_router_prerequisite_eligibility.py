@@ -92,12 +92,22 @@ def test_an_ineligible_prerequisite_cannot_enter_the_plan(defect):
     skills = [blocked, _carrier()]
     request = _request()
 
-    # NOT `pytest.raises(...)` wrapping the assert -- the exception fires first
-    # and the assertion never executes, so the test passes whatever it claims.
-    try:
-        plan = route(request, skills, POLICY, now=NOW)
-    except RouteHeld:
-        return  # fail-closed: no plan, so nothing ineligible reached one
+    # An ALTERNATIVE carrier covering the same capability WITHOUT the blocked
+    # prerequisite. Without it route() always raises, `except RouteHeld: return`
+    # fires, and the assertions below are unreachable -- the test then passes
+    # whatever it claims. A previous revision of this file had exactly that bug
+    # in two different shapes.
+    alt = Skill(
+        skill_id="alt",
+        version="1.0",
+        digest="d",
+        capabilities=frozenset({"main"}),
+        status="QUALIFIED",
+        risk_ceiling="R3",
+        expires_at=LIVE,
+    )
+    plan = route(request, skills + [alt], POLICY, now=NOW)
+    assert plan.order, "expected a plan via the alternative carrier"
     assert "blocked" not in plan.order, (
         f"ineligible prerequisite entered the plan via the transitive edge: {defect}"
     )
@@ -190,3 +200,71 @@ def test_a_duplicate_skill_id_cannot_shadow_an_eligible_entry():
         # correctly. That is an audit-record ambiguity under legitimate
         # versioning, not an authorization defect, and it is NOT asserted
         # against here. Recorded in the commit message as a known limitation.
+
+
+def test_coverage_is_computed_from_eligible_entries_only():
+    """`chosen` must resolve through the eligible map.
+
+    `chosen` feeds the coverage check that decides whether a combination is a
+    valid candidate. Resolving it through the full registry lets a SHADOWED,
+    ineligible entry supply the coverage that admits the combination -- so a
+    plan is produced whose selected skills do not provide the capability the
+    request required. The request must ask for the capability that ONLY the
+    shadowed entry appears to have, or the mutation is invisible.
+    """
+    real = Skill("dup", "1.0", "d", frozenset({"main"}), status="QUALIFIED", risk_ceiling="R3")
+    shadow = Skill(
+        "dup", "2.0", "d", frozenset({"main", "secret"}),
+        status="REVOKED", risk_ceiling="R0", expires_at=EXPIRED,
+    )
+    request = _request(required_capabilities={"main", "secret"})
+
+    try:
+        plan = route(request, [real, shadow], POLICY, now=NOW)
+    except RouteHeld:
+        return  # correct: nothing eligible supplies "secret"
+
+    covered = set().union(*(s.capabilities for s in plan.selected))
+    assert set(request["required_capabilities"]) <= covered, (
+        f"plan claims coverage it does not supply: required "
+        f"{request['required_capabilities']}, selected provides {covered}"
+    )
+
+
+def test_a_prerequisite_is_ordered_before_its_dependent():
+    """`_topological_order` must resolve through the eligible map too.
+
+    Given it the full registry and a shadowed id, it walks the wrong entry's
+    prerequisite list and can emit a dependent ahead of what it depends on.
+    """
+    dep = Skill("dep", "1.0", "d", frozenset({"dep"}), status="QUALIFIED",
+                risk_ceiling="R3", expires_at=LIVE)
+    carrier = Skill("carrier", "1.0", "d", frozenset({"main"}), status="QUALIFIED",
+                    risk_ceiling="R3", expires_at=LIVE, prerequisites=("dep",))
+    shadow = Skill("carrier", "2.0", "d", frozenset({"main"}), status="REVOKED",
+                   risk_ceiling="R0", expires_at=EXPIRED, prerequisites=())
+    plan = route(_request(), [dep, carrier, shadow], POLICY, now=NOW)
+    assert "dep" in plan.order and "carrier" in plan.order
+    assert plan.order.index("dep") < plan.order.index("carrier"), (
+        f"dependent ordered before its prerequisite: {plan.order}"
+    )
+
+
+def test_an_unrelated_duplicate_version_does_not_block_routing():
+    """Two live versions of a skill the request never asks for must not hold the
+    route. A registry-wide uniqueness guard did exactly that and was withdrawn."""
+    main = Skill("main", "1.0", "d", frozenset({"main"}), status="QUALIFIED", risk_ceiling="R3")
+    u1 = Skill("util", "1.0", "d", frozenset({"util"}), status="QUALIFIED", risk_ceiling="R3")
+    u2 = Skill("util", "2.0", "d", frozenset({"util"}), status="QUALIFIED", risk_ceiling="R3")
+    plan = route(_request(), [main, u1, u2], POLICY, now=NOW)
+    assert plan.order == ["main"]
+
+
+@pytest.mark.parametrize("tier", ["R0", "R1", "R2", "R3"])
+def test_routing_does_not_invert_with_the_request_risk_tier(tier):
+    """Lowering a request's tier must never make routing fail. A guard that did
+    created a standing incentive to escalate a tier to make routing work."""
+    a1 = Skill("A", "1.0", "d", frozenset({"main"}), status="QUALIFIED", risk_ceiling="R1")
+    a2 = Skill("A", "2.0", "d", frozenset({"main"}), status="QUALIFIED", risk_ceiling="R3")
+    plan = route(_request(risk_tier=tier), [a1, a2], POLICY, now=NOW)
+    assert plan.order == ["A"]
