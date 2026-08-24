@@ -138,6 +138,39 @@ def load_envelope(path: str) -> dict:
     return envelope
 
 
+def expand_rename(path: str) -> list[str]:
+    """Both real paths a numstat row touches. A rename touches two; git prints one.
+
+    `git diff --numstat` renders a rename compactly:
+
+        docs/00-governance/{L0_ROOT_CONSTITUTION.md => L0.md}
+        {config => docs}/delegation_envelope.json
+        old/path.md => new/path.md
+
+    Taking that string as *the* path means it matches no entry in `constitutional_paths` or
+    `governance_implementation_paths`, because neither side is ever compared. Measured on `main`
+    before this change: renaming the root constitution inside its own directory returned
+    `AGENT_BALLOT_REQUIRED` where an ordinary edit to it returns `CONSTITUTIONAL_REQUIRED`. The
+    amendment rule says *any change to this file*; a rename is a change, and it escaped.
+
+        PATH_AS_PRINTED != PATHS_TOUCHED
+
+    Both sides are returned so both are classified, and the strictest verdict wins — which is what
+    the existing per-path logic already does once it can see them.
+    """
+    if "=>" not in path:
+        return [path]
+    if "{" in path and "}" in path:
+        prefix, rest = path.split("{", 1)
+        middle, suffix = rest.split("}", 1)
+        old, new = (s.strip() for s in middle.split("=>", 1))
+        pair = [f"{prefix}{old}{suffix}", f"{prefix}{new}{suffix}"]
+    else:
+        pair = [s.strip() for s in path.split("=>", 1)]
+    # `dir/{ => sub}/f` yields an empty side, collapsing to a doubled separator.
+    return [q.replace("//", "/") for q in pair if q]
+
+
 def parse_numstat(numstat: str) -> tuple[list[tuple[str, int, bool]], int]:
     """Return ([(path, lines, is_deletion)], total_lines)."""
     rows: list[tuple[str, int, bool]] = []
@@ -150,12 +183,22 @@ def parse_numstat(numstat: str) -> tuple[list[tuple[str, int, bool]], int]:
         if len(parts) < 3:
             raise ValueError(f"unrecognized numstat row: {raw!r}")
         added, deleted, path = parts[0], parts[1], parts[-1]
+        touched = expand_rename(path)
+        renamed = len(touched) > 1
         if added == "-":  # binary
-            rows.append((path, 0, False))
+            for q in touched:
+                rows.append((q, 0, False))
             continue
         lines = int(added) + int(deleted)
         # A pure deletion has additions == 0 and deletions > 0.
-        rows.append((path, lines, int(added) == 0 and int(deleted) > 0))
+        is_del = int(added) == 0 and int(deleted) > 0
+        # The line count belongs to the change, so it is carried once, on the destination. The
+        # source is still emitted so path-based rules see it -- and marked as a deletion of that
+        # path, because after a rename the control no longer exists there. Without that, renaming a
+        # G5-listed control away from its path evades the deletion detector too.
+        rows.append((touched[-1], lines, is_del))
+        if renamed:
+            rows.append((touched[0], 0, True))
         total += lines
     return rows, total
 

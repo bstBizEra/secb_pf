@@ -18,8 +18,8 @@
   "controls": [
     {
       "path": "scripts/classify_authority_delta.py",
-      "sha256": "920b99df28b85957cbbf37b9f9dd0aca9ce72367f44b4caa4dac6d6d0141dc66",
-      "bytes": 14096,
+      "sha256": "33ada14316237da8d88d6849dab45bdc39e55364c38ae80c3bb7e8d44944dcfd",
+      "bytes": 16184,
       "owning_work_package": "SECB-WP-FWK-048",
       "last_changed_commit": "2250469",
       "portability_class": "verbatim",

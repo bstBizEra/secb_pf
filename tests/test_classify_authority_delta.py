@@ -502,3 +502,57 @@ def test_a_malformed_family_size_fails_closed():
         result = run_family("5\t0\tdocs/a.md\n", family=bad)
         assert result.returncode == EXIT_ESCALATE, bad
         assert "CONSTITUTIONAL_REQUIRED" in result.stderr, bad
+
+
+# --- a rename must not carry a path out of its authority class ----------------
+
+
+@pytest.mark.parametrize("row,expected_exit,expected_token", [
+    # git prints a rename as ONE compact path, so neither side reached the path lists.
+    ("1\t0\tdocs/00-governance/{L0_ROOT_CONSTITUTION.md => L0.md}\n",
+     EXIT_ESCALATE, "CONSTITUTIONAL_REQUIRED"),
+    ("1\t0\tconfig/{delegation_envelope.json => env.json}\n",
+     EXIT_ESCALATE, "CONSTITUTIONAL_REQUIRED"),
+    # a rename also removes the control from the path the G5 deletion rule watches
+    ("1\t0\tscripts/{check_budget.py => x.py}\n", EXIT_REJECTED, "REJECTED"),
+    # forms that already failed closed must keep doing so
+    ("1\t0\t{config => docs}/delegation_envelope.json\n",
+     EXIT_ESCALATE, "CONSTITUTIONAL_REQUIRED"),
+    ("4\t2\tdocs/00-governance/L0_ROOT_CONSTITUTION.md\n",
+     EXIT_ESCALATE, "CONSTITUTIONAL_REQUIRED"),
+])
+def test_a_rename_cannot_carry_a_path_out_of_its_authority_class(row, expected_exit, expected_token):
+    """`PATH_AS_PRINTED != PATHS_TOUCHED`.
+
+    Measured on `main` before this change: renaming the root constitution inside its own directory
+    returned `AGENT_BALLOT_REQUIRED`, while an ordinary edit to the same file returns
+    `CONSTITUTIONAL_REQUIRED`. The amendment rule says *any change to this file*. A rename is a
+    change, and it escaped -- as did renaming a G5-listed control away from its watched path.
+    """
+    result = run(row)
+    assert result.returncode == expected_exit, result.stderr
+    assert expected_token in result.stderr
+
+
+def test_rename_expansion_does_not_escalate_an_ordinary_change():
+    """The regression half. Expansion must widen what is SEEN, not what is refused.
+
+    Note the stream: a pass is written to stdout, a refusal to stderr. Asserting the pass token
+    against stderr passes vacuously on an empty stream, which is how the first draft of this test
+    failed against correct code.
+    """
+    result = run("3\t1\tdocs/13-evidence/NOTE.md\n")
+    assert result.returncode == EXIT_OK, result.stderr
+    assert "AUTO_APPROVED" in result.stdout
+
+
+def test_rename_expansion_returns_both_real_paths():
+    """Pinned directly: the verdict cases above would also pass if only one side were seen and it
+    happened to be the strict one."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from classify_authority_delta import expand_rename
+
+    assert expand_rename("docs/g/{A.md => B.md}") == ["docs/g/A.md", "docs/g/B.md"]
+    assert expand_rename("{config => docs}/e.json") == ["config/e.json", "docs/e.json"]
+    assert expand_rename("old/a.md => new/b.md") == ["old/a.md", "new/b.md"]
+    assert expand_rename("plain/path.md") == ["plain/path.md"]
