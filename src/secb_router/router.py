@@ -186,6 +186,7 @@ def route(request: dict, skills: list[Skill], policy_hash: str, now: datetime | 
 
     required = set(request["required_capabilities"])
     candidates: list[tuple[tuple, set[str]]] = []
+    dropped: dict[str, None] = {}
     for size in range(1, len(eligible) + 1):
         for combo in combinations(eligible, size):
             combo_ids = {s.skill_id for s in combo}
@@ -193,7 +194,12 @@ def route(request: dict, skills: list[Skill], policy_hash: str, now: datetime | 
                 continue
             try:
                 ids = _expand_prerequisites(combo_ids, eligible_by_id, by_id)
-            except RouteHeld:
+            except RouteHeld as why:
+                # Keep the reason. Swallowing it collapsed every fault class --
+                # missing prerequisite, ineligible prerequisite, cycle -- into a
+                # single "coverage unavailable", so an operator could not tell a
+                # typo from a revoked dependency.
+                dropped.setdefault(str(why), None)
                 continue
             chosen = [eligible_by_id[i] for i in ids]
             if any(set(s.conflicts) & ids for s in chosen):
@@ -213,6 +219,11 @@ def route(request: dict, skills: list[Skill], policy_hash: str, now: datetime | 
         if candidates:
             break
     if not candidates:
+        if dropped:
+            raise RouteHeld(
+                "mandatory capability coverage unavailable — "
+                + "; ".join(sorted(dropped))
+            )
         raise RouteHeld("mandatory capability coverage unavailable")
     ids = min(candidates, key=lambda row: row[0])[1]
     order = _topological_order(ids, eligible_by_id)

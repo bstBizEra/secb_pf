@@ -167,9 +167,26 @@ def test_an_eligible_prerequisite_still_routes():
 
 def test_a_genuinely_missing_prerequisite_is_still_distinguishable():
     """A prerequisite absent from the registry is a different fault from an
-    ineligible one, and the messages must not collapse into each other."""
-    with pytest.raises(RouteHeld):
+    ineligible one, and the messages must not collapse into each other.
+
+    This docstring made that claim for three review rounds while the test only
+    checked that SOMETHING was raised. Every fault class emitted the identical
+    "mandatory capability coverage unavailable", so the claim was false in the
+    tree. It now inspects the message.
+    """
+    with pytest.raises(RouteHeld) as absent:
         route(_request(), [_carrier()], POLICY, now=NOW)
+
+    blocked = Skill("blocked", "1.0", "d", frozenset({"dep"}),
+                    status="REVOKED", expires_at=EXPIRED)
+    with pytest.raises(RouteHeld) as ineligible:
+        route(_request(), [blocked, _carrier()], POLICY, now=NOW)
+
+    assert "missing prerequisite" in str(absent.value)
+    assert "not eligible" in str(ineligible.value)
+    assert str(absent.value) != str(ineligible.value), (
+        "an absent prerequisite and an ineligible one produce the same message"
+    )
 
 
 def test_a_duplicate_skill_id_cannot_shadow_an_eligible_entry():
@@ -218,11 +235,15 @@ def test_coverage_is_computed_from_eligible_entries_only():
         status="REVOKED", risk_ceiling="R0", expires_at=EXPIRED,
     )
     request = _request(required_capabilities={"main", "secret"})
+    # An ELIGIBLE supplier of "secret", so route() succeeds and the assertion
+    # below actually executes. Without it route() HELDs, the early return fires,
+    # and the test can only ever detect one mutation -- never confirm the
+    # property. Third instance of that defect in this file.
+    secret_src = Skill("secretsrc", "1.0", "d", frozenset({"secret"}),
+                       status="QUALIFIED", risk_ceiling="R3", expires_at=LIVE)
 
-    try:
-        plan = route(request, [real, shadow], POLICY, now=NOW)
-    except RouteHeld:
-        return  # correct: nothing eligible supplies "secret"
+    plan = route(request, [real, shadow, secret_src], POLICY, now=NOW)
+    assert plan.order, "expected a plan"
 
     covered = set().union(*(s.capabilities for s in plan.selected))
     assert set(request["required_capabilities"]) <= covered, (
