@@ -170,7 +170,16 @@ def route(request: dict, skills: list[Skill], policy_hash: str, now: datetime | 
             rejected[skill.skill_id] = reason
 
     explicit = tuple(request.get("explicit_skill_priorities", []))
-    eligible_by_id = {skill.skill_id: skill for skill in eligible}
+    eligible_by_id: dict[str, Skill] = {}
+    for skill in eligible:
+        # A duplicate skill_id makes every later resolution ambiguous, and a
+        # dict would silently keep the last one -- so an entry rejected as
+        # REVOKED could still be the one that `selected` resolves to and that
+        # a warrant is issued against. "old version REVOKED, new version
+        # QUALIFIED" is an ordinary registry shape, so this is reachable.
+        if skill.skill_id in eligible_by_id:
+            raise RouteHeld(f"duplicate skill_id in registry: {skill.skill_id}")
+        eligible_by_id[skill.skill_id] = skill
     eligible_ids = set(eligible_by_id)
     missing_named = [skill_id for skill_id in explicit if skill_id not in eligible_ids]
     if missing_named:
@@ -187,7 +196,7 @@ def route(request: dict, skills: list[Skill], policy_hash: str, now: datetime | 
                 ids = _expand_prerequisites(combo_ids, eligible_by_id, by_id)
             except RouteHeld:
                 continue
-            chosen = [by_id[i] for i in ids]
+            chosen = [eligible_by_id[i] for i in ids]
             if any(set(s.conflicts) & ids for s in chosen):
                 continue
             coverage = set().union(*(s.capabilities for s in chosen))
@@ -207,11 +216,11 @@ def route(request: dict, skills: list[Skill], policy_hash: str, now: datetime | 
     if not candidates:
         raise RouteHeld("mandatory capability coverage unavailable")
     ids = min(candidates, key=lambda row: row[0])[1]
-    order = _topological_order(ids, by_id)
+    order = _topological_order(ids, eligible_by_id)
     for skill in eligible:
         if skill.skill_id not in ids:
             rejected[skill.skill_id] = "NOT_MINIMUM_SUFFICIENT"
-    selected = [by_id[i] for i in order]
+    selected = [eligible_by_id[i] for i in order]
     return RoutePlan(
         route_id="route-" + request_hash[:12], request_hash=request_hash,
         registry_hash=registry_hash(skills), policy_hash=policy_hash,

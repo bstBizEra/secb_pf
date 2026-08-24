@@ -92,12 +92,16 @@ def test_an_ineligible_prerequisite_cannot_enter_the_plan(defect):
     skills = [blocked, _carrier()]
     request = _request()
 
-    with pytest.raises(RouteHeld):
+    # NOT `pytest.raises(...)` wrapping the assert -- the exception fires first
+    # and the assertion never executes, so the test passes whatever it claims.
+    try:
         plan = route(request, skills, POLICY, now=NOW)
-        # If a plan is ever produced, the defect is that `blocked` reached it.
-        assert "blocked" not in plan.order, (
-            f"ineligible prerequisite entered the plan via the transitive edge: {defect}"
-        )
+    except RouteHeld:
+        return  # fail-closed: no plan, so nothing ineligible reached one
+    assert "blocked" not in plan.order, (
+        f"ineligible prerequisite entered the plan via the transitive edge: {defect}"
+    )
+    assert all(s.skill_id != "blocked" for s in plan.selected)
 
 
 def test_no_warrant_is_reachable_for_an_ineligible_prerequisite():
@@ -156,3 +160,33 @@ def test_a_genuinely_missing_prerequisite_is_still_distinguishable():
     ineligible one, and the messages must not collapse into each other."""
     with pytest.raises(RouteHeld):
         route(_request(), [_carrier()], POLICY, now=NOW)
+
+
+def test_a_duplicate_skill_id_cannot_shadow_an_eligible_entry():
+    """`by_id` was last-wins, so a REVOKED entry sharing an id with a QUALIFIED
+    one could be the entry `selected` resolved to -- and obtain warrants -- while
+    `rejected` recorded it as NOT_QUALIFIED. Byte-identical warrant hashes were
+    produced on base and on the first draft of this fix.
+    """
+    good = Skill("A", "1.0", "d", frozenset({"main"}), status="QUALIFIED", risk_ceiling="R3")
+    revoked = Skill(
+        "A", "2.0", "d", frozenset({"main"}), status="REVOKED", risk_ceiling="R0",
+        expires_at=EXPIRED, effects=frozenset({"network_egress"}),
+    )
+    for skills in ([good, revoked], [revoked, good]):
+        try:
+            plan = route(_request(), skills, POLICY, now=NOW)
+        except RouteHeld:
+            continue  # fail-closed is an acceptable answer
+        for chosen in plan.selected:
+            assert chosen.status == "QUALIFIED", (
+                f"an entry with status {chosen.status} reached plan.selected"
+            )
+            assert chosen.version == "1.0", (
+                f"the REVOKED v{chosen.version} entry shadowed the QUALIFIED one"
+            )
+        # NOTE: `plan.rejected` is keyed by skill_id, so a rejected v2.0 and a
+        # selected v1.0 collide in the record even when routing resolves
+        # correctly. That is an audit-record ambiguity under legitimate
+        # versioning, not an authorization defect, and it is NOT asserted
+        # against here. Recorded in the commit message as a known limitation.
