@@ -21,7 +21,7 @@
       "sha256": "97905e28bee6a8ae03c54e8e0d03ee81aea5ad0d6d2a328c8d2d971740e240b2",
       "bytes": 18119,
       "owning_work_package": "SECB-WP-FWK-048",
-      "last_changed_commit": "PENDING-see-branch-head",
+      "last_changed_commit": "SECB-WP-FWK-048",
       "portability_class": "verbatim",
       "claimed_transferable_by": "docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md",
       "field_observation": "Edited on instantiation: 63 lines changed against the commit it was copied from, 31 of them mentioning a renamed ladder token. The class is 'verbatim' as an intent, and the field falsifies the intent -- the G0-G5 ladder tokens are hard-coded in code and prose, so a host project that already uses those letters must rename them. Recorded rather than reclassified: reclassifying it to 'adapt' would describe the defect as a design, and then nobody would fix it. Tracked as finding 1 of the field report.",

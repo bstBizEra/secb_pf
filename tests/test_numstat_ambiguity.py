@@ -194,7 +194,20 @@ def test_a_c_quoted_path_is_refused_not_guessed(tmp_path):
     assert numstat.lstrip().split("\t")[2].startswith('"'), (
         f"expected git to C-quote this path, got {numstat!r}"
     )
-    assert _classify(numstat) == EXIT_ESCALATE
+    # Assert the REASON, not just the code. Without the guard this still exits 2 --
+    # a leading quote defeats every prefix list, so it falls through to "outside
+    # the delegated envelope". Same code, different reason, and an exit-code-only
+    # assertion cannot tell them apart. An earlier revision of this test claimed
+    # in its own docstring to catch that deletion, and did not.
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT)], input=numstat, capture_output=True, text=True,
+        env={**os.environ, "ENVELOPE": str(ENVELOPE)},
+    )
+    assert proc.returncode == EXIT_ESCALATE
+    assert "ambiguous numstat row" in (proc.stdout + proc.stderr), (
+        f"escalated for the wrong reason -- the C-quote guard did not fire: "
+        f"{(proc.stdout + proc.stderr).strip()!r}"
+    )
 
 
 def test_a_tab_in_a_path_does_not_shift_the_field_split():
