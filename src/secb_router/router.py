@@ -94,13 +94,28 @@ def registry_hash(skills: Iterable[Skill]) -> str:
     return canonical_hash(rows)
 
 
-def _expand_prerequisites(chosen: set[str], by_id: dict[str, Skill]) -> set[str]:
+def _expand_prerequisites(
+    chosen: set[str],
+    eligible_by_id: dict[str, Skill],
+    all_by_id: dict[str, Skill] | None = None,
+) -> set[str]:
+    """Expand prerequisites, walking ONLY eligible skills.
+
+    Eligibility (status, expiry, risk ceiling, permitted effects) is enforced on
+    the top-level candidate loop. Expanding against the full registry would carry
+    a skill into the plan through the transitive edge without any of those checks
+    -- a REVOKED, expired skill reached as a prerequisite would be selected and
+    could then obtain both an invocation and an effect warrant. A prerequisite
+    that is not eligible makes the combination non-viable; the caller skips it.
+    """
     expanded = set(chosen)
     pending = list(chosen)
     while pending:
-        current = by_id[pending.pop()]
+        current = eligible_by_id[pending.pop()]
         for required in current.prerequisites:
-            if required not in by_id:
+            if required not in eligible_by_id:
+                if all_by_id is not None and required in all_by_id:
+                    raise RouteHeld(f"prerequisite not eligible: {required}")
                 raise RouteHeld(f"missing prerequisite: {required}")
             if required not in expanded:
                 expanded.add(required)
@@ -155,7 +170,8 @@ def route(request: dict, skills: list[Skill], policy_hash: str, now: datetime | 
             rejected[skill.skill_id] = reason
 
     explicit = tuple(request.get("explicit_skill_priorities", []))
-    eligible_ids = {skill.skill_id for skill in eligible}
+    eligible_by_id = {skill.skill_id: skill for skill in eligible}
+    eligible_ids = set(eligible_by_id)
     missing_named = [skill_id for skill_id in explicit if skill_id not in eligible_ids]
     if missing_named:
         raise RouteHeld(f"named skill unavailable or unqualified: {missing_named[0]}")
@@ -168,7 +184,7 @@ def route(request: dict, skills: list[Skill], policy_hash: str, now: datetime | 
             if explicit and not set(explicit) <= combo_ids:
                 continue
             try:
-                ids = _expand_prerequisites(combo_ids, by_id)
+                ids = _expand_prerequisites(combo_ids, eligible_by_id, by_id)
             except RouteHeld:
                 continue
             chosen = [by_id[i] for i in ids]
