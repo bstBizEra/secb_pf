@@ -158,15 +158,18 @@ def expand_rename(path: str) -> list[str]:
     Both sides are returned so both are classified, and the strictest verdict wins — which is what
     the existing per-path logic already does once it can see them.
     """
-    if "=>" not in path:
+    if " => " not in path:
+        # git always spaces the arrow. `=` and `>` are legal in
+        # filenames and are not quoted, so a bare "=>" split mangles `a=>b.md` into two paths
+        # that are both wrong.
         return [path]
     if "{" in path and "}" in path:
         prefix, rest = path.split("{", 1)
         middle, suffix = rest.split("}", 1)
-        old, new = (s.strip() for s in middle.split("=>", 1))
+        old, new = (s.strip() for s in middle.split(" => ", 1))
         pair = [f"{prefix}{old}{suffix}", f"{prefix}{new}{suffix}"]
     else:
-        pair = [s.strip() for s in path.split("=>", 1)]
+        pair = [s.strip() for s in path.split(" => ", 1)]
     # `dir/{ => sub}/f` yields an empty side, collapsing to a doubled separator.
     return [q.replace("//", "/") for q in pair if q]
 

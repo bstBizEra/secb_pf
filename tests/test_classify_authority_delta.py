@@ -556,3 +556,22 @@ def test_rename_expansion_returns_both_real_paths():
     assert expand_rename("{config => docs}/e.json") == ["config/e.json", "docs/e.json"]
     assert expand_rename("old/a.md => new/b.md") == ["old/a.md", "new/b.md"]
     assert expand_rename("plain/path.md") == ["plain/path.md"]
+    # a directory level added or removed leaves one side of the brace empty
+    assert expand_rename("docs/g/{ => sub}/f.md") == ["docs/g/f.md", "docs/g/sub/f.md"]
+
+
+def test_a_filename_containing_an_arrow_is_not_split():
+    """`=` and `>` are legal in filenames and git does not quote them.
+
+    The first draft split on a bare `=>`, which turned the real path `docs/weird=>name.md` into
+    `['docs/weird', 'name.md']` -- two paths, neither of which exists, so every path rule was
+    evaluated against fiction. Git always renders the rename arrow with surrounding spaces, so the
+    separator is ` => ` and a bare arrow is just a character in a name.
+
+    Found by adversarially probing my own fix, not by the fix's own tests.
+    """
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from classify_authority_delta import expand_rename
+
+    assert expand_rename("docs/weird=>name.md") == ["docs/weird=>name.md"]
+    assert expand_rename("docs/a=>b/c=>d.md") == ["docs/a=>b/c=>d.md"]
