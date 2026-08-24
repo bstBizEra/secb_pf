@@ -3,7 +3,7 @@
 Status: Framework documented; three control gates executable (`SECB-WP-FWK-002`, `SECB-WP-FWK-004`); implementation started (`SECB-WP-FWK-010`)
 Owner: TBD
 Approvers: Authorized project representative under `SECB-WP-FWK-001`
-Version: 0.4.0
+Version: 0.4.1
 Last reviewed: 2026-08-10
 
 > This header is the single source of truth for project status

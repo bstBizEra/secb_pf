@@ -6,7 +6,7 @@ Work Package: `SECB-WP-ENGLOOP-001`
 
 ## Protected Assets
 
-Authority decisions, identities and credentials, source and build outputs, policy, state, budgets, evidence and side-effect ledgers, secrets, customer/regulated data, deployment environments, skills/tools/models, and audit history.
+Authority decisions, identities and credentials, source and build outputs, policy, state, budgets, evidence and side-effect ledgers, secrets, customer/regulated data, deployment environments, skills/tools/models, audit history, and the operator's own client where agent output is rendered.
 
 ## Threats and Required Controls
 
@@ -39,7 +39,7 @@ Authority decisions, identities and credentials, source and build outputs, polic
 
 ## Security Review Triggers
 
-Authentication/authorization, cryptography, secrets, sensitive data, external tools/MCP, network egress, sandbox changes, dependencies/build systems, policy/evidence logic, database migrations, infrastructure, merge automation, or release capability.
+Authentication/authorization, cryptography, secrets, sensitive data, external tools/MCP, network egress, sandbox changes, dependencies/build systems, policy/evidence logic, database migrations, infrastructure, merge automation, or release capability, or any surface that renders agent output to a human.
 
 ## Residual Risk
 
