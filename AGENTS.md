@@ -89,6 +89,11 @@ Each agent definition in `docs/agents/definitions/` must declare:
 - Agent ID, name, purpose, and owner
 - Permitted inputs, outputs, tools, and data classifications
 - Authority boundaries and prohibited actions
+- Epistemic boundary: the question classes this agent's inputs cannot answer, each with the
+  evidence that is missing and the source that would supply it. Distinct from the bullet
+  above: that one states what the agent may not DO, this one states what it cannot KNOW. An
+  agent that has one must disclose it in any output a reader could otherwise take as
+  covering the excluded class.
 - Required skills and routing rules
 - Budget, timeout, retry, and concurrency limits
 - Escalation and human-in-the-loop checkpoints
@@ -105,6 +110,9 @@ Each skill in `docs/skills/` must declare:
 - Allowed tools and permission boundaries
 - Validation tests and success criteria
 - Known risks, failure handling, and rollback
+- Epistemic boundary: conclusions this skill cannot support from its declared inputs, and
+  the input that would be required to support them. `INCONCLUSIVE` reports that a run did
+  not conclude; this field states what the skill can never conclude.
 - Version, provenance, change history, and approval status
 
 ## 10. Evidence and Traceability

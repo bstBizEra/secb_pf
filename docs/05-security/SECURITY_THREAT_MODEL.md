@@ -22,6 +22,7 @@ Authority decisions, identities and credentials, source and build outputs, polic
 | Concurrent overwrite | Leases, fencing tokens, optimistic versions | Stale writer accepted |
 | Supply-chain compromise | Lockfiles, hashes, SBOM, trusted registry/runner, provenance | Untrusted dependency/build origin |
 | Malicious or compromised agent/tool | Least privilege, typed contracts, output validation, audit | Deterministic gate bypass attempt |
+| Agent output rendered to a human | Egress sanitization of active content (raw HTML, `javascript:`/`vbscript:`/`data:` URIs in links, images and autolinks); render agent output as inert text; no auto-execution in operator clients | Active content reaches an operator client unsanitized |
 | Denial of service/cost exhaustion | Quotas, hard budgets, queue controls, breakers | Metering/control unavailable |
 | Unauthorized merge/release | Separate identities and approvals, protected branches/environments | Missing/expired effective approval |
 | Log/privacy leakage | Data minimization, classification, redaction, retention | Protected data outside approved store |
