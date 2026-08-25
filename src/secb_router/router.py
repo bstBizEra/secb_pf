@@ -94,13 +94,28 @@ def registry_hash(skills: Iterable[Skill]) -> str:
     return canonical_hash(rows)
 
 
-def _expand_prerequisites(chosen: set[str], by_id: dict[str, Skill]) -> set[str]:
+def _expand_prerequisites(
+    chosen: set[str],
+    eligible_by_id: dict[str, Skill],
+    all_by_id: dict[str, Skill] | None = None,
+) -> set[str]:
+    """Expand prerequisites, walking ONLY eligible skills.
+
+    Eligibility (status, expiry, risk ceiling, permitted effects) is enforced on
+    the top-level candidate loop. Expanding against the full registry would carry
+    a skill into the plan through the transitive edge without any of those checks
+    -- a REVOKED, expired skill reached as a prerequisite would be selected and
+    could then obtain both an invocation and an effect warrant. A prerequisite
+    that is not eligible makes the combination non-viable; the caller skips it.
+    """
     expanded = set(chosen)
     pending = list(chosen)
     while pending:
-        current = by_id[pending.pop()]
+        current = eligible_by_id[pending.pop()]
         for required in current.prerequisites:
-            if required not in by_id:
+            if required not in eligible_by_id:
+                if all_by_id is not None and required in all_by_id:
+                    raise RouteHeld(f"prerequisite not eligible: {required}")
                 raise RouteHeld(f"missing prerequisite: {required}")
             if required not in expanded:
                 expanded.add(required)
@@ -155,23 +170,38 @@ def route(request: dict, skills: list[Skill], policy_hash: str, now: datetime | 
             rejected[skill.skill_id] = reason
 
     explicit = tuple(request.get("explicit_skill_priorities", []))
-    eligible_ids = {skill.skill_id for skill in eligible}
+    # Last-wins is the deliberate choice: a duplicate skill_id means two versions
+    # are live, which is ordinary registry practice. What must NOT happen is an
+    # INELIGIBLE entry winning that resolution, which is why every lookup below
+    # goes through this map rather than the full registry. A registry-wide
+    # uniqueness guard was tried and withdrawn: it held routes for duplicates
+    # that were never required by the request, and it inverted monotonicity --
+    # lowering a request's risk tier made routing FAIL, because a stricter tier
+    # filtered one duplicate out and a looser one did not.
+    eligible_by_id = {skill.skill_id: skill for skill in eligible}
+    eligible_ids = set(eligible_by_id)
     missing_named = [skill_id for skill_id in explicit if skill_id not in eligible_ids]
     if missing_named:
         raise RouteHeld(f"named skill unavailable or unqualified: {missing_named[0]}")
 
     required = set(request["required_capabilities"])
     candidates: list[tuple[tuple, set[str]]] = []
+    dropped: dict[str, None] = {}
     for size in range(1, len(eligible) + 1):
         for combo in combinations(eligible, size):
             combo_ids = {s.skill_id for s in combo}
             if explicit and not set(explicit) <= combo_ids:
                 continue
             try:
-                ids = _expand_prerequisites(combo_ids, by_id)
-            except RouteHeld:
+                ids = _expand_prerequisites(combo_ids, eligible_by_id, by_id)
+            except RouteHeld as why:
+                # Keep the reason. Swallowing it collapsed every fault class --
+                # missing prerequisite, ineligible prerequisite, cycle -- into a
+                # single "coverage unavailable", so an operator could not tell a
+                # typo from a revoked dependency.
+                dropped.setdefault(str(why), None)
                 continue
-            chosen = [by_id[i] for i in ids]
+            chosen = [eligible_by_id[i] for i in ids]
             if any(set(s.conflicts) & ids for s in chosen):
                 continue
             coverage = set().union(*(s.capabilities for s in chosen))
@@ -189,13 +219,18 @@ def route(request: dict, skills: list[Skill], policy_hash: str, now: datetime | 
         if candidates:
             break
     if not candidates:
+        if dropped:
+            raise RouteHeld(
+                "mandatory capability coverage unavailable — "
+                + "; ".join(sorted(dropped))
+            )
         raise RouteHeld("mandatory capability coverage unavailable")
     ids = min(candidates, key=lambda row: row[0])[1]
-    order = _topological_order(ids, by_id)
+    order = _topological_order(ids, eligible_by_id)
     for skill in eligible:
         if skill.skill_id not in ids:
             rejected[skill.skill_id] = "NOT_MINIMUM_SUFFICIENT"
-    selected = [by_id[i] for i in order]
+    selected = [eligible_by_id[i] for i in order]
     return RoutePlan(
         route_id="route-" + request_hash[:12], request_hash=request_hash,
         registry_hash=registry_hash(skills), policy_hash=policy_hash,
