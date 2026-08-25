@@ -18,10 +18,10 @@
   "controls": [
     {
       "path": "scripts/classify_authority_delta.py",
-      "sha256": "920b99df28b85957cbbf37b9f9dd0aca9ce72367f44b4caa4dac6d6d0141dc66",
-      "bytes": 14096,
+      "sha256": "e5f0351127b73342052fb6329c2915244e45fe0fcfe3ac013f6f6bc087196bb7",
+      "bytes": 18900,
       "owning_work_package": "SECB-WP-FWK-048",
-      "last_changed_commit": "2250469",
+      "last_changed_commit": "SECB-WP-FWK-121",
       "portability_class": "verbatim",
       "claimed_transferable_by": "docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md",
       "field_observation": "Edited on instantiation: 63 lines changed against the commit it was copied from, 31 of them mentioning a renamed ladder token. The class is 'verbatim' as an intent, and the field falsifies the intent -- the G0-G5 ladder tokens are hard-coded in code and prose, so a host project that already uses those letters must rename them. Recorded rather than reclassified: reclassifying it to 'adapt' would describe the defect as a design, and then nobody would fix it. Tracked as finding 1 of the field report.",
