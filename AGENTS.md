@@ -25,6 +25,8 @@ Define the mandatory operating rules for every human, AI agent, sub-agent, tool,
 
 Applies to requirements, architecture, coding, testing, security, deployment, operations, evidence, and knowledge capture across SecB.
 
+This contract is also the entry point of a reusable delivery kit. Section 19 states what another project inherits, what it must decide, and what it may not change.
+
 ## 3. Instruction Precedence
 
 1. Applicable law and approved organizational policy
@@ -136,6 +138,8 @@ Evidence must be immutable or checksum-verifiable, timestamped, attributable, an
 - `docs/12-decisions/` — ADRs and formal decision records
 - `docs/13-evidence/` and `/evidence/` — evidence specifications and execution artifacts
 - `docs/15-runbooks/` — operational and recovery procedures
+- `docs/16-templates/` — the instantiation kit: checklist, profile, and the work-package,
+  decision-packet, stage-gate, RAID and product-definition templates
 - `/src`, `/tests`, `/infra`, `/config`, `/scripts` — implementation assets
 
 ## 13. Placeholders to Close
@@ -208,3 +212,41 @@ No single engineering outcome may immediately rewrite authoritative knowledge or
 The framework must measure engineering delivery, quality, cost, learning, knowledge, skill, governance, and business outcomes. Metrics must not reward speed or automation volume at the expense of safety, evidence, reliability, or stakeholder value.
 
 The KPI baseline is maintained in `docs/11-operations/PERFORMANCE_INDICATORS.md`.
+
+## 19. Framework Kit — instantiating this contract elsewhere
+
+This repository is not only a project. It is a delivery framework another project can adopt,
+and the machinery for that already exists — it was simply never referenced from here, which is
+the gap this section closes. Nothing below is new doctrine; every rule it names is defined in
+the artifact it points to.
+
+**Start here:** `docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md`, then
+`docs/16-templates/FRAMEWORK_INSTANTIATION_CHECKLIST.md` and its companion
+`FRAMEWORK_INSTANTIATION_PROFILE.yaml`. A record of a real instantiation, including its measured
+cost, is in `docs/13-evidence/INSTANTIATION_FIELD_REPORT.md`.
+
+**Three things an adopting project inherits, decides, or may not change.**
+
+- *Inherited.* The control mechanisms: the authority classifier and delegation envelope, the
+  budget circuit breaker, the work-package reference gate, the evidence and traceability rules,
+  and the schemas under `config/`. These are reusable as they stand.
+- *Decided by the instance.* Everything in section 13. Those are not omissions in this document;
+  they are the decisions an adopting authority must make for itself, and the checklist states the
+  consequence plainly: an unresolved placeholder makes the instance `NOT_READY`, because `TODO`
+  is an unanswered authority question rather than a default.
+- *Not changeable by an instance.* The invariants listed under "Invariants — these are not
+  preferences" in the checklist. They include that no inherited field silently becomes authority,
+  that framework defaults are recommendations until the instance's authority ratifies them, and
+  that control strength is never reported above the mechanism and its verified behaviour.
+
+**Identifier prefixes are configuration, not code.** `SECB-WP` lives in
+`config/delegation_envelope.json` and the enforcement scripts read it at runtime (`FWK-036`).
+An adopting project sets its own prefix there; the `SECB-WP-*` identifiers throughout this
+document are provenance for decisions already taken here, not values another instance must adopt.
+
+**What a kit cannot supply.** It cannot supply an authority. Section 13's first item — confirm
+the governance owner and approval authority — gates every other item in that list, and no
+template, agent or automation can close it. `ballot_layer.state` in the envelope records the
+matching constraint for agent ballots: five role labels emitted by one session are self-approval
+in five hats, not five approvals. An instance that adopts the mechanisms without naming an
+authority has adopted a detective framework and no decision procedure.
