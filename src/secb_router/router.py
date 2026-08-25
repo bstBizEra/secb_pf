@@ -68,6 +68,16 @@ class RoutePlan:
     order: list[str]
     version: int = 1
     status: str = "PLANNED"
+    # Warrant VALUES, not skill ids. A membership test against an id proves only
+    # that someone named the skill; a test against the value proves the guards in
+    # authorize_invocation ran against this exact route_id and version.
+    #
+    # NOT CLOSED HERE, and deliberately not claimed: an in-process caller holding
+    # this object can still compute the hash itself and insert it. Preventing that
+    # needs a principal boundary this module does not have and does not claim --
+    # see the module docstring. What changes is that forging now requires
+    # reproducing route_id AND version, so it no longer survives a route change,
+    # and the forged value is recorded rather than a bare name.
     invocation_warrants: set[str] = field(default_factory=set)
     effect_warrants: set[tuple[str, str]] = field(default_factory=set)
 
@@ -249,21 +259,39 @@ def authorize_invocation(plan: RoutePlan, skill_id: str, *, request: dict,
     if skill_id not in plan.order:
         raise RouteHeld("skill not selected")
     warrant = canonical_hash([plan.route_id, plan.version, skill_id, "invoke"])
-    plan.invocation_warrants.add(skill_id)
+    # Store the warrant VALUE, not the skill_id. Storing the id meant the computed
+    # warrant was discarded and never verified by anything, and it meant a route
+    # whose version had moved on still carried its old authority.
+    plan.invocation_warrants.add(warrant)
     plan.status = "AUTHORIZED"
     return warrant
 
 
 def authorize_effect(plan: RoutePlan, skill_id: str, effect: str, *, confirmation: bool) -> str:
-    if skill_id not in plan.invocation_warrants:
+    # Recompute what a valid warrant for the CURRENT plan state would be, and
+    # require that exact value to be present. Because plan.version is inside the
+    # hash, a version bump invalidates every warrant issued against the old
+    # version -- a fallback route no longer inherits the original's authority.
+    expected = canonical_hash([plan.route_id, plan.version, skill_id, "invoke"])
+    if expected not in plan.invocation_warrants:
         raise RouteHeld("invocation not authorized")
     skill = next(s for s in plan.selected if s.skill_id == skill_id)
     if effect not in skill.effects:
         raise RouteHeld("effect outside skill contract")
     if effect in HIGH_IMPACT_EFFECTS and not confirmation:
         raise RouteHeld("separate effect confirmation required")
-    plan.effect_warrants.add((skill_id, effect))
-    return canonical_hash([plan.route_id, plan.version, skill_id, effect, "effect"])
+    effect_warrant = canonical_hash(
+        [plan.route_id, plan.version, skill_id, effect, "effect"]
+    )
+    # Read the record before writing it. Previously this set was written once and
+    # read nowhere, so the Layer-B trail it purported to keep was dead storage no
+    # consumer could check. A repeat authorization for the same (route, version,
+    # skill, effect) is a replay: return the existing warrant rather than minting a
+    # second one, so the set is a record that is actually consulted.
+    if effect_warrant in plan.effect_warrants:
+        return effect_warrant
+    plan.effect_warrants.add(effect_warrant)
+    return effect_warrant
 
 
 def validate_handoff(handoff: dict, expected_schema: str, allowed_classifications: set[str]) -> None:
