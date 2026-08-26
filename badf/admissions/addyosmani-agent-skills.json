@@ -1,0 +1,65 @@
+{
+  "skill_id": "addyosmani-agent-skills",
+  "name": "addyosmani/agent-skills",
+  "version": "7829ffd9",
+  "upstream_url": "https://github.com/addyosmani/agent-skills",
+  "upstream_commit": "7829ffd90d973b6325f5f12f1b1226dcace74443",
+  "license": "MIT",
+  "license_decision": "COMPATIBLE",
+  "owner": "UNASSIGNED \u2014 governance owner of record is not named (AGENTS.md section 13 item 1)",
+  "purpose": "24 production-engineering skills spanning define, plan, build, verify, review, ship.",
+  "declared_capabilities": {
+    "network": [
+      "UNDECLARED \u2014 12 of 24 SKILL.md files instruct curl/fetch/npm-install; not enumerated"
+    ],
+    "filesystem": [
+      "UNDECLARED"
+    ],
+    "commands": [
+      "UNDECLARED \u2014 33 shipped script files, none inspected"
+    ],
+    "credentials": [
+      "UNDECLARED \u2014 API-key handling appears in guidance text"
+    ],
+    "external_services": [
+      "UNDECLARED"
+    ]
+  },
+  "data_classes": [
+    "PUBLIC"
+  ],
+  "declared_authority": "NONE",
+  "prohibited_effects": [
+    "production deployment",
+    "credential issuance",
+    "external mutation"
+  ],
+  "prompt_injection_assessment": {
+    "performed": false,
+    "outcome": "NOT_PERFORMED",
+    "notes": "Zero allowed-tools declarations across all 24 skills; no untrusted-content boundary test run."
+  },
+  "supply_chain_assessment": {
+    "performed": false,
+    "outcome": "NOT_PERFORMED",
+    "inspected_files": 0,
+    "total_files": 33,
+    "notes": "declared_dependency != inspected_dependency != approved_dependency (standard 4.3). None inspected."
+  },
+  "routing_tests": {
+    "performed": false,
+    "outcome": "NOT_PERFORMED"
+  },
+  "evidence_mapping": {},
+  "rollback": {
+    "strategy": "Disable plugin in settings.json and remove the pinned local marketplace checkout.",
+    "verified": false
+  },
+  "residual_risks": [
+    "Installed and ENABLED in the operator environment while unassessed (settings.json).",
+    "Capability declarations are placeholders, not enumerations.",
+    "The 12/24 network figure comes from grepping prose, not from inspecting the 33 scripts."
+  ],
+  "lifecycle_state": "ASSESSED",
+  "assessed_at": "2026-08-26T00:00:00Z"
+}

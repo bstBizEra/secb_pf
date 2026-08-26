@@ -1,0 +1,6 @@
+{
+  "schema_version": "1.0.0",
+  "default_policy": "deny-mutation",
+  "note": "READ within declared scope; WRITE explicit; MUTATE denied unless an entry grants it and an authority record permits it. Capability is not permission.",
+  "tools": []
+}

@@ -1,0 +1,6 @@
+{
+  "schema_version": "1.0.0",
+  "default_policy": "deny",
+  "note": "Empty with an explicit deny posture. Absence of a server entry is a denial, not an omission.",
+  "servers": []
+}
