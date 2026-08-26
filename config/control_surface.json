@@ -83,6 +83,17 @@
       "claimed_transferable_by": "not listed in docs/15-runbooks/NEW_PROJECT_BOOTSTRAP.md",
       "field_observation": "Not yet instantiated anywhere. 'configure' because the emitter's logic is reusable while the envelope prefix it reads and the workflow that supplies its environment are project-specific.",
       "staleness_consequence": "None derivable. Configure-class: a downstream copy is supposed to differ, so a digest mismatch says nothing about staleness."
+    },
+    {
+      "path": "scripts/check_badf_registry.py",
+      "sha256": "582da3d32a7fcb8d314861545d0fb4da059f3eed67bffb59423cce635e672888",
+      "bytes": 8112,
+      "owning_work_package": "SECB-WP-FWK-136",
+      "last_changed_commit": "SECB-WP-FWK-136",
+      "portability_class": "adapt",
+      "claimed_transferable_by": "docs/00-governance/BADF_SKILL_ADMISSION_STANDARD.md",
+      "field_observation": "Classified 'adapt' rather than 'verbatim' on first registration. The validator pins three registry policy values and a lifecycle vocabulary that are BADF-specific; a host project with different postures must edit them, so claiming verbatim portability would assert a transferability the file does not have.",
+      "staleness_consequence": "Bound to BADF_SKILL_ADMISSION_STANDARD.md at blob b2fcad267a09bc6612ac508272165476daa2c109, which is on branch feat/badf-pf-operating-charter and NOT on main. If that document changes, this control still executes and its claim to implement the standard becomes false without failing -- the staleness is silent and must be re-verified by reading the blob, not by running the gate."
     }
   ],
   "declared_exclusions": [

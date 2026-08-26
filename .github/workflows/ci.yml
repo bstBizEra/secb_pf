@@ -127,6 +127,24 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: python scripts/emit_pr_input_binding.py
 
+  badf-registry-gate:
+    name: "BADF — registry and admission posture"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Fail-closed. The validator refuses on a weakened registry posture, an
+      # unpinned upstream commit, an undeclared capability class, or a lifecycle
+      # state that outruns its own evidence. It is wired here rather than left
+      # runnable-on-request because a control nothing invokes is a declaration:
+      # this repository has recorded that failure eight times (see #249).
+      - name: Registry and admission posture
+        run: python3 scripts/check_badf_registry.py all
+
   budget-gate:
     name: "Budget — declared ceiling"
     if: github.event_name == 'pull_request'

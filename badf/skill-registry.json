@@ -1,0 +1,6 @@
+{
+  "schema_version": "1.0.0",
+  "default_policy": "approved-only",
+  "note": "A registry entry is not activation. ACTIVATED requires an effective authority record, which this work package does not create.",
+  "skills": []
+}
