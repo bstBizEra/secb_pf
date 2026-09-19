@@ -1,3 +1,8 @@
+> [!IMPORTANT]
+> **This repository is frozen as of 2026-09-19 and will be archived after badf-core Phase 1.**
+> Its framework role has moved to [bstBizEra/BADF-Core](https://github.com/bstBizEra/BADF-Core).
+> Only critical fixes are accepted. Extraction status: `BADF-Core/docs/migration/EXTRACTION_REGISTER.md`.
+
 # SecB Project Framework
 
 Status: **canonical status lives in
